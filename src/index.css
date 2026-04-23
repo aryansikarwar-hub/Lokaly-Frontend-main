@@ -1,0 +1,179 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark-mode base tweaks. The `ink` color already exists; just ensure sensible
+   defaults so `bg-white dark:bg-ink` style works everywhere. */
+html.dark body {
+  background-color: #1F1A2B;
+  background-image: none;
+  color: #FAF6EF;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* -----------------------------------------------------------------------
+   Global dark-mode fallbacks.
+   Many components use the brand's light palette (bg-white, bg-cream,
+   bg-peach, text-ink, etc.) without explicit `dark:` variants. Remap those
+   utility classes under `html.dark` so pages blend into the dark theme
+   without touching every component.
+   ----------------------------------------------------------------------- */
+html.dark .bg-white { background-color: #2A2438 !important; }
+html.dark .bg-cream { background-color: #2A2438 !important; }
+html.dark .bg-bone { background-color: #241F31 !important; }
+html.dark .bg-peach { background-color: #3A2E44 !important; }
+html.dark .bg-lavender { background-color: #352A4A !important; }
+html.dark .bg-mint { background-color: #243A33 !important; }
+html.dark .bg-butter { background-color: #3A3526 !important; }
+
+/* Surface tints with opacity modifiers */
+html.dark .bg-white\/40,
+html.dark .bg-white\/50,
+html.dark .bg-white\/60,
+html.dark .bg-white\/70,
+html.dark .bg-white\/80,
+html.dark .bg-white\/90 { background-color: rgba(255, 255, 255, 0.06) !important; }
+html.dark .bg-cream\/40,
+html.dark .bg-cream\/50,
+html.dark .bg-cream\/60,
+html.dark .bg-cream\/70,
+html.dark .bg-cream\/80,
+html.dark .bg-cream\/90 { background-color: rgba(255, 255, 255, 0.06) !important; }
+html.dark .bg-peach\/20,
+html.dark .bg-peach\/30,
+html.dark .bg-peach\/40,
+html.dark .bg-peach\/50,
+html.dark .bg-peach\/60 { background-color: rgba(255, 214, 186, 0.12) !important; }
+html.dark .bg-lavender\/20,
+html.dark .bg-lavender\/30,
+html.dark .bg-lavender\/40,
+html.dark .bg-lavender\/50 { background-color: rgba(228, 212, 244, 0.12) !important; }
+html.dark .bg-mint\/20,
+html.dark .bg-mint\/30,
+html.dark .bg-mint\/40 { background-color: rgba(200, 244, 222, 0.12) !important; }
+
+/* FIX: bg-white/8 — language picker dark mode background */
+html.dark .bg-white\/8 { background-color: rgba(255, 255, 255, 0.08) !important; }
+
+/* Text colors */
+html.dark .text-ink { color: #FAF6EF !important; }
+html.dark .text-ink\/90 { color: rgba(250, 246, 239, 0.92) !important; }
+html.dark .text-ink\/80 { color: rgba(250, 246, 239, 0.82) !important; }
+html.dark .text-ink\/70 { color: rgba(250, 246, 239, 0.72) !important; }
+html.dark .text-ink\/60 { color: rgba(250, 246, 239, 0.6) !important; }
+html.dark .text-ink\/50 { color: rgba(250, 246, 239, 0.5) !important; }
+html.dark .text-ink\/45 { color: rgba(250, 246, 239, 0.45) !important; }
+html.dark .text-ink\/40 { color: rgba(250, 246, 239, 0.4) !important; }
+/* FIX: text-ink/55 was missing — subtitle & example queries were invisible in dark mode */
+html.dark .text-ink\/55 { color: rgba(250, 246, 239, 0.55) !important; }
+html.dark .text-ink\/75 { color: rgba(250, 246, 239, 0.75) !important; }
+html.dark .text-mauve { color: #B8A8D4 !important; }
+
+/* Borders */
+html.dark .border-white { border-color: rgba(255, 255, 255, 0.08) !important; }
+html.dark .border-white\/60,
+html.dark .border-white\/70,
+html.dark .border-white\/80 { border-color: rgba(255, 255, 255, 0.08) !important; }
+html.dark .border-ink\/5 { border-color: rgba(255, 255, 255, 0.06) !important; }
+html.dark .border-ink\/10 { border-color: rgba(255, 255, 255, 0.08) !important; }
+html.dark .border-ink\/15 { border-color: rgba(255, 255, 255, 0.1) !important; }
+html.dark .border-ink\/20 { border-color: rgba(255, 255, 255, 0.12) !important; }
+html.dark .divide-ink\/5 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255, 255, 255, 0.06) !important; }
+html.dark .divide-ink\/10 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255, 255, 255, 0.08) !important; }
+
+/* Gradient card backgrounds */
+html.dark .from-butter { --tw-gradient-from: #3A3526 var(--tw-gradient-from-position) !important; }
+html.dark .to-peach { --tw-gradient-to: #3A2E44 var(--tw-gradient-to-position) !important; }
+html.dark .from-lavender\/40 { --tw-gradient-from: rgba(228, 212, 244, 0.12) var(--tw-gradient-from-position) !important; }
+html.dark .to-peach\/40 { --tw-gradient-to: rgba(255, 214, 186, 0.12) var(--tw-gradient-to-position) !important; }
+
+/* Hover states */
+html.dark .hover\:bg-white:hover { background-color: rgba(255, 255, 255, 0.08) !important; }
+html.dark .hover\:bg-white\/50:hover,
+html.dark .hover\:bg-white\/60:hover,
+html.dark .hover\:bg-white\/70:hover { background-color: rgba(255, 255, 255, 0.08) !important; }
+html.dark .hover\:bg-peach\/40:hover,
+html.dark .hover\:bg-peach\/50:hover { background-color: rgba(255, 214, 186, 0.16) !important; }
+
+/* Input / form surfaces */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  color: #FAF6EF !important;
+  background-color: #2A2438 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder { color: rgba(250, 246, 239, 0.4); }
+
+/* FIX: Native select + option visibility in dark mode */
+html.dark select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+html.dark select option {
+  background-color: #2A2438;
+  color: #FAF6EF;
+}
+
+html.dark select option:checked,
+html.dark select option:hover,
+html.dark select option:focus {
+  background-color: #3A2E44;
+  color: #FAF6EF;
+}
+
+html.dark select:focus {
+  outline: none;
+}
+
+/* --- Google Translate / accessibility widget --- */
+.skiptranslate iframe.goog-te-banner-frame,
+iframe.goog-te-banner-frame.skiptranslate {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+}
+
+.VIpgJd-ZVi9od-ORHb,
+.VIpgJd-ZVi9od-ORHb:hover,
+.VIpgJd-ZVi9od-ORHb:focus,
+.a11y-widget,
+.a11y-widget:hover,
+.a11y-widget:focus {
+  opacity: 1 !important;
+  filter: none !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.a11y-widget {
+  background-color: #1F1A2B;
+  color: #FAF6EF;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 24px -10px rgba(31, 26, 43, 0.35);
+}
+html.dark .a11y-widget {
+  background-color: #FAF6EF;
+  color: #1F1A2B;
+  border-color: rgba(31, 26, 43, 0.2);
+}
+.a11y-widget:hover {
+  transform: translateY(-1px);
+}
+
+.goog-tooltip,
+.goog-tooltip:hover,
+.goog-text-highlight {
+  display: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
