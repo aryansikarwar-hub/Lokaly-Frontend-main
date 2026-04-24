@@ -38,7 +38,7 @@ function timeAgo(dateStr) {
 }
 
 /* ══════════════════════════════════════════
-   POST CARD — redesigned
+   POST CARD — uniform fixed height
 ══════════════════════════════════════════ */
 function PostCard({ post, onOpen }) {
   const user = useAuthStore((s) => s.user);
@@ -65,45 +65,51 @@ function PostCard({ post, onOpen }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-32px" }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative rounded-2xl overflow-hidden bg-white dark:bg-white/5 border border-ink/5 dark:border-white/8 hover:border-ink/15 dark:hover:border-white/15 hover:shadow-soft transition-all duration-300"
+      className="group relative rounded-2xl overflow-hidden bg-white dark:bg-white/5 border border-ink/5 dark:border-white/8 hover:border-ink/15 dark:hover:border-white/15 hover:shadow-soft transition-all duration-300 flex flex-col"
     >
-      {/* ── image ── */}
-      {hasImage && (
-        <div
-          className="relative overflow-hidden cursor-pointer"
-          onClick={() => onOpen?.(post)}
-        >
+      {/* ── image — fixed square aspect, always same height ── */}
+      <div
+        className="relative overflow-hidden cursor-pointer w-full shrink-0"
+        style={{ paddingTop: "100%" /* 1:1 square */ }}
+        onClick={() => onOpen?.(post)}
+      >
+        {hasImage ? (
           <img
             src={img}
             alt={post.caption || "post"}
             loading="lazy"
-            className="w-full object-cover aspect-[4/5] group-hover:scale-[1.03] transition-transform duration-500"
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
           />
-
-          {/* gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-          {/* timestamp badge */}
-          <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-ink/50 backdrop-blur-md text-[9px] font-jakarta font-semibold text-white/90 tracking-wide">
-            {timeAgo(post.createdAt)}
+        ) : (
+          /* placeholder for text-only posts */
+          <div className="absolute inset-0 w-full h-full bg-lavender/20 dark:bg-lavender/10 grid place-items-center">
+            <HiOutlinePhoto className="text-4xl text-ink/20 dark:text-cream/20" />
           </div>
+        )}
 
-          {/* tagged product chip */}
-          {tagged[0] && (
-            <Link
-              to={`/product/${tagged[0]._id}`}
-              onClick={(e) => e.stopPropagation()}
-              className="absolute bottom-2.5 left-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur text-ink text-[10px] font-jakarta font-semibold hover:bg-white transition shadow-soft"
-            >
-              <HiOutlineShoppingBag className="text-xs text-coral" />
-              <span className="truncate max-w-[130px]">{tagged[0].title?.slice(0, 26)}</span>
-            </Link>
-          )}
+        {/* gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+        {/* timestamp badge */}
+        <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-ink/50 backdrop-blur-md text-[9px] font-jakarta font-semibold text-white/90 tracking-wide">
+          {timeAgo(post.createdAt)}
         </div>
-      )}
 
-      {/* ── body ── */}
-      <div className="p-3.5">
+        {/* tagged product chip */}
+        {tagged[0] && (
+          <Link
+            to={`/product/${tagged[0]._id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute bottom-2.5 left-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur text-ink text-[10px] font-jakarta font-semibold hover:bg-white transition shadow-soft"
+          >
+            <HiOutlineShoppingBag className="text-xs text-coral" />
+            <span className="truncate max-w-[130px]">{tagged[0].title?.slice(0, 26)}</span>
+          </Link>
+        )}
+      </div>
+
+      {/* ── body — flex-1 so all cards stretch to same total height ── */}
+      <div className="p-3.5 flex flex-col flex-1">
         {/* author */}
         <Link
           to={`/profile/${post.author?._id}`}
@@ -122,20 +128,16 @@ function PostCard({ post, onOpen }) {
                 <HiOutlineShieldCheck className="text-leaf shrink-0 text-xs" />
               )}
             </p>
-            {!hasImage && (
-              <p className="text-[9px] text-ink/40 dark:text-cream/40 font-jakarta">
-                {timeAgo(post.createdAt)}
-              </p>
-            )}
+            <p className="text-[9px] text-ink/40 dark:text-cream/40 font-jakarta">
+              {timeAgo(post.createdAt)}
+            </p>
           </div>
         </Link>
 
-        {/* caption */}
-        {post.caption && (
-          <p className="mt-2 text-[11px] text-ink/75 dark:text-cream/70 font-jakarta leading-relaxed line-clamp-2">
-            {post.caption}
-          </p>
-        )}
+        {/* caption — fixed 2-line clamp so height stays uniform */}
+        <p className="mt-2 text-[11px] text-ink/75 dark:text-cream/70 font-jakarta leading-relaxed line-clamp-2 min-h-[2.5rem]">
+          {post.caption || ""}
+        </p>
 
         {/* hashtags */}
         {post.hashtags?.length > 0 && (
@@ -150,6 +152,9 @@ function PostCard({ post, onOpen }) {
             ))}
           </div>
         )}
+
+        {/* spacer pushes actions to bottom */}
+        <div className="flex-1" />
 
         {/* actions */}
         <div className="mt-3 pt-2.5 border-t border-ink/5 dark:border-white/8 flex items-center gap-4">
@@ -187,15 +192,13 @@ function PostCard({ post, onOpen }) {
 }
 
 /* ══════════════════════════════════════════
-   MASONRY GRID — responsive columns
+   FEED GRID — uniform CSS grid (not masonry)
 ══════════════════════════════════════════ */
 function FeedGrid({ posts, onOpen }) {
   return (
-    <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-0">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {posts.map((p) => (
-        <div key={p._id} className="break-inside-avoid mb-4">
-          <PostCard post={p} onOpen={onOpen} />
-        </div>
+        <PostCard key={p._id} post={p} onOpen={onOpen} />
       ))}
     </div>
   );
