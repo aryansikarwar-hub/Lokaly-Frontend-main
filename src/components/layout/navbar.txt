@@ -32,19 +32,17 @@ import { useEffect, useRef, useState } from "react";
 
 function renderVerifiedBadge(user, size = 12) {
   if (!user) return null;
-  const verified =
-    user.isVerifiedSeller === true || user.isEmailVerified === true;
+  const verified = user.isVerifiedSeller === true || user.isEmailVerified === true;
   if (!verified) return null;
-  const title =
-    user.isVerifiedSeller === true ? "Verified seller" : "Email verified";
+  const title = user.isVerifiedSeller === true ? "Verified seller" : "Email verified";
   return <VerifiedBadge isVerifiedSeller size={size} title={title} />;
 }
 
 const links = [
-  { to: "/feed",        label: "Feed",        icon: HiOutlineSparkles    },
-  { to: "/products",    label: "Shop",        icon: HiOutlineShoppingBag },
-  { to: "/live",        label: "Live",        icon: HiOutlineVideoCamera },
-  { to: "/leaderboard", label: "Leaderboard", icon: HiOutlineGlobeAlt    },
+  { to: "/feed", label: "Feed", icon: HiOutlineSparkles },
+  { to: "/products", label: "Shop", icon: HiOutlineShoppingBag },
+  { to: "/live", label: "Live", icon: HiOutlineVideoCamera },
+  { to: "/leaderboard", label: "Leaderboard", icon: HiOutlineGlobeAlt },
 ];
 
 function resolveRole(user) {
@@ -64,40 +62,33 @@ function resolveUserId(user) {
 }
 
 export default function Navbar() {
-  const user      = useAuthStore((s) => s.user);
-  const logout    = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const { cart, fetch } = useCartStore();
   const cartCount = (cart?.items || []).reduce((s, i) => s + i.quantity, 0);
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
   const { theme, toggle: toggleTheme } = useTheme();
 
-  const [mobileOpen,  setMobileOpen]  = useState(false);
-  const [searchOpen,  setSearchOpen]  = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
 
-  /* close profile dropdown on outside click */
   useEffect(() => {
     if (!profileOpen) return;
     const handler = (e) => {
-      if (profileRef.current && !profileRef.current.contains(e.target))
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
         setProfileOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [profileOpen]);
 
-  /* lock body scroll when sidebar is open */
-  useEffect(() => {
-    document.body.style.overflow = mobileOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [mobileOpen]);
-
-  useEffect(() => { if (user) fetch(); }, [user, fetch]);
-
-  const role          = resolveRole(user);
-  const myId          = resolveUserId(user);
-  const dashboardPath = role === "buyer" ? "/buyer/dashboard" : "/dashboard";
+  const role = resolveRole(user);
+  const myId = resolveUserId(user);
+  const dashboardPath =
+    role === "buyer" ? "/buyer/dashboard" : "/dashboard";
 
   const handleLogout = () => {
     setProfileOpen(false);
@@ -106,15 +97,19 @@ export default function Navbar() {
     navigate("/login");
   };
 
-  /* ── close sidebar helper ── */
-  const closeMobile = (e) => {
-    e?.stopPropagation();
-    setMobileOpen(false);
-  };
+  useEffect(() => {
+    if (user) fetch();
+  }, [user, fetch]);
+
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   return (
     <>
-      {/* ════════════════ NAVBAR ════════════════ */}
       <motion.nav
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -122,13 +117,11 @@ export default function Navbar() {
         className="sticky top-0 z-40 backdrop-blur-xl bg-cream/80 dark:bg-ink/80 border-b border-ink/5 dark:border-white/5"
       >
         <div className="max-w-7xl mx-auto px-3 lg:px-6 py-2 flex items-center gap-2 lg:gap-3">
-
-          {/* logo */}
           <Link to="/" className="flex items-center gap-1.5 shrink-0">
             <span className="w-8 h-8 rounded-xl bg-coral-gradient shadow-pop grid place-items-center text-white font-fraunces text-sm">
               L
             </span>
-            <span className="font-fraunces text-base text-ink dark:text-cream tracking-tight">
+            <span className="font-fraunces text-base text-ink tracking-tight">
               Lokaly
             </span>
             <span className="hidden xl:inline-block text-[10px] uppercase tracking-[0.2em] text-ink/40 font-jakarta font-semibold ml-2 whitespace-nowrap">
@@ -136,7 +129,6 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* desktop nav links */}
           <div className="hidden lg:flex items-center gap-0.5 ml-1">
             {links.map((l) => (
               <NavLink
@@ -144,7 +136,9 @@ export default function Navbar() {
                 to={l.to}
                 className={({ isActive }) =>
                   `px-2.5 py-1.5 rounded-full font-jakarta text-xs font-semibold flex items-center gap-1 transition whitespace-nowrap ${
-                    isActive ? "bg-peach text-ink" : "text-ink/70 hover:bg-peach/50"
+                    isActive
+                      ? "bg-peach text-ink"
+                      : "text-ink/70 hover:bg-peach/50"
                   }`
                 }
               >
@@ -156,7 +150,6 @@ export default function Navbar() {
 
           <div className="flex-1" />
 
-          {/* desktop search */}
           <div className="hidden xl:flex items-center gap-1.5 bg-white/70 rounded-full px-2.5 py-1.5 border border-ink/5 w-48 focus-within:border-ink/20 transition">
             <HiOutlineMagnifyingGlass className="text-ink/50 shrink-0 text-sm" />
             <input
@@ -165,10 +158,9 @@ export default function Navbar() {
             />
           </div>
 
-          {/* mobile search toggle */}
           <button
             onClick={() => setSearchOpen((v) => !v)}
-            className="xl:hidden w-9 h-9 grid place-items-center rounded-full hover:bg-peach/60 text-ink shrink-0 touch-manipulation"
+            className="xl:hidden w-8 h-8 grid place-items-center rounded-full hover:bg-peach/60 text-ink shrink-0"
             aria-label="Search"
           >
             <HiOutlineMagnifyingGlass className="text-base" />
@@ -184,10 +176,9 @@ export default function Navbar() {
             </div>
           )}
 
-          {/* cart */}
           <Link
             to="/cart"
-            className="relative w-9 h-9 grid place-items-center rounded-full hover:bg-peach/60 text-ink shrink-0 touch-manipulation"
+            className="relative w-8 h-8 grid place-items-center rounded-full hover:bg-peach/60 text-ink shrink-0"
             aria-label="Cart"
           >
             <HiOutlineShoppingBag className="text-base" />
@@ -198,9 +189,8 @@ export default function Navbar() {
             )}
           </Link>
 
-          {/* notifications */}
           <button
-            className="hidden sm:grid w-9 h-9 place-items-center rounded-full hover:bg-peach/60 dark:hover:bg-white/10 text-ink dark:text-cream shrink-0 touch-manipulation"
+            className="hidden sm:grid w-8 h-8 place-items-center rounded-full hover:bg-peach/60 dark:hover:bg-white/10 text-ink dark:text-cream shrink-0"
             aria-label="Notifications"
           >
             <HiOutlineBell className="text-base" />
@@ -208,7 +198,6 @@ export default function Navbar() {
 
           <ThemeToggle />
 
-          {/* profile dropdown */}
           {user ? (
             <div className="relative shrink-0" ref={profileRef}>
               <button
@@ -216,9 +205,14 @@ export default function Navbar() {
                 aria-label="Profile menu"
                 aria-haspopup="menu"
                 aria-expanded={profileOpen}
-                className="rounded-full focus:outline-none focus:ring-2 focus:ring-coral/50 touch-manipulation"
+                className="rounded-full focus:outline-none focus:ring-2 focus:ring-coral/50"
               >
-                <Avatar src={user.avatar} name={user.name} size="xs" aura={user.trustScore} />
+                <Avatar
+                  src={user.avatar}
+                  name={user.name}
+                  size="xs"
+                  aura={user.trustScore}
+                />
               </button>
               <AnimatePresence>
                 {profileOpen && (
@@ -254,13 +248,11 @@ export default function Navbar() {
                       <HiOutlineSquares2X2 className="text-base" /> Dashboard
                     </button>
                     <button
-                      onClick={() => toggleTheme()}
+                      onClick={() => { toggleTheme(); }}
                       className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-jakarta font-semibold text-ink/80 dark:text-cream/80 hover:bg-peach/60 dark:hover:bg-white/10 transition"
                       role="menuitem"
                     >
-                      {theme === "dark"
-                        ? <HiOutlineSun className="text-base" />
-                        : <HiOutlineMoon className="text-base" />}
+                      {theme === "dark" ? <HiOutlineSun className="text-base" /> : <HiOutlineMoon className="text-base" />}
                       Theme: {theme === "dark" ? "Dark" : "Light"}
                     </button>
                     <button
@@ -283,17 +275,15 @@ export default function Navbar() {
             </Link>
           )}
 
-          {/* hamburger */}
           <button
             onClick={() => setMobileOpen(true)}
-            className="lg:hidden w-9 h-9 grid place-items-center rounded-full hover:bg-peach/60 text-ink shrink-0 touch-manipulation"
-            aria-label="Open menu"
+            className="lg:hidden w-8 h-8 grid place-items-center rounded-full hover:bg-peach/60 text-ink shrink-0"
+            aria-label="Menu"
           >
             <HiOutlineBars3 className="text-xl" />
           </button>
         </div>
 
-        {/* mobile search bar */}
         <AnimatePresence>
           {searchOpen && (
             <motion.div
@@ -318,65 +308,61 @@ export default function Navbar() {
         </AnimatePresence>
       </motion.nav>
 
-      {/* ════════════════ MOBILE SIDEBAR ════════════════ */}
       <AnimatePresence>
         {mobileOpen && (
           <>
-            {/* backdrop — z-[998] */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              onClick={closeMobile}
-              className="fixed inset-0 z-[998] bg-ink/30 backdrop-blur-sm lg:hidden"
+              onClick={() => setMobileOpen(false)}
+              className="fixed inset-0 z-50 bg-ink/30 backdrop-blur-sm lg:hidden"
             />
-
-            {/* drawer — z-[999], above backdrop */}
             <motion.aside
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="fixed top-0 right-0 bottom-0 z-[999] w-[80%] max-w-xs bg-cream dark:bg-ink shadow-2xl lg:hidden flex flex-col"
+              className="fixed top-0 right-0 bottom-0 z-50 w-[80%] max-w-xs bg-cream shadow-2xl lg:hidden flex flex-col"
             >
-              {/* header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10 dark:border-white/10">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10">
                 <div className="flex items-center gap-1.5">
                   <span className="w-8 h-8 rounded-xl bg-coral-gradient shadow-pop grid place-items-center text-white font-fraunces text-sm">
                     L
                   </span>
-                  <span className="font-fraunces text-base text-ink dark:text-cream tracking-tight">
+                  <span className="font-fraunces text-base text-ink tracking-tight">
                     Lokaly
                   </span>
                 </div>
-
-                {/* ✅ FIXED close button — 44px touch target, stopPropagation */}
                 <button
-                  type="button"
-                  onPointerUp={closeMobile}
-                  className="w-11 h-11 grid place-items-center rounded-full bg-transparent hover:bg-peach/60 dark:hover:bg-white/10 active:bg-peach/80 text-ink dark:text-cream touch-manipulation select-none"
+                  onClick={() => setMobileOpen(false)}
+                  className="w-8 h-8 grid place-items-center rounded-full hover:bg-peach/60 text-ink"
                   aria-label="Close menu"
                 >
-                  <HiOutlineXMark className="text-xl pointer-events-none" />
+                  <HiOutlineXMark className="text-xl" />
                 </button>
               </div>
 
-              {/* nav content */}
               <nav className="flex-1 overflow-y-auto px-3 py-3">
                 {user ? (
                   <Link
                     to={`/profile/${myId}`}
-                    onClick={closeMobile}
+                    onClick={() => setMobileOpen(false)}
                     className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-ink/5 dark:border-white/10 mb-3"
                   >
-                    <Avatar src={user.avatar} name={user.name} size="sm" aura={user.trustScore} />
+                    <Avatar
+                      src={user.avatar}
+                      name={user.name}
+                      size="sm"
+                      aura={user.trustScore}
+                    />
                     <div className="min-w-0">
-                      <div className="font-jakarta font-semibold text-ink dark:text-cream text-xs truncate flex items-center gap-1">
+                      <div className="font-jakarta font-semibold text-ink text-xs truncate flex items-center gap-1">
                         <span className="truncate">{user.name}</span>
                         {renderVerifiedBadge(user, 12)}
                       </div>
-                      <div className="text-[10px] text-ink/55 dark:text-cream/55 font-jakarta mt-0.5">
+                      <div className="text-[10px] text-ink/55 font-jakarta mt-0.5">
                         View profile →
                       </div>
                     </div>
@@ -384,7 +370,7 @@ export default function Navbar() {
                 ) : (
                   <Link
                     to="/login"
-                    onClick={closeMobile}
+                    onClick={() => setMobileOpen(false)}
                     className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-ink text-cream text-xs font-jakarta font-semibold mb-3"
                   >
                     <FiUser className="text-sm" /> Log in
@@ -397,7 +383,7 @@ export default function Navbar() {
                   </div>
                 )}
 
-                <div className="text-[9px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/40 dark:text-cream/40 px-2 mb-1.5">
+                <div className="text-[9px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/40 px-2 mb-1.5">
                   Navigate
                 </div>
                 <div className="space-y-0.5">
@@ -405,12 +391,12 @@ export default function Navbar() {
                     <NavLink
                       key={l.to}
                       to={l.to}
-                      onClick={closeMobile}
+                      onClick={() => setMobileOpen(false)}
                       className={({ isActive }) =>
-                        `flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-jakarta font-semibold text-xs transition touch-manipulation ${
+                        `flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-jakarta font-semibold text-xs transition ${
                           isActive
                             ? "bg-peach text-ink"
-                            : "text-ink/75 dark:text-cream/75 hover:bg-peach/50 dark:hover:bg-white/10"
+                            : "text-ink/75 hover:bg-peach/50"
                         }`
                       }
                     >
@@ -420,16 +406,16 @@ export default function Navbar() {
                   ))}
                 </div>
 
-                <div className="mt-5 pt-4 border-t border-ink/10 dark:border-white/10">
-                  <div className="text-[9px] font-jakarta font-semibold text-ink/40 dark:text-cream/40 px-2 mb-1.5 uppercase tracking-[0.2em]">
+                <div className="mt-5 pt-4 border-t border-ink/10">
+                  <div className="text-[9px] font-jakarta font-semibold text-ink/40 px-2 mb-1.5 uppercase tracking-[0.2em]">
                     Language
                   </div>
                   <LanguageSwitcher fullWidth />
                 </div>
               </nav>
 
-              <div className="px-4 py-3 border-t border-ink/10 dark:border-white/10">
-                <div className="text-center text-[10px] uppercase tracking-[0.25em] font-jakarta font-semibold text-ink/40 dark:text-cream/40">
+              <div className="px-4 py-3 border-t border-ink/10">
+                <div className="text-center text-[10px] uppercase tracking-[0.25em] font-jakarta font-semibold text-ink/40">
                   Local love, live
                 </div>
               </div>
@@ -441,17 +427,17 @@ export default function Navbar() {
   );
 }
 
-/* ════════════════ LANGUAGE SWITCHER ════════════════ */
 function LanguageSwitcher({ fullWidth = false }) {
   const [open, setOpen] = useState(false);
-  const current     = getLanguage();
-  const currentLang = SUPPORTED_LANGS.find((l) => l.code === current) || SUPPORTED_LANGS[0];
+  const current = getLanguage();
+  const currentLang =
+    SUPPORTED_LANGS.find((l) => l.code === current) || SUPPORTED_LANGS[0];
 
   return (
     <div className={`relative ${fullWidth ? "w-full" : ""}`}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className={`inline-flex items-center gap-1 rounded-full bg-white/70 border border-ink/5 px-2.5 py-1 text-[10px] font-jakarta font-bold uppercase tracking-wider text-ink/70 hover:text-ink transition notranslate touch-manipulation ${
+        className={`inline-flex items-center gap-1 rounded-full bg-white/70 border border-ink/5 px-2.5 py-1 text-[10px] font-jakarta font-bold uppercase tracking-wider text-ink/70 hover:text-ink transition notranslate ${
           fullWidth ? "w-full justify-between" : ""
         }`}
         translate="no"
@@ -460,7 +446,6 @@ function LanguageSwitcher({ fullWidth = false }) {
         <HiOutlineGlobeAlt className="text-sm" />
         <span>{currentLang.label}</span>
       </button>
-
       <AnimatePresence>
         {open && (
           <>
@@ -474,7 +459,7 @@ function LanguageSwitcher({ fullWidth = false }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.98 }}
               transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
-              className={`absolute z-50 mt-1.5 rounded-2xl bg-cream dark:bg-ink border border-ink/5 dark:border-white/10 shadow-xl p-1 max-h-72 overflow-auto notranslate ${
+              className={`absolute z-50 mt-1.5 rounded-2xl bg-cream border border-ink/5 shadow-xl p-1 max-h-72 overflow-auto notranslate ${
                 fullWidth ? "left-0 right-0" : "right-0 w-44"
               }`}
               translate="no"
@@ -484,11 +469,11 @@ function LanguageSwitcher({ fullWidth = false }) {
                 return (
                   <button
                     key={l.code}
-                    onClick={() => { setLanguage(l.code); setOpen(false); }}
-                    className={`w-full text-left flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-jakarta font-semibold transition touch-manipulation ${
+                    onClick={() => setLanguage(l.code)}
+                    className={`w-full text-left flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-jakarta font-semibold transition ${
                       active
                         ? "bg-lavender text-ink"
-                        : "text-ink/70 dark:text-cream/70 hover:bg-peach/60 hover:text-ink"
+                        : "text-ink/70 hover:bg-peach/60 hover:text-ink"
                     }`}
                   >
                     <span className="inline-grid place-items-center w-7 text-[10px] font-bold uppercase tracking-wider text-ink/60">
