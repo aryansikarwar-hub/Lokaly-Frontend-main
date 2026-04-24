@@ -17,6 +17,7 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import { Spinner } from "../components/ui/Spinner";
 import SpinTheWheel from "../components/SpinTheWheel";
+import { createClient, createTracks, APP_ID } from "../services/agora";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const REACTION_ICONS = [TbHeartFilled, TbFlame, TbStar, HiOutlineHeart];
@@ -121,6 +122,8 @@ export default function LiveStream() {
   const { id } = useParams();
   const user = useAuthStore((s) => s.user);
   const videoRef  = useRef(null);
+  const clientRef = useRef(null);
+  const tracksRef = useRef(null);
   const chatEndRef = useRef(null);
 
   const [sessions,  setSessions]  = useState([]);
@@ -195,6 +198,65 @@ export default function LiveStream() {
       s.off("live:reaction",onReact);     s.off("live:flashDeal",onFlash);
     };
   }, [active, isMock]);
+
+  // Agora live stream effect
+  useEffect(() => {
+  if (!active || isMock) return;
+
+  const init = async () => {
+    try {
+      const client = createClient();
+      clientRef.current = client;
+
+      const role =
+        user?.role === "seller" ? "publisher" : "audience";
+
+      await client.setClientRole(role);
+
+      // token from backend
+      const { data } = await api.post("/agora/token", {
+        channelName: active.roomId,
+        role: role === "publisher" ? "publisher" : "subscriber",
+      });
+
+      await client.join(APP_ID, active.roomId, data.token, null);
+
+      // 🎥 SELLER CAMERA START
+      if (role === "publisher") {
+        const tracks = await createTracks();
+        tracksRef.current = tracks;
+
+        await client.publish(tracks);
+
+        // render video
+        tracks[1].play(videoRef.current);
+      }
+
+      // 👀 VIEWERS RECEIVE STREAM
+      client.on("user-published", async (remoteUser, mediaType) => {
+        await client.subscribe(remoteUser, mediaType);
+
+        if (mediaType === "video") {
+          remoteUser.videoTrack.play(videoRef.current);
+        }
+
+        if (mediaType === "audio") {
+          remoteUser.audioTrack.play();
+        }
+      });
+
+    } catch (err) {
+      console.error("Agora init error:", err);
+    }
+  };
+
+  init();
+
+  return () => {
+    tracksRef.current?.forEach(track => track.stop());
+    clientRef.current?.leave();
+  };
+}, [active, user, isMock]);
 
   const fireReaction = useCallback(() => {
     const bid  = Math.random();
@@ -295,11 +357,17 @@ export default function LiveStream() {
         <div className="flex flex-col gap-3 min-w-0">
 
           {/* Video */}
-          <div className="relative aspect-video rounded-2xl overflow-hidden bg-ink shadow-xl border border-ink/5">
+          {/* <div className="relative aspect-video rounded-2xl overflow-hidden bg-ink shadow-xl border border-ink/5">
             {active.coverImage
               ? <img src={active.coverImage} alt={active.title} className="w-full h-full object-cover"/>
               : <video ref={videoRef} className="w-full h-full object-cover" muted playsInline/>
-            }
+            } */}
+            <div className="relative aspect-video rounded-2xl overflow-hidden bg-ink shadow-xl border border-ink/5">
+  <div
+    ref={videoRef}
+    className="w-full h-full object-cover"
+  />
+
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/40"/>
 
             {/* Top-left */}
