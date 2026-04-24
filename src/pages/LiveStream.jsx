@@ -208,13 +208,12 @@ export default function LiveStream() {
       const client = createClient();
       clientRef.current = client;
 
-      const role =
-        user?.role === "seller" ? "publisher" : "audience";
+     const role = user?.role === "seller" ? "publisher" : "subscriber";
 
       await client.setClientRole(role);
 
       // token from backend
-      const { data } = await api.post("/agora/token", {
+      const { data } = await api.post("/api/agora/token", {
         channelName: active.roomId,
         role: role === "publisher" ? "publisher" : "subscriber",
       });
@@ -234,28 +233,54 @@ export default function LiveStream() {
 
       // 👀 VIEWERS RECEIVE STREAM
       client.on("user-published", async (remoteUser, mediaType) => {
-        await client.subscribe(remoteUser, mediaType);
+  try {
+    await client.subscribe(remoteUser, mediaType);
 
-        if (mediaType === "video") {
-          remoteUser.videoTrack.play(videoRef.current);
-        }
+    if (mediaType === "video") {
+      // Create a container for each user
+      const player = document.createElement("div");
+      player.id = `user-${remoteUser.uid}`;
+      player.style.width = "200px";
+      player.style.height = "150px";
 
-        if (mediaType === "audio") {
-          remoteUser.audioTrack.play();
-        }
-      });
+      videoRef.current.appendChild(player);
 
-    } catch (err) {
-      console.error("Agora init error:", err);
+      // Play video
+      remoteUser.videoTrack.play(player);
     }
-  };
 
-  init();
+    if (mediaType === "audio") {
+      remoteUser.audioTrack.play();
+    }
 
-  return () => {
-    tracksRef.current?.forEach(track => track.stop());
-    clientRef.current?.leave();
-  };
+  } catch (err) {
+    console.error("Agora subscribe error:", err);
+  }
+});
+
+// Remove video when user leaves
+client.on("user-unpublished", (remoteUser) => {
+  const player = document.getElementById(`user-${remoteUser.uid}`);
+  if (player) {
+    player.remove();
+  }
+});
+
+} catch (err) {
+  console.error("Agora init error:", err);
+}
+
+};
+
+init();
+ return () => {
+  tracksRef.current?.forEach(track => {
+    track.stop();   // stop stream
+    track.close();  // 🔥 IMPORTANT: release device
+  });
+
+  clientRef.current?.leave();
+};
 }, [active, user, isMock]);
 
   const fireReaction = useCallback(() => {
