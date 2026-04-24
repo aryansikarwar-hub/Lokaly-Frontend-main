@@ -709,6 +709,243 @@ const SHOP_CATEGORIES = [
   "Other",
 ];
 
+// function SellerSettingsTab({ user, onSaved }) {
+//   const [name, setName] = useState(user.name || "");
+//   const [bio, setBio] = useState(user.bio || "");
+//   const [avatar, setAvatar] = useState(user.avatar || "");
+//   const [phone, setPhone] = useState(user.phone || "");
+//   const [shopName, setShopName] = useState(user.shopName || "");
+//   const [shopCategory, setShopCategory] = useState(
+//     user.shopCategory || SHOP_CATEGORIES[0],
+//   );
+//   const [locationCity, setLocationCity] = useState(
+//     user.location?.city || (typeof user.location === "string" ? user.location : ""),
+//   );
+//   const addr = user.address || {};
+//   const [street, setStreet] = useState(addr.street || "");
+//   const [city, setCity] = useState(addr.city || "");
+//   const [state, setStateField] = useState(addr.state || "");
+//   const [pincode, setPincode] = useState(addr.pincode || "");
+//   const [country, setCountry] = useState(addr.country || "India");
+//   const [busy, setBusy] = useState(false);
+//   const [verifying, setVerifying] = useState(false);
+
+//   async function save(e) {
+//     e.preventDefault();
+//     if (!name.trim()) {
+//       toast.error("Name is required");
+//       return;
+//     }
+//     setBusy(true);
+//     try {
+//       const payload = {
+//         name: name.trim(),
+//         bio: (bio || "").slice(0, 280),
+//         avatar,
+//         phone,
+//         shopName,
+//         shopCategory,
+//         location: locationCity ? { city: locationCity } : undefined,
+//         address: { street, city, state, pincode, country },
+//       };
+//       const { data } = await api.patch("/auth/me", payload);
+//       toast.success("Profile updated");
+//       if (data?.user) onSaved?.(data.user);
+//     } catch (err) {
+//       toast.error(err.response?.data?.error || "Update failed");
+//     } finally {
+//       setBusy(false);
+//     }
+//   }
+
+//   async function resendVerification() {
+//     setVerifying(true);
+//     try {
+//       await api.post("/auth/resend-verification");
+//       toast.success("Verification email sent — check console in dev");
+//     } catch (err) {
+//       toast.error(err.response?.data?.error || "Could not send verification");
+//     } finally {
+//       setVerifying(false);
+//     }
+//   }
+
+//   return (
+//     <form
+//       onSubmit={save}
+//       className="max-w-2xl rounded-2xl bg-white/85 dark:bg-[#2a2436] border border-ink/5 dark:border-white/10 p-5 space-y-4 shadow-sm"
+//     >
+//       <div className="text-[10px] uppercase tracking-[0.25em] font-jakarta font-semibold text-coral dark:text-peach">
+//         Shop profile
+//       </div>
+
+//       <div className="flex items-center gap-4">
+//         <MediaUploader
+//           value={avatar}
+//           onChange={setAvatar}
+//           variant="avatar"
+//           accept="image/*"
+//           maxSizeMB={5}
+//         />
+//         <div className="flex-1 min-w-0">
+//           <div className="font-fraunces text-lg text-ink dark:text-cream tracking-tight truncate">
+//             {shopName || name || "Your shop"}
+//           </div>
+//           <p className="text-[11px] font-jakarta text-ink/60 dark:text-cream/60 mt-0.5">
+//             Drop an image, click, or paste from clipboard to update your logo.
+//           </p>
+//         </div>
+//       </div>
+
+//       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+//         <Input
+//           label="Name"
+//           value={name}
+//           onChange={(e) => setName(e.target.value)}
+//           placeholder="Your name"
+//           required
+//         />
+//         <Input
+//           label="Shop name"
+//           value={shopName}
+//           onChange={(e) => setShopName(e.target.value)}
+//           placeholder="Varanasi Weaves Co."
+//         />
+//       </div>
+
+//       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+//         <label className="block">
+//           <span className="block mb-1 text-[11px] font-jakarta font-semibold text-ink/70 dark:text-cream/70 uppercase tracking-wider">
+//             Shop category
+//           </span>
+//           <select
+//             value={shopCategory}
+//             onChange={(e) => setShopCategory(e.target.value)}
+//             className="w-full rounded-xl bg-white/80 dark:bg-[#201b2c] border border-ink/10 dark:border-white/10 focus:border-coral/60 outline-none px-3 py-2.5 text-xs text-ink dark:text-cream font-jakarta"
+//           >
+//             {SHOP_CATEGORIES.map((c) => (
+//               <option key={c} value={c}>
+//                 {c}
+//               </option>
+//             ))}
+//           </select>
+//         </label>
+//         <Input
+//           label="Shop city"
+//           value={locationCity}
+//           onChange={(e) => setLocationCity(e.target.value)}
+//           placeholder="Varanasi"
+//         />
+//       </div>
+
+//       <div>
+//         <span className="block mb-1 text-[11px] font-jakarta font-semibold text-ink/70 dark:text-cream/70 uppercase tracking-wider">
+//           Email
+//         </span>
+//         <div className="flex items-stretch gap-2">
+//           <input
+//             value={user.email || ""}
+//             readOnly
+//             className="flex-1 rounded-xl bg-ink/5 dark:bg-white/5 border border-ink/10 dark:border-white/10 outline-none px-3 py-2.5 text-xs text-ink/70 dark:text-cream/70 font-jakarta cursor-not-allowed"
+//           />
+//           {!user.emailVerified && (
+//             <Button
+//               type="button"
+//               size="sm"
+//               variant="coral"
+//               onClick={resendVerification}
+//               disabled={verifying}
+//               leftIcon={<HiOutlineEnvelope />}
+//             >
+//               {verifying ? "Sending..." : "Verify email"}
+//             </Button>
+//           )}
+//           {user.emailVerified && (
+//             <span className="inline-flex items-center gap-1 text-[11px] font-jakarta font-semibold text-leaf dark:text-mint px-2">
+//               <HiOutlineCheckBadge /> Verified
+//             </span>
+//           )}
+//         </div>
+//       </div>
+
+//       <Input
+//         label="Phone"
+//         type="tel"
+//         value={phone}
+//         onChange={(e) => setPhone(e.target.value)}
+//         placeholder="+91 98765 43210"
+//       />
+
+//       <Textarea
+//         label="Bio"
+//         value={bio}
+//         onChange={(e) => setBio(e.target.value.slice(0, 280))}
+//         placeholder="Tell buyers about your craft (max 280 characters)"
+//       />
+//       <div className="-mt-2 text-[10px] font-jakarta text-ink/45 dark:text-cream/45 text-right">
+//         {bio.length}/280
+//       </div>
+
+//       <div className="pt-2 border-t border-ink/5 dark:border-white/10">
+//         <div className="text-[10px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/60 dark:text-cream/60 mb-2">
+//           Pickup / return address
+//         </div>
+//         <div className="space-y-3">
+//           <Input
+//             label="Street"
+//             value={street}
+//             onChange={(e) => setStreet(e.target.value)}
+//             placeholder="123 Gully Street"
+//           />
+//           <div className="grid grid-cols-2 gap-3">
+//             <Input
+//               label="City"
+//               value={city}
+//               onChange={(e) => setCity(e.target.value)}
+//               placeholder="Bengaluru"
+//             />
+//             <Input
+//               label="State"
+//               value={state}
+//               onChange={(e) => setStateField(e.target.value)}
+//               placeholder="Karnataka"
+//             />
+//           </div>
+//           <div className="grid grid-cols-2 gap-3">
+//             <Input
+//               label="Pincode"
+//               value={pincode}
+//               onChange={(e) => setPincode(e.target.value)}
+//               placeholder="560001"
+//             />
+//             <label className="block">
+//               <span className="block mb-1 text-[11px] font-jakarta font-semibold text-ink/70 dark:text-cream/70 uppercase tracking-wider">
+//                 Country
+//               </span>
+//               <select
+//                 value={country}
+//                 onChange={(e) => setCountry(e.target.value)}
+//                 className="w-full rounded-xl bg-white/80 dark:bg-[#201b2c] border border-ink/10 dark:border-white/10 focus:border-coral/60 outline-none px-3 py-2.5 text-xs text-ink dark:text-cream font-jakarta"
+//               >
+//                 {SELLER_COUNTRIES.map((c) => (
+//                   <option key={c} value={c}>
+//                     {c}
+//                   </option>
+//                 ))}
+//               </select>
+//             </label>
+//           </div>
+//         </div>
+//       </div>
+
+//       <div className="flex items-center gap-2 pt-2">
+//         <Button type="submit" disabled={busy} leftIcon={<HiOutlineCog6Tooth />}>
+//           {busy ? "Saving..." : "Save changes"}
+//         </Button>
+//       </div>
+//     </form>
+//   );
+// }
 function SellerSettingsTab({ user, onSaved }) {
   const [name, setName] = useState(user.name || "");
   const [bio, setBio] = useState(user.bio || "");
@@ -716,43 +953,43 @@ function SellerSettingsTab({ user, onSaved }) {
   const [phone, setPhone] = useState(user.phone || "");
   const [shopName, setShopName] = useState(user.shopName || "");
   const [shopCategory, setShopCategory] = useState(
-    user.shopCategory || SHOP_CATEGORIES[0],
+    user.shopCategory || SHOP_CATEGORIES[0]
   );
   const [locationCity, setLocationCity] = useState(
-    user.location?.city || (typeof user.location === "string" ? user.location : ""),
+    user.location?.city || ""
   );
+
   const addr = user.address || {};
   const [street, setStreet] = useState(addr.street || "");
   const [city, setCity] = useState(addr.city || "");
   const [state, setStateField] = useState(addr.state || "");
   const [pincode, setPincode] = useState(addr.pincode || "");
   const [country, setCountry] = useState(addr.country || "India");
+
   const [busy, setBusy] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
   async function save(e) {
     e.preventDefault();
-    if (!name.trim()) {
-      toast.error("Name is required");
-      return;
-    }
+    if (!name.trim()) return toast.error("Name is required");
+
     setBusy(true);
     try {
-      const payload = {
-        name: name.trim(),
-        bio: (bio || "").slice(0, 280),
+      const { data } = await api.patch("/auth/me", {
+        name,
+        bio,
         avatar,
         phone,
         shopName,
         shopCategory,
-        location: locationCity ? { city: locationCity } : undefined,
+        location: { city: locationCity },
         address: { street, city, state, pincode, country },
-      };
-      const { data } = await api.patch("/auth/me", payload);
+      });
+
       toast.success("Profile updated");
-      if (data?.user) onSaved?.(data.user);
+      onSaved?.(data.user);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Update failed");
+      toast.error("Update failed");
     } finally {
       setBusy(false);
     }
@@ -762,9 +999,9 @@ function SellerSettingsTab({ user, onSaved }) {
     setVerifying(true);
     try {
       await api.post("/auth/resend-verification");
-      toast.success("Verification email sent — check console in dev");
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Could not send verification");
+      toast.success("Verification sent");
+    } catch {
+      toast.error("Failed");
     } finally {
       setVerifying(false);
     }
@@ -773,174 +1010,126 @@ function SellerSettingsTab({ user, onSaved }) {
   return (
     <form
       onSubmit={save}
-      className="max-w-2xl rounded-2xl bg-white/85 dark:bg-[#2a2436] border border-ink/5 dark:border-white/10 p-5 space-y-4 shadow-sm"
+      className="w-full max-w-3xl mx-auto bg-white/90 dark:bg-[#2a2436] rounded-2xl p-4 sm:p-6 space-y-6 shadow-sm border border-ink/5 dark:border-white/10"
     >
-      <div className="text-[10px] uppercase tracking-[0.25em] font-jakarta font-semibold text-coral dark:text-peach">
-        Shop profile
+      {/* HEADER */}
+      <div className="text-xs uppercase tracking-widest text-coral font-semibold">
+        Shop Profile
       </div>
 
-      <div className="flex items-center gap-4">
-        <MediaUploader
-          value={avatar}
-          onChange={setAvatar}
-          variant="avatar"
-          accept="image/*"
-          maxSizeMB={5}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="font-fraunces text-lg text-ink dark:text-cream tracking-tight truncate">
-            {shopName || name || "Your shop"}
-          </div>
-          <p className="text-[11px] font-jakarta text-ink/60 dark:text-cream/60 mt-0.5">
-            Drop an image, click, or paste from clipboard to update your logo.
+      {/* IMAGE + TEXT (FIXED 🔥) */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div className="shrink-0">
+          <MediaUploader
+            value={avatar}
+            onChange={setAvatar}
+            variant="avatar"
+          />
+        </div>
+
+        <div className="flex-1 w-full">
+          <h2 className="text-lg sm:text-xl font-semibold break-words">
+            {shopName || name || "Your Shop"}
+          </h2>
+
+          <p className="text-xs sm:text-sm text-gray-500 mt-1 leading-relaxed">
+            Upload logo or paste image to update your shop profile
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Input
-          label="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Your name"
-          required
-        />
-        <Input
-          label="Shop name"
-          value={shopName}
-          onChange={(e) => setShopName(e.target.value)}
-          placeholder="Varanasi Weaves Co."
-        />
+      {/* NAME + SHOP */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Input label="Shop Name" value={shopName} onChange={(e) => setShopName(e.target.value)} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <label className="block">
-          <span className="block mb-1 text-[11px] font-jakarta font-semibold text-ink/70 dark:text-cream/70 uppercase tracking-wider">
-            Shop category
-          </span>
-          <select
-            value={shopCategory}
-            onChange={(e) => setShopCategory(e.target.value)}
-            className="w-full rounded-xl bg-white/80 dark:bg-[#201b2c] border border-ink/10 dark:border-white/10 focus:border-coral/60 outline-none px-3 py-2.5 text-xs text-ink dark:text-cream font-jakarta"
-          >
-            {SHOP_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
+      {/* CATEGORY + CITY */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <select
+          value={shopCategory}
+          onChange={(e) => setShopCategory(e.target.value)}
+          className="input"
+        >
+          {SHOP_CATEGORIES.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+
         <Input
-          label="Shop city"
+          label="City"
           value={locationCity}
           onChange={(e) => setLocationCity(e.target.value)}
-          placeholder="Varanasi"
         />
       </div>
 
+      {/* EMAIL */}
       <div>
-        <span className="block mb-1 text-[11px] font-jakarta font-semibold text-ink/70 dark:text-cream/70 uppercase tracking-wider">
-          Email
-        </span>
-        <div className="flex items-stretch gap-2">
+        <label className="text-xs font-semibold">Email</label>
+
+        <div className="flex flex-col sm:flex-row gap-2 mt-1">
           <input
-            value={user.email || ""}
+            value={user.email}
             readOnly
-            className="flex-1 rounded-xl bg-ink/5 dark:bg-white/5 border border-ink/10 dark:border-white/10 outline-none px-3 py-2.5 text-xs text-ink/70 dark:text-cream/70 font-jakarta cursor-not-allowed"
+            className="flex-1 input bg-gray-100 cursor-not-allowed"
           />
-          {!user.emailVerified && (
-            <Button
-              type="button"
-              size="sm"
-              variant="coral"
-              onClick={resendVerification}
-              disabled={verifying}
-              leftIcon={<HiOutlineEnvelope />}
-            >
-              {verifying ? "Sending..." : "Verify email"}
+
+          {!user.emailVerified ? (
+            <Button onClick={resendVerification}>
+              {verifying ? "Sending..." : "Verify"}
             </Button>
-          )}
-          {user.emailVerified && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-jakarta font-semibold text-leaf dark:text-mint px-2">
-              <HiOutlineCheckBadge /> Verified
+          ) : (
+            <span className="text-green-500 text-xs flex items-center">
+              Verified
             </span>
           )}
         </div>
       </div>
 
+      {/* PHONE */}
       <Input
         label="Phone"
-        type="tel"
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
-        placeholder="+91 98765 43210"
       />
 
+      {/* BIO */}
       <Textarea
         label="Bio"
         value={bio}
-        onChange={(e) => setBio(e.target.value.slice(0, 280))}
-        placeholder="Tell buyers about your craft (max 280 characters)"
+        onChange={(e) => setBio(e.target.value)}
       />
-      <div className="-mt-2 text-[10px] font-jakarta text-ink/45 dark:text-cream/45 text-right">
-        {bio.length}/280
-      </div>
 
-      <div className="pt-2 border-t border-ink/5 dark:border-white/10">
-        <div className="text-[10px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/60 dark:text-cream/60 mb-2">
-          Pickup / return address
+      {/* ADDRESS */}
+      <div className="border-t pt-4 space-y-4">
+        <h4 className="text-xs font-semibold">Address</h4>
+
+        <Input value={street} onChange={(e) => setStreet(e.target.value)} placeholder="Street" />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" />
+          <Input value={state} onChange={(e) => setStateField(e.target.value)} placeholder="State" />
         </div>
-        <div className="space-y-3">
-          <Input
-            label="Street"
-            value={street}
-            onChange={(e) => setStreet(e.target.value)}
-            placeholder="123 Gully Street"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="City"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="Bengaluru"
-            />
-            <Input
-              label="State"
-              value={state}
-              onChange={(e) => setStateField(e.target.value)}
-              placeholder="Karnataka"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Pincode"
-              value={pincode}
-              onChange={(e) => setPincode(e.target.value)}
-              placeholder="560001"
-            />
-            <label className="block">
-              <span className="block mb-1 text-[11px] font-jakarta font-semibold text-ink/70 dark:text-cream/70 uppercase tracking-wider">
-                Country
-              </span>
-              <select
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                className="w-full rounded-xl bg-white/80 dark:bg-[#201b2c] border border-ink/10 dark:border-white/10 focus:border-coral/60 outline-none px-3 py-2.5 text-xs text-ink dark:text-cream font-jakarta"
-              >
-                {SELLER_COUNTRIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input value={pincode} onChange={(e) => setPincode(e.target.value)} placeholder="Pincode" />
+
+          <select
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            className="input"
+          >
+            {SELLER_COUNTRIES.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 pt-2">
-        <Button type="submit" disabled={busy} leftIcon={<HiOutlineCog6Tooth />}>
-          {busy ? "Saving..." : "Save changes"}
+      {/* BUTTON */}
+      <div className="flex">
+        <Button className="w-full sm:w-auto" disabled={busy}>
+          {busy ? "Saving..." : "Save Changes"}
         </Button>
       </div>
     </form>
