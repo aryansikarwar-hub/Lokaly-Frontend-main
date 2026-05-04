@@ -143,7 +143,7 @@ function StatPill({ icon: Icon, value, label, accent }) {
   );
 }
 
-// ─── Product Card ─────────────────────────────────────────────────────────────
+// ─── Product Cards ─────────────────────────────────────────────────────────────
 function ProductCard({ p, compact }) {
   const pct = pctOff(p.price, p.originalPrice);
   if (compact)
