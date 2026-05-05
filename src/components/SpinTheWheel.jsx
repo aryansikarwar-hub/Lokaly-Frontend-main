@@ -1,9 +1,10 @@
-import { useState } from "react";
 import { Wheel } from "react-custom-roulette";
 import { motion, AnimatePresence } from "framer-motion";
 import { TbGift } from "react-icons/tb";
 import { HiOutlineSparkles } from "react-icons/hi2";
+import { useState, useEffect } from "react";
 import Button from "./ui/Button";
+import confetti from "canvas-confetti";
 
 const DATA = [
   {
@@ -36,12 +37,39 @@ export default function SpinTheWheel({ onSpun }) {
   const [spinning, setSpinning] = useState(false);
   const [idx, setIdx] = useState(0);
   const [prize, setPrize] = useState(null);
+  const [cooldown, setCooldown] = useState(0);
 
-  function start() {
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setInterval(() => setCooldown((c) => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [cooldown]);
+
+  async function start() {
     if (spinning) return;
-    setPrize(null);
-    setIdx(Math.floor(Math.random() * DATA.length));
+
     setSpinning(true);
+    setPrize(null);
+
+    try {
+      const res = await onSpun(); // backend call
+
+      const prizeLabel = res.prize.label;
+
+      // find index from DATA
+      const prizeIndex = DATA.findIndex(
+        (item) => item.option.toLowerCase() === prizeLabel.toLowerCase(),
+      );
+
+      const finalIndex = prizeIndex + DATA.length * 3;
+
+      setTimeout(() => {
+        setIdx(finalIndex);
+      }, 300);
+      setCooldown(10); 
+    } catch (err) {
+      setSpinning(false);
+    }
   }
 
   return (
@@ -68,9 +96,20 @@ export default function SpinTheWheel({ onSpun }) {
           fontSize={13}
           onStopSpinning={() => {
             setSpinning(false);
+
             const p = DATA[idx].option;
             setPrize(p);
-            onSpun?.(p);
+
+            // 🎉 CONFETTI TRIGGER
+            if (p !== "Try again") {
+              confetti({
+                particleCount: 150,
+                spread: 100,
+                startVelocity: 30,
+                scalar: 1.2,
+                origin: { y: 0.6 },
+              });
+            }
           }}
         />
       </div>
@@ -78,9 +117,13 @@ export default function SpinTheWheel({ onSpun }) {
         className="w-full mt-3"
         size="sm"
         onClick={start}
-        disabled={spinning}
+        disabled={spinning || cooldown > 0}
       >
-        {spinning ? "Spinning..." : "Spin now"}
+        {spinning
+          ? "Spinning..."
+          : cooldown > 0
+            ? `Wait ${cooldown}s`
+            : "Spin now"}
       </Button>
       <AnimatePresence>
         {prize && (

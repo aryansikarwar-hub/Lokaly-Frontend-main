@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+
 import {
   HiOutlineBolt,
   HiOutlineUserGroup,
@@ -417,7 +418,19 @@ export default function LiveStream() {
       );
     };
 
-    const onSpinResult = ({ prize }) => alert(`🎉 You won: ${prize}`);
+    const onSpinResult = ({ user: winnerId, prize }) => {
+      if (winnerId === user._id) {
+        setChat((c) => [
+          ...c,
+          { user: "System", text: `🎉 You won ${prize.label}` },
+        ]);
+      } else {
+        setChat((c) => [
+          ...c,
+          { user: "System", text: `🎉 Someone won ${prize.label}` },
+        ]);
+      }
+    };
 
     s.on("live:viewerCount", onViewer);
     s.on("live:chat", onChat);
@@ -537,9 +550,13 @@ export default function LiveStream() {
 
   async function spin() {
     if (!active || !user || isMock) return;
+
     try {
-      await api.post(`/live/sessions/${active._id}/spin`);
-    } catch {}
+      const { data } = await api.post(`/live/sessions/${active._id}/spin`);
+      return data.prize; // 👈 IMPORTANT
+    } catch (err) {
+      alert(err.response?.data?.message || "Spin failed");
+    }
   }
 
   if (!active)
@@ -918,7 +935,22 @@ export default function LiveStream() {
                   className="overflow-hidden"
                 >
                   <div className="p-3 pt-0">
-                    <SpinTheWheel onSpun={spin} />
+                    <SpinTheWheel
+                      onSpun={async () => {
+                        if (!active) return null;
+
+                        try {
+                          const { data } = await api.post(
+                            `/live/sessions/${active._id}/spin`,
+                          );
+                          return data.prize;
+                        } catch (err) {
+                          console.error(err);
+                          alert(err.response?.data?.message || "Spin failed");
+                          return null;
+                        }
+                      }}
+                    />
                   </div>
                 </motion.div>
               )}
