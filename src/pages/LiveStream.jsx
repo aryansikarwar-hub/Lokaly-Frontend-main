@@ -937,17 +937,80 @@ export default function LiveStream() {
                   <div className="p-3 pt-0">
                     <SpinTheWheel
                       onSpun={async () => {
-                        if (!active) return null;
+                        // Guard: no active session
+                        if (!active) {
+                          return {
+                            ok: false,
+                            title: "No active stream",
+                            message:
+                              "There is no live session to spin in right now.",
+                          };
+                        }
+
+                        // Guard: mock mode (no real backend session)
+                        if (isMock) {
+                          return {
+                            ok: false,
+                            title: "Demo mode",
+                            message: "Spin only works on a real live stream.",
+                          };
+                        }
+
+                        // Guard: stream is not live
+                        if (active.status && active.status !== "live") {
+                          return {
+                            ok: false,
+                            title: "Stream is offline",
+                            message:
+                              "You can only spin the wheel while the stream is live.",
+                          };
+                        }
+
+                        // Guard: not logged in
+                        if (!user) {
+                          return {
+                            ok: false,
+                            title: "Sign in required",
+                            message: "Please log in to spin the wheel.",
+                          };
+                        }
 
                         try {
                           const { data } = await api.post(
                             `/live/sessions/${active._id}/spin`,
                           );
-                          return data.prize;
+                          return { ok: true, prize: data.prize };
                         } catch (err) {
-                          console.error(err);
-                          alert(err.response?.data?.message || "Spin failed");
-                          return null;
+                          const status = err.response?.status;
+                          const serverMsg =
+                            err.response?.data?.message ||
+                            err.response?.data?.error ||
+                            "";
+
+                          // Map common backend errors to friendly popup
+                          let title = "Spin unavailable";
+                          let message =
+                            serverMsg ||
+                            "Something went wrong. Please try again.";
+
+                          if (/only during live/i.test(serverMsg)) {
+                            title = "Stream is offline";
+                            message =
+                              "Spin is only available while the stream is live.";
+                          } else if (/already spun/i.test(serverMsg)) {
+                            title = "Already spun";
+                            message =
+                              "You've already used your spin in this session.";
+                          } else if (/wait before spinning/i.test(serverMsg)) {
+                            title = "Slow down!";
+                            message =
+                              "Please wait a few seconds before spinning again.";
+                          } else if (status === 401) {
+                            title = "Sign in required";
+                            message = "Please log in to spin the wheel.";
+                          }
+
+                          return { ok: false, title, message };
                         }
                       }}
                     />
