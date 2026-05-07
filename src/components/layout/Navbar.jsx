@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useCoinsStore } from "../../store/coinsStore";
 import {
   SUPPORTED_LANGS,
   getLanguage,
@@ -66,7 +67,9 @@ function resolveUserId(user) {
 export default function Navbar() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const { cart, fetch } = useCartStore();
+  const { cart, fetch: fetchCart } = useCartStore();
+  const fetchCoins = useCoinsStore((s) => s.fetch);
+  const resetCoins = useCoinsStore((s) => s.reset);
   const cartCount = (cart?.items || []).reduce((s, i) => s + i.quantity, 0);
   const navigate = useNavigate();
   const { theme, toggle: toggleTheme } = useTheme();
@@ -97,8 +100,11 @@ export default function Navbar() {
   }, [mobileOpen]);
 
   useEffect(() => {
-    if (user) fetch();
-  }, [user, fetch]);
+    if (user) {
+      fetchCart();
+      fetchCoins();
+    }
+  }, [user, fetchCart, fetchCoins]);
 
   const role = resolveRole(user);
   const myId = resolveUserId(user);
@@ -107,6 +113,7 @@ export default function Navbar() {
   const handleLogout = () => {
     setProfileOpen(false);
     logout();
+    resetCoins(); // ← add this
     try {
       localStorage.removeItem("lokaly.user");
     } catch (_) {}
