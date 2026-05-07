@@ -12,6 +12,7 @@ import api from "../services/api";
 import { loadRazorpay } from "../services/razorpay";
 import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
+import { useCoinsStore } from "../store/coinsStore";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import { Reveal } from "../components/animations/Reveal";
@@ -32,6 +33,12 @@ export default function Checkout() {
   const [placing, setPlacing] = useState(false);
   const nav = useNavigate();
   const coinsToRedeem = Number(sessionStorage.getItem("lokaly-coins") || 0);
+  console.log(
+    "🔥 [Checkout] coinsToRedeem =",
+    coinsToRedeem,
+    "raw =",
+    sessionStorage.getItem("lokaly-coins"),
+  );
 
   useEffect(() => {
     fetch();
@@ -65,6 +72,7 @@ export default function Checkout() {
           razorpay_signature: "mock",
         });
         await clear();
+        await useCoinsStore.getState().fetch(); // ← add this line
         sessionStorage.removeItem("lokaly-coins");
         nav(`/order/${order._id}/success`);
         return;
@@ -87,6 +95,7 @@ export default function Checkout() {
         handler: async (resp) => {
           await api.post("/payments/verify", { ...resp, orderId: order._id });
           await clear();
+          await useCoinsStore.getState().fetch(); // ← add this line
           sessionStorage.removeItem("lokaly-coins");
           nav(`/order/${order._id}/success`);
         },
