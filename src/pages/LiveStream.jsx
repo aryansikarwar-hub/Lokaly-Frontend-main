@@ -190,28 +190,100 @@ function GoLiveModal({ open, onClose, onCreated }) {
     };
   }, [previewStream]);
 
-  async function requestPermissions() {
+  async function requestPermissions(audioOnly = false) {
     setPermError("");
     setLoading(true);
     try {
-      // Request camera + mic permissions
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: true,
+      // 1) Browser feature check
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw Object.assign(new Error("Your browser does not support camera/mic access. Try Chrome, Edge or Firefox."), { name: "UnsupportedError" });
+      }
+
+      // 2) HTTPS check (getUserMedia requires secure context except on localhost)
+      if (!window.isSecureContext) {
+        throw Object.assign(new Error("Camera/Mic requires HTTPS. Please use the secure (https://) version of the site."), { name: "InsecureContextError" });
+      }
+
+      // 3) Enumerate devices to give precise error messages
+      // Note: device labels are empty until permission is granted once,
+      // but kind/deviceId are visible — enough to know if hardware exists.
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter((d) => d.kind === "videoinput");
+      const mics = devices.filter((d) => d.kind === "audioinput");
+      console.log("[GoLive] Devices found →", {
+        cameras: cams.length,
+        microphones: mics.length,
+        devices: devices.map((d) => ({ kind: d.kind, label: d.label || "(label hidden)" })),
       });
+
+      const wantVideo = !audioOnly && cams.length > 0;
+      const wantAudio = mics.length > 0;
+
+      if (!wantVideo && !wantAudio) {
+        throw Object.assign(
+          new Error(
+            "No camera or microphone detected on this device.\n\n" +
+            "Fixes to try:\n" +
+            "1. Close apps that may be using the camera (Teams, WhatsApp, Skype, Zoom).\n" +
+            "2. Windows → Settings → Privacy & security → Camera → turn ON 'Camera access' AND 'Let desktop apps access your camera'.\n" +
+            "3. Same for Microphone.\n" +
+            "4. Test hardware at https://webcamtests.com — if it fails there too, the hardware/driver is the issue."
+          ),
+          { name: "NotFoundError" }
+        );
+      }
+
+      // 4) Request the stream
+      const constraints = {
+        video: wantVideo ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+        audio: wantAudio,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setPreviewStream(stream);
       setStep("permissions");
-    } catch (err) {
-      console.error("❌ Permission error:", err);
-      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        setPermError("Camera/Microphone access denied. Please allow permissions in your browser settings and try again.");
-      } else if (err.name === "NotFoundError") {
-        setPermError("No camera or microphone found. Please connect a device and try again.");
-      } else if (err.name === "NotReadableError") {
-        setPermError("Camera/Mic is being used by another app. Please close other apps and try again.");
-      } else {
-        setPermError("Could not access camera/microphone: " + err.message);
+
+      // Non-fatal warning when running audio-only
+      if (!wantVideo) {
+        setPermError("⚠️ Running in audio-only mode (no camera available). Viewers will hear you but won't see video.");
       }
+    } catch (err) {
+      console.error("❌ Permission error:", err.name, err.message, err);
+
+      let msg = "";
+      switch (err.name) {
+        case "NotAllowedError":
+        case "PermissionDeniedError":
+          msg = "Camera/Microphone access was blocked. Click the 🔒 lock icon in your browser address bar → set Camera & Microphone to 'Allow' → reload the page.";
+          break;
+        case "NotFoundError":
+        case "DevicesNotFoundError":
+          msg = err.message;
+          break;
+        case "NotReadableError":
+        case "TrackStartError":
+          msg = "Camera/Mic is locked by another app. Close Teams, WhatsApp, Skype, Zoom, OBS, or any video-call app and try again.";
+          break;
+        case "OverconstrainedError":
+          msg = "Your camera doesn't support the requested resolution. Try the 'Audio Only' option as a workaround.";
+          break;
+        case "SecurityError":
+          msg = "Browser blocked the request for security reasons. Make sure you're on https:// and the site has permission.";
+          break;
+        case "AbortError":
+          msg = "Camera/Mic request was interrupted. Please try again.";
+          break;
+        case "TypeError":
+          msg = "Invalid camera/mic configuration. Please refresh the page and try again.";
+          break;
+        case "InsecureContextError":
+        case "UnsupportedError":
+          msg = err.message;
+          break;
+        default:
+          msg = "Could not access camera/microphone: " + (err.message || err.name || "Unknown error");
+      }
+      setPermError(msg);
     } finally {
       setLoading(false);
     }
@@ -316,13 +388,13 @@ function GoLiveModal({ open, onClose, onCreated }) {
               </div>
 
               {permError && (
-                <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-[11px] font-jakarta text-red-700">
+                <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-[11px] font-jakarta text-red-700 whitespace-pre-line leading-relaxed">
                   {permError}
                 </div>
               )}
 
               <Button
-                onClick={requestPermissions}
+                onClick={() => requestPermissions(false)}
                 disabled={loading || !title.trim()}
                 className="w-full"
               >
@@ -335,6 +407,18 @@ function GoLiveModal({ open, onClose, onCreated }) {
                   </span>
                 )}
               </Button>
+
+              {/* Fallback: audio-only (useful when no webcam is available) */}
+              {permError && (
+                <button
+                  onClick={() => requestPermissions(true)}
+                  disabled={loading || !title.trim()}
+                  className="w-full text-[11px] font-jakarta font-semibold text-ink/60 underline decoration-dotted underline-offset-2 hover:text-coral transition disabled:opacity-40"
+                >
+                  <HiOutlineMicrophone className="inline text-sm mr-1" />
+                  Try Audio Only (no camera)
+                </button>
+              )}
             </>
           )}
 
@@ -570,14 +654,18 @@ export default function LiveStream() {
     const init = async () => {
       try {
         const isHost = isHostOfSession(user, active);
-        const role = isHost ? "publisher" : "subscriber";
+        // ✅ Agora SDK valid roles: "host" | "audience"
+        // (NOT "publisher"/"subscriber" — that was the bug causing INVALID_PARAMS)
+        const agoraRole = isHost ? "host" : "audience";
+        // Backend may still expect publisher/subscriber semantics — send both to be safe
+        const backendRole = isHost ? "publisher" : "subscriber";
 
-        console.log(`[live] Joining as ${role}, isHost=${isHost}, user=${user?._id}`);
-        await localClient.setClientRole(role);
+        console.log(`[live] Joining as ${agoraRole}, isHost=${isHost}, user=${user?._id}`);
+        await localClient.setClientRole(agoraRole);
 
         const { data } = await api.post("/agora/token", {
           channelName: active.roomId,
-          role,
+          role: backendRole,
         });
 
         if (!mounted) return;
@@ -585,7 +673,7 @@ export default function LiveStream() {
         await localClient.join(APP_ID, active.roomId, data.token, data.uid || null);
         console.log(`[live] Joined channel: ${active.roomId}`);
 
-        if (role === "publisher") {
+        if (agoraRole === "host") {
           try {
             const tracks = await createTracks();
             if (!mounted) {
@@ -603,8 +691,10 @@ export default function LiveStream() {
             console.error("[live] Track creation error:", trackErr);
             if (trackErr.code === "PERMISSION_DENIED" || trackErr.message?.includes("Permission")) {
               alert("Camera/Microphone permission denied. Please allow access and refresh the page.");
+            } else if (trackErr.code === "DEVICE_NOT_FOUND" || trackErr.name === "NotFoundError") {
+              alert("No camera/microphone found. Check Windows privacy settings and that no other app (Teams, WhatsApp, Skype) is using the camera.");
             } else {
-              alert("Failed to access camera/mic: " + trackErr.message);
+              alert("Failed to access camera/mic: " + (trackErr.message || trackErr.code || "Unknown error"));
             }
           }
         }
