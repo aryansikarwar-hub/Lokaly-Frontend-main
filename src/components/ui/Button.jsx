@@ -38,18 +38,23 @@ export function Button({
   children,
   ...rest
 }) {
+  const isMotion = Comp === motion.button;
+  const { whileHover, whileTap, transition, ...otherRest } = rest;
+  const motionProps = isMotion ? {
+    whileHover: whileHover || { y: -1 },
+    whileTap: whileTap || { scale: 0.97 },
+    transition: transition || { type: "spring", stiffness: 380, damping: 24 }
+  } : {};
   return (
     <Comp
-      whileHover={{ y: -1 }}
-      whileTap={{ scale: 0.97 }}
-      transition={{ type: "spring", stiffness: 380, damping: 24 }}
+      {...motionProps}
       className={cn(
         "inline-flex items-center justify-center rounded-full font-jakarta font-semibold tracking-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
         variants[variant],
         sizes[size],
         className,
       )}
-      {...rest}
+      {...otherRest}
     >
       {leftIcon && <span className={iconSizes[size]}>{leftIcon}</span>}
       {children}

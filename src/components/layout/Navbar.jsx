@@ -28,8 +28,9 @@ import { useCartStore } from "../../store/cartStore";
 import CoinsWidget from "../../features/coins/CoinsWidget";
 import ThemeToggle from "../ThemeToggle";
 import VerifiedBadge from "../VerifiedBadge";
-import { useTheme } from "../../context/ThemeContext";
+import NotificationBell from "../NotificationBell";
 import { useEffect, useRef, useState } from "react";
+import { useTheme } from "../../context/ThemeContext";
 
 function renderVerifiedBadge(user, size = 12) {
   if (!user) return null;
@@ -227,12 +228,7 @@ export default function Navbar() {
           </Link>
 
           {/* notifications */}
-          <button
-            className="hidden sm:grid w-9 h-9 place-items-center rounded-full hover:bg-peach/60 dark:hover:bg-white/10 text-ink dark:text-cream shrink-0 touch-manipulation"
-            aria-label="Notifications"
-          >
-            <HiOutlineBell className="text-base" />
-          </button>
+          <NotificationBell />
 
           <ThemeToggle />
 
