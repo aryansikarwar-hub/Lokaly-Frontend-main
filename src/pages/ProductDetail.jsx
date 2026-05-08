@@ -44,6 +44,7 @@ export default function ProductDetail() {
       .get(`/reviews/product/${id}`)
       .then(({ data }) => setReviews(data.items || []))
       .catch(() => setReviews([]));
+    api.post(`/hyperlocal/products/${id}/view`).catch(() => {});
   }, [id]);
 
   if (loading)
