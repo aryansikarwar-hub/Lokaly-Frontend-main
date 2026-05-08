@@ -2,7 +2,7 @@ import { Suspense, useEffect, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import MainLayout, {
-  Home, Feed, Products, ProductDetail, Cart, Checkout, OrderSuccess, OrderTrack,
+  Home, Feed, Notifications, Products, ProductDetail, Cart, Checkout, OrderSuccess, OrderTrack,
   LiveStream, Messages, Profile, Login, Signup, Coins, Leaderboard, Dashboard,
   ARTryOn, VoiceShop, CoHosts, StoryToReel, CollabRoom, NotFound,
 } from './routes';
@@ -77,6 +77,7 @@ export default function App() {
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/notifications" element={<Notifications />} />
             <Route path="/order/:id" element={<OrderTrack />} />
             <Route path="/order/:id/success" element={<OrderSuccess />} />
             <Route path="/live" element={<LiveStream />} />

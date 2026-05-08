@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   HiOutlinePlusCircle,
@@ -401,6 +402,7 @@ export default function Feed() {
   const [done, setDone] = useState(false);
   const [openPost, setOpenPost] = useState(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const sentinel = useRef(null);
   const user = useAuthStore((s) => s.user);
 
@@ -428,6 +430,25 @@ export default function Feed() {
     load(1, hashtag);
     // eslint-disable-next-line
   }, [hashtag]);
+
+  useEffect(() => {
+    const postId = searchParams.get("post");
+    if (!postId) {
+      setOpenPost(null);
+      return;
+    }
+
+    if (openPost?._id === postId) return;
+
+    api
+      .get(`/posts/${postId}`)
+      .then(({ data }) => {
+        if (data?.post) setOpenPost(data.post);
+      })
+      .catch(() => {
+        setOpenPost(null);
+      });
+  }, [searchParams, openPost]);
 
   useEffect(() => {
     const el = sentinel.current;

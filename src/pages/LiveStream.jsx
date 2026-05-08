@@ -1,13 +1,24 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+
 import {
-  HiOutlineBolt, HiOutlineUserGroup, HiOutlineSparkles,
-  HiOutlineHeart, HiOutlineFire, HiOutlineShoppingBag,
-  HiOutlinePaperAirplane, HiOutlineClock, HiOutlineTag,
-  HiOutlineChartBar, HiOutlineChatBubbleLeftRight,
-  HiOutlineShoppingCart, HiOutlineQuestionMarkCircle,
-  HiOutlineChevronRight, HiOutlineGift, HiMiniSignal,
+  HiOutlineBolt,
+  HiOutlineUserGroup,
+  HiOutlineSparkles,
+  HiOutlineHeart,
+  HiOutlineFire,
+  HiOutlineShoppingBag,
+  HiOutlinePaperAirplane,
+  HiOutlineClock,
+  HiOutlineTag,
+  HiOutlineChartBar,
+  HiOutlineChatBubbleLeftRight,
+  HiOutlineShoppingCart,
+  HiOutlineQuestionMarkCircle,
+  HiOutlineChevronRight,
+  HiOutlineGift,
+  HiMiniSignal,
 } from "react-icons/hi2";
 import { TbFlame, TbHeartFilled, TbStar, TbCoin } from "react-icons/tb";
 import api from "../services/api";
@@ -73,14 +84,18 @@ function StatPill({ icon: Icon, value, label, accent }) {
     <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/75 border border-ink/5">
       <Icon className={`text-lg shrink-0 ${accent}`} />
       <div>
-        <div className="font-fraunces text-sm text-ink leading-none">{value}</div>
-        <div className="text-[9px] font-jakarta text-ink/40 uppercase tracking-wider">{label}</div>
+        <div className="font-fraunces text-sm text-ink leading-none">
+          {value}
+        </div>
+        <div className="text-[9px] font-jakarta text-ink/40 uppercase tracking-wider">
+          {label}
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Product Card ─────────────────────────────────────────────────────────────
+// ─── Product Cards ─────────────────────────────────────────────────────────────
 function ProductCard({ p, compact }) {
   const pct = pctOff(p.price, p.originalPrice);
   if (compact) return (
@@ -99,22 +114,80 @@ function ProductCard({ p, compact }) {
     </Link>
   );
   return (
-    <Link to={`/product/${p._id}`}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-peach/25 border border-transparent hover:border-coral/10 transition group">
+    <Link
+      to={`/product/${p._id}`}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-peach/25 border border-transparent hover:border-coral/10 transition group"
+    >
       <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0">
         <img src={p.images?.[0]?.url} alt={p.title} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
         {pct > 0 && <span className="absolute top-0.5 right-0.5 bg-coral text-white text-[7px] font-bold px-1 rounded-full">{pct}%</span>}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-jakarta font-semibold text-ink line-clamp-1">{p.title}</div>
+        <div className="text-xs font-jakarta font-semibold text-ink line-clamp-1">
+          {p.title}
+        </div>
         <div className="flex items-baseline gap-1.5 mt-0.5">
           <span className="font-fraunces text-sm text-ink">₹{p.price?.toLocaleString("en-IN")}</span>
           {p.originalPrice > p.price && <span className="text-[9px] text-ink/30 line-through">₹{p.originalPrice?.toLocaleString("en-IN")}</span>}
         </div>
         {p.stock <= 5 && <div className="text-[9px] text-coral font-semibold">Only {p.stock} left!</div>}
       </div>
-      <button className="bg-coral text-white text-[9px] font-bold px-2.5 py-1.5 rounded-lg hover:bg-coral/80 transition shrink-0">Buy</button>
+      <button className="bg-coral text-white text-[9px] font-bold px-2.5 py-1.5 rounded-lg hover:bg-coral/80 transition shrink-0">
+        Buy
+      </button>
     </Link>
+  );
+}
+
+function GoLiveTitleInput({ onCreated }) {
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function submit() {
+    if (!title.trim()) return;
+    setLoading(true);
+    try {
+      console.log("🔴 Step 1: Creating session...");
+      const { data } = await api.post("/live/sessions", { title, category });
+      console.log("🔴 Step 2: Session created:", data.session);
+
+      console.log("🔴 Step 3: Starting session...");
+      await api.post(`/live/sessions/${data.session._id}/start`);
+      console.log("🔴 Step 4: Session started, calling onCreated...");
+
+      onCreated(data.session);
+      console.log("🔴 Step 5: onCreated called successfully");
+    } catch (err) {
+      console.error("❌ GoLive error:", err);
+      console.error("❌ Response data:", err.response?.data);
+      console.error("❌ Status:", err.response?.status);
+      alert("Failed: " + (err.response?.data?.error || err.message));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <Input
+        placeholder="Session title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <Input
+        placeholder="Category"
+        value={category}
+        onChange={(e) => setCategory(e.target.value)}
+      />
+      <Button
+        onClick={submit}
+        disabled={loading || !title.trim()}
+        className="w-full"
+      >
+        {loading ? <Spinner /> : "🔴 Go Live"}
+      </Button>
+    </>
   );
 }
 
@@ -127,18 +200,27 @@ export default function LiveStream() {
   const tracksRef = useRef(null);
   const chatEndRef = useRef(null);
 
-  const [sessions,  setSessions]  = useState([]);
-  const [active,    setActive]    = useState(null);
-  const [viewers,   setViewers]   = useState(0);
-  const [chat,      setChat]      = useState([]);
-  const [text,      setText]      = useState("");
-  const [bursts,    setBursts]    = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [active, setActive] = useState(null);
+  const [viewers, setViewers] = useState(0);
+  const [chat, setChat] = useState([]);
+  const [text, setText] = useState("");
+  const [bursts, setBursts] = useState([]);
   const [flashDeal, setFlashDeal] = useState(null);
   const [countdown, setCountdown] = useState(null);
-  const [isMock,    setIsMock]    = useState(false);
-  const [chatTab,   setChatTab]   = useState("chat");
-  const [liveTime,  setLiveTime]  = useState(2972);
-  const [showSpin,  setShowSpin]  = useState(false);
+  const [isMock, setIsMock] = useState(false);
+  const [chatTab, setChatTab] = useState("chat");
+  const [liveTime, setLiveTime] = useState(2972);
+  const [showSpin, setShowSpin] = useState(false);
+  const [activePoll, setActivePoll] = useState(null);
+  const [showGoLive, setShowGoLive] = useState(false);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+
+  async function goLive(session) {
+    setActive(session);
+    setIsMock(false);
+    setShowGoLive(false);
+  }
 
   // ─── Timer ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -168,7 +250,8 @@ export default function LiveStream() {
 
   // ─── Load sessions ──────────────────────────────────────────────────────────
   useEffect(() => {
-    api.get("/live/sessions")
+    api
+      .get("/live/sessions")
       .then(({ data }) => {
         const all = data.sessions || [];
         const live = all.filter((s) => s.status === "live");
@@ -193,6 +276,7 @@ export default function LiveStream() {
   // ─── Socket listeners ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!active || isMock) return;
+
     const s = getSocket();
     s.emit("live:join", { roomId: active.roomId });
     const onViewer = ({ count }) => setViewers(count);
@@ -200,6 +284,7 @@ export default function LiveStream() {
     const onReact  = () => fireReaction();
     const onFlash  = (deal) => {
       setFlashDeal(deal);
+      if (flashTimer) clearInterval(flashTimer);
       const end = new Date(deal.endsAt).getTime();
       const tick = () => {
         const l = Math.max(0, Math.round((end - Date.now()) / 1000));
@@ -396,7 +481,6 @@ export default function LiveStream() {
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-
       {/* Hero (mock mode) */}
       <AnimatePresence>
         {isMock && (
@@ -405,8 +489,6 @@ export default function LiveStream() {
               <span className="inline-flex items-center gap-1.5 bg-coral text-white text-[9px] font-bold px-2.5 py-1 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE NOW
               </span>
-              <span className="text-[9px] font-bold px-2.5 py-1 rounded-full bg-mint/15 text-leaf border border-leaf/20">✓ VERIFIED SELLER</span>
-              <span className="text-[9px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200">🔥 TRENDING #1</span>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
               <div>
@@ -415,7 +497,8 @@ export default function LiveStream() {
                   <br className="hidden sm:block" />shop in real time.
                 </h1>
                 <p className="text-ink/45 font-jakarta text-xs mt-1 max-w-sm">
-                  Tune into live drops from neighbourhood sellers across India. Ask, react, and grab one-of-a-kind pieces before they're gone.
+                  Tune into live drops from neighbourhood sellers across India.
+                  Ask, react, and grab one-of-a-kind pieces before they're gone.
                 </p>
               </div>
               <div className="flex gap-2 shrink-0">
@@ -444,7 +527,9 @@ export default function LiveStream() {
                     <span className="w-1 h-1 rounded-full bg-white animate-pulse" />LIVE
                   </span>
                 )}
-                <div className="absolute bottom-0 inset-x-0 p-1.5 bg-gradient-to-t from-black/70 text-white text-[9px] font-jakarta font-semibold line-clamp-1">{s.title}</div>
+                <div className="absolute bottom-0 inset-x-0 p-1.5 bg-gradient-to-t from-black/70 text-white text-[9px] font-jakarta font-semibold line-clamp-1">
+                  {s.title}
+                </div>
               </div>
             </button>
           ))}
@@ -453,10 +538,8 @@ export default function LiveStream() {
 
       {/* Main grid */}
       <div className="grid lg:grid-cols-[1fr_340px] gap-4 items-start">
-
         {/* ── LEFT ─────────────────────────────────────── */}
         <div className="flex flex-col gap-3 min-w-0">
-
           {/* Video */}
           <div className="relative aspect-video rounded-2xl overflow-hidden bg-ink shadow-xl border border-ink/5">
             <div ref={videoRef} className="absolute inset-0 w-full h-full" />
@@ -468,11 +551,9 @@ export default function LiveStream() {
               <span className="inline-flex items-center gap-1 bg-coral text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE
               </span>
-              <span className="text-[9px] font-jakarta font-semibold text-white/80 bg-black/35 px-2 py-0.5 rounded-full backdrop-blur-sm">{fmtTime(liveTime)}</span>
-              <span className="text-[9px] font-jakarta font-semibold text-white/80 bg-black/35 px-2 py-0.5 rounded-full backdrop-blur-sm">HD</span>
             </div>
 
-            {/* Top-right */}
+            {/* Top-right stats */}
             <div className="absolute top-3 right-3 flex items-center gap-1.5">
               <span className="flex items-center gap-1 text-[10px] font-jakarta font-semibold text-white bg-black/35 px-2 py-0.5 rounded-full backdrop-blur-sm">
                 <HiOutlineFire className="text-coral text-xs" />{(viewers || stats.peakViewers || 0).toLocaleString()}
@@ -482,7 +563,7 @@ export default function LiveStream() {
               </span>
             </div>
 
-            {/* Host */}
+            {/* Host info */}
             <div className="absolute top-10 left-3 flex items-center gap-2">
               <div className="w-8 h-8 rounded-full grid place-items-center font-fraunces font-bold text-sm border-2 border-white/40 bg-coral text-white">
                 {(active.host?.shopName || active.host?.name || "L")[0]}
@@ -491,10 +572,12 @@ export default function LiveStream() {
                 <div className="font-jakarta font-bold text-[11px] text-white leading-none">{active.host?.shopName || active.host?.name}</div>
                 <div className="text-[9px] text-white/55 font-jakarta">4.9★ · 2.1k followers</div>
               </div>
-              <button className="text-[9px] bg-white text-ink font-bold px-2 py-0.5 rounded-full hover:bg-peach transition ml-1">+ Follow</button>
+              <button className="text-[9px] bg-white text-ink font-bold px-2 py-0.5 rounded-full hover:bg-peach transition ml-1">
+                + Follow
+              </button>
             </div>
 
-            {/* Flash deal */}
+            {/* Flash deal banner */}
             <AnimatePresence>
               {(flashDeal || isMock) && (
                 <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
@@ -502,13 +585,22 @@ export default function LiveStream() {
                   <motion.span animate={{ scale: [1, 1.3, 1] }} transition={{ repeat: Infinity, duration: 0.9 }}>
                     <HiOutlineBolt className="text-sm" />
                   </motion.span>
-                  FLASH DEAL · 8 MIN LEFT
-                  <span className="ml-auto font-normal text-white/80">10% off · code <span className="font-bold text-white">LIVE10</span></span>
+                  {flashDeal
+                    ? `FLASH DEAL · ${countdown}s LEFT`
+                    : "FLASH DEAL · 8 MIN LEFT"}
+                  <span className="ml-auto font-normal text-white/80">
+                    {flashDeal
+                      ? `${flashDeal.discountPct}% off`
+                      : "10% off · code "}
+                    {!flashDeal && (
+                      <span className="font-bold text-white">LIVE10</span>
+                    )}
+                  </span>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Bottom */}
+            {/* Bottom: title + reaction */}
             <div className="absolute bottom-3 inset-x-3 flex items-end justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-[8px] uppercase tracking-[0.2em] font-jakarta font-semibold text-white/55 mb-0.5">{active.category || "Live drop"}</div>
@@ -533,7 +625,6 @@ export default function LiveStream() {
               );
             })}
           </div>
-
           {/* Products strip */}
           {active.featuredProducts?.length > 0 && (
             <div className="rounded-2xl bg-white/70 border border-ink/5 p-3">
@@ -552,7 +643,6 @@ export default function LiveStream() {
               </div>
             </div>
           )}
-
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <StatPill icon={HiOutlineUserGroup} value={(viewers || stats.peakViewers || 0).toLocaleString()} label="Live viewers" accent="text-coral" />
@@ -560,7 +650,6 @@ export default function LiveStream() {
             <StatPill icon={HiOutlineShoppingBag} value={stats.itemsSold || 0} label="Items sold" accent="text-leaf" />
             <StatPill icon={TbCoin} value={`+${stats.coinsEarned || 0}`} label="Coins earned" accent="text-amber-500" />
           </div>
-
           {/* Group buy */}
           <div className="rounded-2xl bg-white/70 border border-ink/5 p-3.5">
             <div className="flex items-center justify-between mb-2">
@@ -575,9 +664,18 @@ export default function LiveStream() {
               <motion.div className="h-full bg-gradient-to-r from-leaf to-mint rounded-full"
                 initial={{ width: 0 }} animate={{ width: `${grpPct}%` }} transition={{ duration: 1, ease: "easeOut" }} />
             </div>
-            <div className="mt-1.5 text-[9px] font-jakarta text-ink/40">Unlock group discount when {grpMax} buyers join</div>
+            <button
+              onClick={() =>
+                user &&
+                api
+                  .post(`/live/sessions/${active._id}/group-buy/join`)
+                  .catch(() => {})
+              }
+              className="mt-2 w-full text-[10px] font-jakarta font-semibold text-white bg-leaf rounded-lg py-1.5 hover:bg-leaf/80 transition"
+            >
+              Join Group Buy
+            </button>
           </div>
-
           {/* Spin the wheel (collapsible) */}
           <div className="rounded-2xl bg-white/70 border border-ink/5 overflow-hidden">
             <button onClick={() => setShowSpin((v) => !v)}
@@ -599,7 +697,6 @@ export default function LiveStream() {
               )}
             </AnimatePresence>
           </div>
-
           {/* Trust badges */}
           <div className="grid grid-cols-3 gap-2">
             {[
@@ -610,8 +707,12 @@ export default function LiveStream() {
               <div key={b.title} className="rounded-xl bg-white/60 border border-ink/5 px-3 py-2.5 flex items-start gap-2">
                 <span className="text-base leading-none mt-0.5">{b.icon}</span>
                 <div>
-                  <div className="text-[10px] font-jakarta font-semibold text-ink">{b.title}</div>
-                  <div className="text-[9px] font-jakarta text-ink/40 mt-0.5">{b.desc}</div>
+                  <div className="text-[10px] font-jakarta font-semibold text-ink">
+                    {b.title}
+                  </div>
+                  <div className="text-[9px] font-jakarta text-ink/40 mt-0.5">
+                    {b.desc}
+                  </div>
                 </div>
               </div>
             ))}
@@ -629,8 +730,14 @@ export default function LiveStream() {
                 className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 border-b-2 transition ${chatTab === tab.id ? "border-coral text-coral" : "border-transparent text-ink/35 hover:text-ink/55"}`}>
                 <tab.icon className="text-sm" />
                 <div className="flex items-center gap-0.5">
-                  <span className="text-[8px] font-jakarta font-bold uppercase tracking-wider">{tab.label}</span>
-                  {tab.count && <span className="w-3.5 h-3.5 rounded-full bg-coral text-white text-[7px] grid place-items-center font-bold">{tab.count}</span>}
+                  <span className="text-[8px] font-jakarta font-bold uppercase tracking-wider">
+                    {tab.label}
+                  </span>
+                  {tab.count && (
+                    <span className="w-3.5 h-3.5 rounded-full bg-coral text-white text-[7px] grid place-items-center font-bold">
+                      {tab.count}
+                    </span>
+                  )}
                 </div>
               </button>
             ))}
@@ -651,10 +758,11 @@ export default function LiveStream() {
                       <span className="text-[8px] text-ink/30 line-through">₹{active.featuredProducts[0].originalPrice?.toLocaleString("en-IN")}</span>
                     )}
                   </div>
+                  <button className="bg-coral text-white text-[9px] font-bold px-2 py-1.5 rounded-lg hover:bg-coral/80 transition shrink-0">
+                    Buy
+                  </button>
                 </div>
-                <button className="bg-coral text-white text-[9px] font-bold px-2 py-1.5 rounded-lg hover:bg-coral/80 transition shrink-0">Buy</button>
-              </div>
-            )}
+              )}
 
             <div className="px-3 py-2 shrink-0 flex items-center justify-between border-b border-ink/5">
               <span className="text-[9px] font-jakarta text-ink/40 uppercase tracking-wider flex items-center gap-1">
@@ -735,6 +843,83 @@ export default function LiveStream() {
           )}
         </aside>
       </div>
+      {/* Go Live Modal */}
+      <AnimatePresence>
+        {showGoLive && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 grid place-items-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl p-6 w-full max-w-sm flex flex-col gap-4 shadow-2xl"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="font-fraunces text-xl text-ink">
+                  Start a Live Session
+                </h2>
+                <button
+                  onClick={() => setShowGoLive(false)}
+                  className="text-ink/30 hover:text-ink text-lg"
+                >
+                  ✕
+                </button>
+              </div>
+              <GoLiveTitleInput onCreated={goLive} />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* POLL */}
+      {chatTab === "poll" && (
+        <div className="flex-1 overflow-y-auto px-3 py-3">
+          {!activePoll ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-peach/40 grid place-items-center text-2xl">
+                📊
+              </div>
+              <div className="font-fraunces text-base text-ink">
+                No active poll
+              </div>
+              <div className="text-[10px] font-jakarta text-ink/40 max-w-[160px]">
+                The seller will start one soon.
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {activePoll.options.map((opt, i) => {
+                const total = activePoll.options.reduce(
+                  (s, o) => s + o.votes,
+                  0,
+                );
+                const pct = total ? Math.round((opt.votes / total) * 100) : 0;
+                return (
+                  <button
+                    key={i}
+                    onClick={() =>
+                      api.post(
+                        `/live/sessions/${active._id}/poll/${activePoll._id}/vote`,
+                        { optionIndex: i },
+                      )
+                    }
+                    className="w-full text-left rounded-xl border border-ink/10 overflow-hidden hover:border-coral/30 transition"
+                  >
+                    <div className="px-3 py-2 relative">
+                      <div
+                        className="absolute inset-0 bg-coral/10 transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                      <div className="relative flex justify-between text-[11px] font-jakarta">
+                        <span>{opt.text}</span>
+                        <span className="text-ink/40">{pct}%</span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

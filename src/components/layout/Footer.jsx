@@ -14,16 +14,14 @@ export default function Footer() {
             </span>
             <span className="font-fraunces text-lg tracking-tight">Lokaly</span>
           </div>
-
           <div className="text-[10px] uppercase tracking-[0.25em] font-jakarta font-semibold text-butter mt-3 mb-1.5">
             Local love, big stories
           </div>
-
+          /*. */
           <p className="text-xs text-cream/65 max-w-sm leading-relaxed font-jakarta">
             India's social commerce hub for artisans, home-kitchens, and
             neighbourhood shops. Built on trust, karma, and community coins.
           </p>
-
           <div className="flex gap-1.5 mt-4">
             {[
               { Icon: FiGithub, label: "GitHub" },
