@@ -19,6 +19,33 @@ import Button from "../components/ui/Button";
 import StartChatModal from "../components/StartChatModal";
 import toast from "react-hot-toast";
 
+function normalizeMessage(msg, fallbackSeed = "") {
+  return {
+    ...msg,
+    _id:
+      msg?._id ||
+      `${msg?.conversation || fallbackSeed}-${msg?.createdAt || Date.now()}-${msg?.from || "unknown"}`,
+  };
+}
+
+function mergeUniqueMessages(prev, incoming) {
+  const map = new Map();
+  const push = (raw) => {
+    if (!raw) return;
+    const msg = normalizeMessage(raw);
+    const key = String(msg._id);
+    if (!key) return;
+    map.set(key, { ...map.get(key), ...msg });
+  };
+
+  (prev || []).forEach(push);
+  (incoming || []).forEach(push);
+
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0),
+  );
+}
+
 export default function Messages() {
   const [convos, setConvos] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -28,6 +55,7 @@ export default function Messages() {
   const [typingPeer, setTypingPeer] = useState(false);
   const [loading, setLoading] = useState(true);
   const [newChatOpen, setNewChatOpen] = useState(false);
+  const [conversationError, setConversationError] = useState(null);
   const [params] = useSearchParams();
   const scrollRef = useRef(null);
   const user = useAuthStore((s) => s.user);
@@ -45,8 +73,31 @@ export default function Messages() {
   }, []);
 
   useEffect(() => {
+    const conversationId = params.get("conversation");
     const to = params.get("to");
-    if (!to) return;
+
+    if (!conversationId && !to) {
+      setConversationError(null);
+      return;
+    }
+
+    if (conversationId) {
+      const match = convos.find((c) => c.id === conversationId);
+      if (match) {
+        setActiveId(conversationId);
+        setConversationError(null);
+        return;
+      }
+
+      if (loading) {
+        return;
+      }
+
+      setConversationError("Conversation not found or unavailable.");
+      return;
+    }
+
+    setConversationError(null);
     api.get(`/chat/conversations/with/${to}`).then(({ data }) => {
       const conv = data.conversation;
       setConvos((prev) => {
@@ -67,18 +118,22 @@ export default function Messages() {
       });
       setActiveId(conv._id);
     });
-  }, [params, user?._id]);
+  }, [params, user?._id, convos, loading]);
 
   useEffect(() => {
     if (!activeId) return;
     api
       .get(`/chat/conversations/${activeId}/messages`)
-      .then(({ data }) => setMessages(data.messages || []));
+      .then(({ data }) => {
+        const msgs = data.messages || [];
+        setMessages(mergeUniqueMessages([], msgs.map((m) => normalizeMessage(m, activeId))));
+      });
     const s = getSocket();
     s.emit("chat:join", { conversationId: activeId });
     const onMessage = (msg) => {
-      if (String(msg.conversation) === String(activeId))
-        setMessages((m) => [...m, msg]);
+      if (String(msg.conversation) === String(activeId)) {
+        setMessages((m) => mergeUniqueMessages(m, [normalizeMessage(msg, activeId)]));
+      }
       setConvos((list) =>
         list.map((c) =>
           c.id === msg.conversation
@@ -141,7 +196,9 @@ export default function Messages() {
     const s = getSocket();
     s.emit("chat:send", { conversationId: active.id, text: body }, (ack) => {
       if (ack?.error) toast.error(ack.error);
-      if (ack?.message) setMessages((m) => [...m, ack.message]);
+      if (ack?.message) {
+        setMessages((m) => mergeUniqueMessages(m, [normalizeMessage(ack.message, active.id)]));
+      }
     });
   }
 
@@ -285,11 +342,20 @@ export default function Messages() {
         {/* Active conversation */}
         <section className="rounded-2xl bg-white/80 border border-ink/5 flex flex-col overflow-hidden">
           {!active ? (
-            <div className="flex-1 grid place-items-center">
-              <EmptyState
-                title="Pick a conversation"
-                hint="Start a chat from any product page"
-              />
+            <div className="flex-1 grid place-items-center px-6 py-8">
+              {conversationError ? (
+                <div className="max-w-sm text-center">
+                  <p className="text-lg font-semibold text-ink">{conversationError}</p>
+                  <p className="text-sm text-ink/60 mt-2">
+                    The conversation could not be loaded. Try another chat or refresh the page.
+                  </p>
+                </div>
+              ) : (
+                <EmptyState
+                  title="Pick a conversation"
+                  hint="Start a chat from any product page"
+                />
+              )}
             </div>
           ) : (
             <>
@@ -324,11 +390,13 @@ export default function Messages() {
                 className="flex-1 overflow-auto px-4 py-4 space-y-2"
               >
                 <AnimatePresence initial={false}>
-                  {messages.map((m, i) => {
+                  {messages.map((m) => {
                     const mine = String(m.from) === String(user?._id);
+                    // Ensure we always have a unique key
+                    const uniqueKey = m._id || `msg-${m.createdAt}-${Math.random()}`;
                     return (
                       <motion.div
-                        key={m._id || i}
+                        key={uniqueKey}
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         className={`max-w-[75%] ${mine ? "ml-auto" : ""}`}
