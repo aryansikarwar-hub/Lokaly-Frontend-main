@@ -637,7 +637,9 @@ export default function LiveStream() {
           </div>
 
           {/* CHAT */}
-          {chatTab === "chat" && <>
+        {/* CHAT */}
+          {chatTab === "chat" && (
+            <>
             {active.featuredProducts?.[0] && (
               <div className="mx-3 mt-3 shrink-0 rounded-xl bg-gradient-to-r from-peach/60 to-coral/5 border border-coral/15 p-2.5 flex items-center gap-2.5">
                 <div className="w-1 h-10 rounded-full bg-coral shrink-0" />
@@ -697,8 +699,9 @@ export default function LiveStream() {
             <form onSubmit={sendChat} className="p-2 border-t border-ink/5 flex gap-1.5 shrink-0">
               <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Say something nice..." className="flex-1 text-xs" />
               <Button type="submit" size="sm" leftIcon={<HiOutlinePaperAirplane className="text-xs" />}>Send</Button>
-            </form>
-          </>}
+           </form>
+            </>
+          )}
 
           {/* SHOP */}
           {chatTab === "shop" && (
