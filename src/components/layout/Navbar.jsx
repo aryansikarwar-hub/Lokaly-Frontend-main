@@ -21,6 +21,7 @@ import {
   HiOutlineMoon,
   HiOutlineArrowRightOnRectangle,
 } from "react-icons/hi2";
+import NavbarLocationChip from "../NavbarLocationChip";
 import { FiUser } from "react-icons/fi";
 import { Avatar } from "../ui/Avatar";
 import { useAuthStore } from "../../store/authStore";
@@ -212,7 +213,7 @@ export default function Navbar() {
               <CoinsWidget />
             </div>
           )}
-
+          <NavbarLocationChip />
           {/* cart */}
           <Link
             to="/cart"
