@@ -18,6 +18,9 @@ import {
   HiOutlineQuestionMarkCircle,
   HiOutlineChevronRight,
   HiOutlineGift,
+  HiOutlineVideoCamera,
+  HiOutlineMicrophone,
+  HiOutlineStop,
   HiMiniSignal,
 } from "react-icons/hi2";
 import { TbFlame, TbHeartFilled, TbStar, TbCoin } from "react-icons/tb";
@@ -78,6 +81,19 @@ const fmtTime = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(
 const avatarBg = (name = "V") => `hsl(${(name.charCodeAt(0) * 5) % 360},55%,82%)`;
 const pctOff = (p, o) => (o > p ? Math.round((1 - p / o) * 100) : 0);
 
+// Check if user is a seller (has shopName or role === 'seller')
+const isUserSeller = (user) => {
+  if (!user) return false;
+  return user.role === "seller" || user.isSeller || !!user.shopName;
+};
+
+// Check if current user is the host of this session
+const isHostOfSession = (user, session) => {
+  if (!user || !session?.host) return false;
+  const hostId = session.host._id || session.host;
+  return String(user._id) === String(hostId);
+};
+
 // ─── Stat Pill ────────────────────────────────────────────────────────────────
 function StatPill({ icon: Icon, value, label, accent }) {
   return (
@@ -133,41 +149,255 @@ function ProductCard({ p, compact }) {
   );
 }
 
-function GoLiveTitleInput({ onCreated }) {
+// ─── Go Live Modal Component ──────────────────────────────────────────────────
+function GoLiveModal({ open, onClose, onCreated }) {
+  const [step, setStep] = useState("form"); // form | permissions | done
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
   const [loading, setLoading] = useState(false);
+  const [permError, setPermError] = useState("");
+  const [previewStream, setPreviewStream] = useState(null);
+  const previewRef = useRef(null);
 
-  async function submit() {
-    if (!title.trim()) return;
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!open) {
+      setStep("form");
+      setTitle("");
+      setCategory("");
+      setLoading(false);
+      setPermError("");
+      if (previewStream) {
+        previewStream.getTracks().forEach((t) => t.stop());
+        setPreviewStream(null);
+      }
+    }
+  }, [open]);
+
+  // Attach preview stream to video element
+  useEffect(() => {
+    if (previewStream && previewRef.current) {
+      previewRef.current.srcObject = previewStream;
+    }
+  }, [previewStream]);
+
+  // Cleanup preview stream on unmount
+  useEffect(() => {
+    return () => {
+      if (previewStream) {
+        previewStream.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, [previewStream]);
+
+  async function requestPermissions() {
+    setPermError("");
     setLoading(true);
     try {
-      console.log("🔴 Step 1: Creating session...");
-      const { data } = await api.post("/live/sessions", { title, category });
-      console.log("🔴 Step 2: Session created:", data.session);
-      console.log("🔴 Step 3: Starting session...");
-      await api.post(`/live/sessions/${data.session._id}/start`);
-      console.log("🔴 Step 4: Session started, calling onCreated...");
-      onCreated(data.session);
-      console.log("🔴 Step 5: onCreated called successfully");
+      // Request camera + mic permissions
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true,
+      });
+      setPreviewStream(stream);
+      setStep("permissions");
     } catch (err) {
-      console.error("❌ GoLive error:", err);
-      console.error("❌ Response data:", err.response?.data);
-      console.error("❌ Status:", err.response?.status);
-      alert("Failed: " + (err.response?.data?.error || err.message));
+      console.error("❌ Permission error:", err);
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setPermError("Camera/Microphone access denied. Please allow permissions in your browser settings and try again.");
+      } else if (err.name === "NotFoundError") {
+        setPermError("No camera or microphone found. Please connect a device and try again.");
+      } else if (err.name === "NotReadableError") {
+        setPermError("Camera/Mic is being used by another app. Please close other apps and try again.");
+      } else {
+        setPermError("Could not access camera/microphone: " + err.message);
+      }
     } finally {
       setLoading(false);
     }
   }
 
+  async function startSession() {
+    if (!title.trim()) return;
+    setLoading(true);
+    setPermError("");
+    try {
+      console.log("🔴 Step 1: Creating session...");
+      const { data } = await api.post("/live/sessions", { title, category });
+      console.log("🔴 Step 2: Session created:", data.session);
+
+      console.log("🔴 Step 3: Starting session...");
+      await api.post(`/live/sessions/${data.session._id}/start`);
+      console.log("🔴 Step 4: Session started");
+
+      // Stop preview stream — Agora will create its own tracks
+      if (previewStream) {
+        previewStream.getTracks().forEach((t) => t.stop());
+        setPreviewStream(null);
+      }
+
+      onCreated(data.session);
+    } catch (err) {
+      console.error("❌ GoLive error:", err);
+      const msg = err.response?.data?.error || err.message || "Failed to start session";
+      setPermError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!open) return null;
+
   return (
-    <>
-      <Input placeholder="Session title" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <Input placeholder="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
-      <Button onClick={submit} disabled={loading || !title.trim()} className="w-full">
-        {loading ? <Spinner /> : "🔴 Go Live"}
-      </Button>
-    </>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 grid place-items-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-ink/5">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-coral/10 grid place-items-center">
+              <HiMiniSignal className="text-coral text-base" />
+            </div>
+            <h2 className="font-fraunces text-lg text-ink">
+              {step === "form" ? "Start a Live Session" : "Camera Preview"}
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="text-ink/30 hover:text-ink text-xl w-8 h-8 grid place-items-center rounded-full hover:bg-ink/5 transition disabled:opacity-40"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 flex flex-col gap-4">
+          {step === "form" && (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-jakarta font-bold uppercase tracking-wider text-ink/50">
+                  Session Title *
+                </label>
+                <Input
+                  placeholder="e.g. Fresh sarees just in!"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  disabled={loading}
+                  autoFocus
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-jakarta font-bold uppercase tracking-wider text-ink/50">
+                  Category
+                </label>
+                <Input
+                  placeholder="e.g. Handloom & Textiles"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Permission notice */}
+              <div className="rounded-xl bg-peach/30 border border-coral/15 p-3 flex gap-2.5">
+                <div className="flex flex-col gap-1 shrink-0 pt-0.5">
+                  <HiOutlineVideoCamera className="text-coral text-sm" />
+                  <HiOutlineMicrophone className="text-coral text-sm" />
+                </div>
+                <div className="text-[10px] font-jakarta text-ink/70 leading-relaxed">
+                  We'll need access to your <strong>camera</strong> and{" "}
+                  <strong>microphone</strong> to start streaming. Your browser will ask for permission in the next step.
+                </div>
+              </div>
+
+              {permError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-[11px] font-jakarta text-red-700">
+                  {permError}
+                </div>
+              )}
+
+              <Button
+                onClick={requestPermissions}
+                disabled={loading || !title.trim()}
+                className="w-full"
+              >
+                {loading ? (
+                  <Spinner />
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <HiOutlineVideoCamera className="text-base" />
+                    Allow Camera & Mic
+                  </span>
+                )}
+              </Button>
+            </>
+          )}
+
+          {step === "permissions" && (
+            <>
+              {/* Live preview */}
+              <div className="relative aspect-video rounded-xl overflow-hidden bg-ink">
+                <video
+                  ref={previewRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/40 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-mint animate-pulse" />
+                  PREVIEW
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-mint/10 border border-mint/30 p-3 flex items-center gap-2">
+                <span className="text-base">✅</span>
+                <div className="text-[11px] font-jakarta text-leaf">
+                  Camera and microphone are working. Ready to go live!
+                </div>
+              </div>
+
+              {permError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-[11px] font-jakarta text-red-700">
+                  {permError}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (previewStream) {
+                      previewStream.getTracks().forEach((t) => t.stop());
+                      setPreviewStream(null);
+                    }
+                    setStep("form");
+                  }}
+                  disabled={loading}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-ink/10 text-xs font-jakarta font-semibold text-ink/60 hover:border-ink/30 hover:text-ink transition disabled:opacity-40"
+                >
+                  Back
+                </button>
+                <Button onClick={startSession} disabled={loading} className="flex-1">
+                  {loading ? (
+                    <Spinner />
+                  ) : (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                      Go Live Now
+                    </span>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </motion.div>
+    </div>
   );
 }
 
@@ -194,11 +424,54 @@ export default function LiveStream() {
   const [showSpin, setShowSpin] = useState(false);
   const [activePoll, setActivePoll] = useState(null);
   const [showGoLive, setShowGoLive] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [endingSession, setEndingSession] = useState(false);
+
+  // Derived: is current user the host of the active session?
+  const userIsSeller = isUserSeller(user);
+  const userIsHost = active && !isMock && isHostOfSession(user, active);
 
   async function goLive(session) {
+    // Refresh sessions list and switch to the new session
+    try {
+      const { data } = await api.get("/live/sessions");
+      const all = data.sessions || [];
+      setSessions(all);
+    } catch (e) {
+      console.error("Failed to reload sessions", e);
+    }
     setActive(session);
     setIsMock(false);
     setShowGoLive(false);
+  }
+
+  async function endLive() {
+    if (!active || !userIsHost) return;
+    if (!window.confirm("End this live session?")) return;
+    setEndingSession(true);
+    try {
+      await api.post(`/live/sessions/${active._id}/end`);
+      // Cleanup local Agora state
+      if (tracksRef.current) {
+        tracksRef.current.forEach((t) => {
+          try { t.stop(); t.close(); } catch {}
+        });
+        tracksRef.current = null;
+      }
+      if (clientRef.current) {
+        try { await clientRef.current.leave(); } catch {}
+      }
+      // Reset UI to mock state
+      setSessions([MOCK_SESSION]);
+      setActive(MOCK_SESSION);
+      setIsMock(true);
+      setIsPublishing(false);
+    } catch (err) {
+      console.error("Failed to end session", err);
+      alert("Failed to end session: " + (err.response?.data?.error || err.message));
+    } finally {
+      setEndingSession(false);
+    }
   }
 
   // ─── Timer ──────────────────────────────────────────────────────────────────
@@ -296,8 +569,7 @@ export default function LiveStream() {
 
     const init = async () => {
       try {
-        const isHost = user && active.host &&
-          (String(user._id) === String(active.host._id || active.host));
+        const isHost = isHostOfSession(user, active);
         const role = isHost ? "publisher" : "subscriber";
 
         console.log(`[live] Joining as ${role}, isHost=${isHost}, user=${user?._id}`);
@@ -314,16 +586,26 @@ export default function LiveStream() {
         console.log(`[live] Joined channel: ${active.roomId}`);
 
         if (role === "publisher") {
-          const tracks = await createTracks();
-          if (!mounted) {
-            tracks.forEach((t) => { t.stop(); t.close(); });
-            return;
-          }
-          tracksRef.current = tracks;
-          await localClient.publish(tracks);
-          console.log("[live] Publishing local tracks");
-          if (videoRef.current) {
-            tracks[1].play(videoRef.current);
+          try {
+            const tracks = await createTracks();
+            if (!mounted) {
+              tracks.forEach((t) => { t.stop(); t.close(); });
+              return;
+            }
+            tracksRef.current = tracks;
+            await localClient.publish(tracks);
+            setIsPublishing(true);
+            console.log("[live] Publishing local tracks");
+            if (videoRef.current) {
+              tracks[1].play(videoRef.current);
+            }
+          } catch (trackErr) {
+            console.error("[live] Track creation error:", trackErr);
+            if (trackErr.code === "PERMISSION_DENIED" || trackErr.message?.includes("Permission")) {
+              alert("Camera/Microphone permission denied. Please allow access and refresh the page.");
+            } else {
+              alert("Failed to access camera/mic: " + trackErr.message);
+            }
           }
         }
 
@@ -374,6 +656,7 @@ export default function LiveStream() {
     return () => {
       mounted = false;
       console.log("[live] Cleaning up Agora resources");
+      setIsPublishing(false);
       if (tracksRef.current) {
         tracksRef.current.forEach((track) => {
           try { track.stop(); track.close(); } catch (e) { /* ignore */ }
@@ -431,44 +714,69 @@ export default function LiveStream() {
   const grpMax = active.groupBuy?.threshold || 10;
   const grpPct = Math.round((grpCount / grpMax) * 100);
 
+  // Should we show the floating "Go Live" button for sellers?
+  // Show it when: user is a seller, AND they're not currently hosting a live session
+  const showGoLiveFAB = user && userIsSeller && !userIsHost;
+
   return (
     <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
 
-      {/* Hero (mock mode) */}
-      <AnimatePresence>
-        {isMock && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
+      {/* Hero header — always visible for sellers */}
+      <div className="mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {isMock ? (
+              <span className="inline-flex items-center gap-1.5 bg-ink/8 text-ink/60 text-[9px] font-bold px-2.5 py-1 rounded-full">
+                EXPLORE LIVE
+              </span>
+            ) : (
               <span className="inline-flex items-center gap-1.5 bg-coral text-white text-[9px] font-bold px-2.5 py-1 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE NOW
               </span>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-              <div>
-                <h1 className="font-fraunces text-2xl sm:text-3xl text-ink tracking-tight leading-snug">
-                  Watch artisans <span className="text-coral italic">create magic</span>,{" "}
-                  <br className="hidden sm:block" />shop in real time.
-                </h1>
-                <p className="text-ink/45 font-jakarta text-xs mt-1 max-w-sm">
-                  Tune into live drops from neighbourhood sellers across India.
-                  Ask, react, and grab one-of-a-kind pieces before they're gone.
-                </p>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <button className="flex items-center gap-1.5 text-xs font-jakarta font-semibold text-ink/60 border border-ink/10 px-3 py-1.5 rounded-full hover:border-ink/30 transition">
-                  <HiOutlineClock className="text-sm" />Schedule
-                </button>
-                <button
-                  onClick={() => setShowGoLive(true)}
-                  className="flex items-center gap-1.5 text-xs font-jakarta font-bold text-white bg-ink px-3 py-1.5 rounded-full hover:bg-ink/80 transition"
-                >
-                  <HiMiniSignal className="text-sm text-coral" />Go Live
-                </button>
-              </div>
-            </div>
-          </motion.div>
+            )}
+            {userIsHost && (
+              <span className="inline-flex items-center gap-1 bg-mint/15 text-leaf text-[9px] font-bold px-2 py-1 rounded-full">
+                ★ You're hosting
+              </span>
+            )}
+          </div>
+
+          <div className="flex gap-2 shrink-0">
+            {!userIsHost && user && userIsSeller && (
+              <button
+                onClick={() => setShowGoLive(true)}
+                className="flex items-center gap-1.5 text-xs font-jakarta font-bold text-white bg-coral px-4 py-2 rounded-full hover:bg-coral/90 transition shadow-md hover:shadow-lg"
+              >
+                <HiMiniSignal className="text-base" />
+                Go Live
+              </button>
+            )}
+            {userIsHost && (
+              <button
+                onClick={endLive}
+                disabled={endingSession}
+                className="flex items-center gap-1.5 text-xs font-jakarta font-bold text-white bg-red-500 px-4 py-2 rounded-full hover:bg-red-600 transition shadow-md disabled:opacity-50"
+              >
+                <HiOutlineStop className="text-base" />
+                {endingSession ? "Ending..." : "End Live"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {isMock && (
+          <div className="mt-3">
+            <h1 className="font-fraunces text-2xl sm:text-3xl text-ink tracking-tight leading-snug">
+              Watch artisans <span className="text-coral italic">create magic</span>,{" "}
+              <br className="hidden sm:block" />shop in real time.
+            </h1>
+            <p className="text-ink/45 font-jakarta text-xs mt-1 max-w-sm">
+              Tune into live drops from neighbourhood sellers across India.
+              Ask, react, and grab one-of-a-kind pieces before they're gone.
+            </p>
+          </div>
         )}
-      </AnimatePresence>
+      </div>
 
       {/* Session strip */}
       {sessions.length > 1 && (
@@ -508,6 +816,11 @@ export default function LiveStream() {
               <span className="inline-flex items-center gap-1 bg-coral text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE
               </span>
+              {userIsHost && isPublishing && (
+                <span className="inline-flex items-center gap-1 bg-mint/90 text-white text-[9px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm">
+                  <HiOutlineVideoCamera className="text-xs" />ON AIR
+                </span>
+              )}
             </div>
 
             {/* Top-right stats */}
@@ -529,10 +842,22 @@ export default function LiveStream() {
                 <div className="font-jakarta font-bold text-[11px] text-white leading-none">{active.host?.shopName || active.host?.name}</div>
                 <div className="text-[9px] text-white/55 font-jakarta">4.9★ · 2.1k followers</div>
               </div>
-              <button className="text-[9px] bg-white text-ink font-bold px-2 py-0.5 rounded-full hover:bg-peach transition ml-1">
-                + Follow
-              </button>
+              {!userIsHost && (
+                <button className="text-[9px] bg-white text-ink font-bold px-2 py-0.5 rounded-full hover:bg-peach transition ml-1">
+                  + Follow
+                </button>
+              )}
             </div>
+
+            {/* Empty state for non-host before any publisher joins */}
+            {!userIsHost && !isMock && (
+              <div className="absolute inset-0 grid place-items-center pointer-events-none">
+                <div className="text-center text-white/60">
+                  <div className="text-3xl mb-2 opacity-50">📡</div>
+                  <div className="text-xs font-jakarta">Waiting for host to start streaming…</div>
+                </div>
+              </div>
+            )}
 
             {/* Flash deal banner */}
             <AnimatePresence>
@@ -841,24 +1166,30 @@ export default function LiveStream() {
         </aside>
       </div>
 
+      {/* Floating Go Live FAB for sellers (mobile + always-accessible CTA) */}
+      {showGoLiveFAB && (
+        <motion.button
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.3, type: "spring" }}
+          onClick={() => setShowGoLive(true)}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 bg-coral text-white px-5 py-3.5 rounded-full shadow-2xl hover:bg-coral/90 transition group"
+        >
+          <span className="relative flex">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-50 animate-ping" />
+            <HiMiniSignal className="text-base relative" />
+          </span>
+          <span className="font-jakarta font-bold text-sm">Go Live</span>
+        </motion.button>
+      )}
+
       {/* Go Live Modal */}
       <AnimatePresence>
-        {showGoLive && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 grid place-items-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-sm flex flex-col gap-4 shadow-2xl"
-            >
-              <div className="flex items-center justify-between">
-                <h2 className="font-fraunces text-xl text-ink">Start a Live Session</h2>
-                <button onClick={() => setShowGoLive(false)} className="text-ink/30 hover:text-ink text-lg">✕</button>
-              </div>
-              <GoLiveTitleInput onCreated={goLive} />
-            </motion.div>
-          </div>
-        )}
+        <GoLiveModal
+          open={showGoLive}
+          onClose={() => setShowGoLive(false)}
+          onCreated={goLive}
+        />
       </AnimatePresence>
     </div>
   );
