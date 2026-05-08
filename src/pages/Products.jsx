@@ -1,5 +1,7 @@
+ 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useSearchParams } from "react-router-dom";
 import {
   HiOutlineAdjustmentsHorizontal,
   HiOutlineMagnifyingGlass,
@@ -35,24 +37,54 @@ const SORTS = [
 ];
 
 export default function Products() {
-  const [q, setQ] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [q, setQ] = useState(() => searchParams.get("q") || "");
+  //  Init q from URL only once on mount
   const [category, setCategory] = useState("All");
   const [sort, setSort] = useState("new");
   const [max, setMax] = useState(20000);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  //  Debounce URL writes — never read searchParams back into q
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const next = new URLSearchParams(searchParams);
+      if (q) next.set("q", q);
+      else next.delete("q");
+      // Only update if actually different — prevents loop
+      if (next.toString() !== searchParams.toString()) {
+        setSearchParams(next, { replace: true });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [q, searchParams, setSearchParams]);
+
+  const [debouncedQ, setDebouncedQ] = useState(q);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 400);
+    return () => clearTimeout(t);
+  }, [q]);
 
   useEffect(() => {
     let cancel = false;
     setLoading(true);
-    const params = { sort, limit: 24 };
-    if (q) params.q = q;
+    const params = { sort, limit: 24, page };
+    if (debouncedQ) params.q = debouncedQ;
     if (category !== "All") params.category = category;
     if (max < 20000) params.maxPrice = max;
     api
       .get("/products", { params })
       .then(({ data }) => {
-        if (!cancel) setItems(data.items || []);
+        if (!cancel) {
+          setItems((prev) =>
+            page === 1 ? data.items || [] : [...prev, ...(data.items || [])],
+          );
+          setTotalPages(data.pages || 1);
+        }
       })
       .catch(() => {
         if (!cancel) setItems([]);
@@ -63,14 +95,16 @@ export default function Products() {
     return () => {
       cancel = true;
     };
-  }, [q, category, sort, max]);
+  }, [debouncedQ, category, sort, max, page]);
 
-  const hasActiveFilters = category !== "All" || max < 20000 || q.length > 0;
+  const hasActiveFilters =
+    category !== "All" || max < 20000 || debouncedQ.length > 0;
 
   function clearFilters() {
     setCategory("All");
     setMax(20000);
     setQ("");
+    setPage(1);
   }
 
   return (
@@ -119,7 +153,10 @@ export default function Products() {
               <motion.button
                 whileTap={{ scale: 0.96 }}
                 key={c}
-                onClick={() => setCategory(c)}
+                onClick={() => {
+                  setCategory(c);
+                  setPage(1);
+                }}
                 className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-jakarta font-semibold transition border ${
                   isActive
                     ? "bg-ink text-cream border-ink"
@@ -172,7 +209,10 @@ export default function Products() {
             </span>
             <select
               value={sort}
-              onChange={(e) => setSort(e.target.value)}
+              onChange={(e) => {
+                setSort(e.target.value);
+                setPage(1);
+              }}
               className="rounded-full bg-white border border-ink/10 hover:border-ink/20 px-3 py-1.5 text-[11px] font-jakarta font-semibold text-ink outline-none cursor-pointer transition"
             >
               {SORTS.map((s) => (
@@ -224,6 +264,16 @@ export default function Products() {
           </div>
         )}
       </div>
+      {!loading && page < totalPages && (
+        <div className="mt-8 grid place-items-center">
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            className="px-6 py-2.5 rounded-full bg-ink text-cream text-xs font-jakarta font-semibold hover:bg-ink/90 transition"
+          >
+            Load more
+          </button>
+        </div>
+      )}
     </div>
   );
 }

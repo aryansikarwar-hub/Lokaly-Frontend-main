@@ -4,6 +4,7 @@ import MainLayout from './components/layout/MainLayout';
 
 export const Home = lazy(() => import('./pages/Home.jsx'));
 export const Feed = lazy(() => import('./pages/Feed.jsx'));
+export const Notifications = lazy(() => import('./pages/Notifications.jsx'));
 export const Products = lazy(() => import('./pages/Products.jsx'));
 export const ProductDetail = lazy(() => import('./pages/ProductDetail.jsx'));
 export const Cart = lazy(() => import('./pages/Cart.jsx'));

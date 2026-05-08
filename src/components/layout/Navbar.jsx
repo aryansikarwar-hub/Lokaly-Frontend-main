@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useCoinsStore } from "../../store/coinsStore";
 import {
   SUPPORTED_LANGS,
   getLanguage,
@@ -27,8 +28,9 @@ import { useCartStore } from "../../store/cartStore";
 import CoinsWidget from "../../features/coins/CoinsWidget";
 import ThemeToggle from "../ThemeToggle";
 import VerifiedBadge from "../VerifiedBadge";
-import { useTheme } from "../../context/ThemeContext";
+import NotificationBell from "../NotificationBell";
 import { useEffect, useRef, useState } from "react";
+import { useTheme } from "../../context/ThemeContext";
 
 function renderVerifiedBadge(user, size = 12) {
   if (!user) return null;
@@ -41,10 +43,10 @@ function renderVerifiedBadge(user, size = 12) {
 }
 
 const links = [
-  { to: "/feed",        label: "Feed",        icon: HiOutlineSparkles    },
-  { to: "/products",    label: "Shop",        icon: HiOutlineShoppingBag },
-  { to: "/live",        label: "Live",        icon: HiOutlineVideoCamera },
-  { to: "/leaderboard", label: "Leaderboard", icon: HiOutlineGlobeAlt    },
+  { to: "/feed", label: "Feed", icon: HiOutlineSparkles },
+  { to: "/products", label: "Shop", icon: HiOutlineShoppingBag },
+  { to: "/live", label: "Live", icon: HiOutlineVideoCamera },
+  { to: "/leaderboard", label: "Leaderboard", icon: HiOutlineGlobeAlt },
 ];
 
 function resolveRole(user) {
@@ -64,16 +66,19 @@ function resolveUserId(user) {
 }
 
 export default function Navbar() {
-  const user      = useAuthStore((s) => s.user);
-  const logout    = useAuthStore((s) => s.logout);
-  const { cart, fetch } = useCartStore();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const { cart, fetch: fetchCart } = useCartStore();
+  const fetchCoins = useCoinsStore((s) => s.fetch);
+  const resetCoins = useCoinsStore((s) => s.reset);
   const cartCount = (cart?.items || []).reduce((s, i) => s + i.quantity, 0);
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
   const { theme, toggle: toggleTheme } = useTheme();
 
-  const [mobileOpen,  setMobileOpen]  = useState(false);
-  const [searchOpen,  setSearchOpen]  = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const profileRef = useRef(null);
 
   /* close profile dropdown on outside click */
@@ -90,19 +95,29 @@ export default function Navbar() {
   /* lock body scroll when sidebar is open */
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [mobileOpen]);
 
-  useEffect(() => { if (user) fetch(); }, [user, fetch]);
+  useEffect(() => {
+    if (user) {
+      fetchCart();
+      fetchCoins();
+    }
+  }, [user, fetchCart, fetchCoins]);
 
-  const role          = resolveRole(user);
-  const myId          = resolveUserId(user);
+  const role = resolveRole(user);
+  const myId = resolveUserId(user);
   const dashboardPath = role === "buyer" ? "/buyer/dashboard" : "/dashboard";
 
   const handleLogout = () => {
     setProfileOpen(false);
     logout();
-    try { localStorage.removeItem("lokaly.user"); } catch (_) {}
+    resetCoins(); // ← add this
+    try {
+      localStorage.removeItem("lokaly.user");
+    } catch (_) {}
     navigate("/login");
   };
 
@@ -110,6 +125,14 @@ export default function Navbar() {
   const closeMobile = (e) => {
     e?.stopPropagation();
     setMobileOpen(false);
+  };
+
+  const submitSearch = (e) => {
+    e?.preventDefault();
+    const query = searchQuery.trim();
+    setSearchOpen(false);
+    setMobileOpen(false);
+    navigate(query ? `/products?q=${encodeURIComponent(query)}` : "/products");
   };
 
   return (
@@ -122,7 +145,6 @@ export default function Navbar() {
         className="sticky top-0 z-40 backdrop-blur-xl bg-cream/80 dark:bg-ink/80 border-b border-ink/5 dark:border-white/5"
       >
         <div className="max-w-7xl mx-auto px-3 lg:px-6 py-2 flex items-center gap-2 lg:gap-3">
-
           {/* logo */}
           <Link to="/" className="flex items-center gap-1.5 shrink-0">
             <span className="w-8 h-8 rounded-xl bg-coral-gradient shadow-pop grid place-items-center text-white font-fraunces text-sm">
@@ -144,7 +166,9 @@ export default function Navbar() {
                 to={l.to}
                 className={({ isActive }) =>
                   `px-2.5 py-1.5 rounded-full font-jakarta text-xs font-semibold flex items-center gap-1 transition whitespace-nowrap ${
-                    isActive ? "bg-peach text-ink" : "text-ink/70 hover:bg-peach/50"
+                    isActive
+                      ? "bg-peach text-ink"
+                      : "text-ink/70 hover:bg-peach/50"
                   }`
                 }
               >
@@ -157,13 +181,18 @@ export default function Navbar() {
           <div className="flex-1" />
 
           {/* desktop search */}
-          <div className="hidden xl:flex items-center gap-1.5 bg-white/70 rounded-full px-2.5 py-1.5 border border-ink/5 w-48 focus-within:border-ink/20 transition">
+          <form
+            onSubmit={submitSearch}
+            className="hidden xl:flex items-center gap-1.5 bg-white/70 rounded-full px-2.5 py-1.5 border border-ink/5 w-56 focus-within:border-ink/20 transition"
+          >
             <HiOutlineMagnifyingGlass className="text-ink/50 shrink-0 text-sm" />
             <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search sarees, pickles..."
               className="bg-transparent outline-none flex-1 text-xs placeholder:text-ink/40 min-w-0 font-jakarta"
             />
-          </div>
+          </form>
 
           {/* mobile search toggle */}
           <button
@@ -199,12 +228,7 @@ export default function Navbar() {
           </Link>
 
           {/* notifications */}
-          <button
-            className="hidden sm:grid w-9 h-9 place-items-center rounded-full hover:bg-peach/60 dark:hover:bg-white/10 text-ink dark:text-cream shrink-0 touch-manipulation"
-            aria-label="Notifications"
-          >
-            <HiOutlineBell className="text-base" />
-          </button>
+          <NotificationBell />
 
           <ThemeToggle />
 
@@ -218,7 +242,12 @@ export default function Navbar() {
                 aria-expanded={profileOpen}
                 className="rounded-full focus:outline-none focus:ring-2 focus:ring-coral/50 touch-manipulation"
               >
-                <Avatar src={user.avatar} name={user.name} size="xs" aura={user.trustScore} />
+                <Avatar
+                  src={user.avatar}
+                  name={user.name}
+                  size="xs"
+                  aura={user.trustScore}
+                />
               </button>
               <AnimatePresence>
                 {profileOpen && (
@@ -240,14 +269,20 @@ export default function Navbar() {
                       </div>
                     </div>
                     <button
-                      onClick={() => { setProfileOpen(false); navigate(`/profile/${myId}`); }}
+                      onClick={() => {
+                        setProfileOpen(false);
+                        navigate(`/profile/${myId}`);
+                      }}
                       className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-jakarta font-semibold text-ink/80 dark:text-cream/80 hover:bg-peach/60 dark:hover:bg-white/10 transition"
                       role="menuitem"
                     >
                       <HiOutlineUserCircle className="text-base" /> View Profile
                     </button>
                     <button
-                      onClick={() => { setProfileOpen(false); navigate(dashboardPath); }}
+                      onClick={() => {
+                        setProfileOpen(false);
+                        navigate(dashboardPath);
+                      }}
                       className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-jakarta font-semibold text-ink/80 dark:text-cream/80 hover:bg-peach/60 dark:hover:bg-white/10 transition"
                       role="menuitem"
                     >
@@ -258,9 +293,11 @@ export default function Navbar() {
                       className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-jakarta font-semibold text-ink/80 dark:text-cream/80 hover:bg-peach/60 dark:hover:bg-white/10 transition"
                       role="menuitem"
                     >
-                      {theme === "dark"
-                        ? <HiOutlineSun className="text-base" />
-                        : <HiOutlineMoon className="text-base" />}
+                      {theme === "dark" ? (
+                        <HiOutlineSun className="text-base" />
+                      ) : (
+                        <HiOutlineMoon className="text-base" />
+                      )}
                       Theme: {theme === "dark" ? "Dark" : "Light"}
                     </button>
                     <button
@@ -268,7 +305,8 @@ export default function Navbar() {
                       className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-jakarta font-semibold text-coral hover:bg-coral/10 transition"
                       role="menuitem"
                     >
-                      <HiOutlineArrowRightOnRectangle className="text-base" /> Logout
+                      <HiOutlineArrowRightOnRectangle className="text-base" />{" "}
+                      Logout
                     </button>
                   </motion.div>
                 )}
@@ -304,14 +342,19 @@ export default function Navbar() {
               className="xl:hidden overflow-hidden border-t border-ink/5 bg-cream/80 backdrop-blur-xl"
             >
               <div className="max-w-7xl mx-auto px-3 lg:px-6 py-2">
-                <div className="flex items-center gap-1.5 bg-white/80 rounded-full px-3 py-2 border border-ink/5">
+                <form
+                  onSubmit={submitSearch}
+                  className="flex items-center gap-1.5 bg-white/80 rounded-full px-3 py-2 border border-ink/5"
+                >
                   <HiOutlineMagnifyingGlass className="text-ink/50 shrink-0 text-sm" />
                   <input
                     autoFocus
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search sarees, pickles, pottery..."
                     className="bg-transparent outline-none flex-1 text-xs placeholder:text-ink/40 min-w-0 font-jakarta"
                   />
-                </div>
+                </form>
               </div>
             </motion.div>
           )}
@@ -370,7 +413,12 @@ export default function Navbar() {
                     onClick={closeMobile}
                     className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-ink/5 dark:border-white/10 mb-3"
                   >
-                    <Avatar src={user.avatar} name={user.name} size="sm" aura={user.trustScore} />
+                    <Avatar
+                      src={user.avatar}
+                      name={user.name}
+                      size="sm"
+                      aura={user.trustScore}
+                    />
                     <div className="min-w-0">
                       <div className="font-jakarta font-semibold text-ink dark:text-cream text-xs truncate flex items-center gap-1">
                         <span className="truncate">{user.name}</span>
@@ -444,8 +492,9 @@ export default function Navbar() {
 /* ════════════════ LANGUAGE SWITCHER ════════════════ */
 function LanguageSwitcher({ fullWidth = false }) {
   const [open, setOpen] = useState(false);
-  const current     = getLanguage();
-  const currentLang = SUPPORTED_LANGS.find((l) => l.code === current) || SUPPORTED_LANGS[0];
+  const current = getLanguage();
+  const currentLang =
+    SUPPORTED_LANGS.find((l) => l.code === current) || SUPPORTED_LANGS[0];
 
   return (
     <div className={`relative ${fullWidth ? "w-full" : ""}`}>
@@ -484,7 +533,10 @@ function LanguageSwitcher({ fullWidth = false }) {
                 return (
                   <button
                     key={l.code}
-                    onClick={() => { setLanguage(l.code); setOpen(false); }}
+                    onClick={() => {
+                      setLanguage(l.code);
+                      setOpen(false);
+                    }}
                     className={`w-full text-left flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-jakarta font-semibold transition touch-manipulation ${
                       active
                         ? "bg-lavender text-ink"
