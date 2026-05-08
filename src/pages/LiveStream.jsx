@@ -655,7 +655,6 @@ export default function LiveStream() {
       try {
         const isHost = isHostOfSession(user, active);
         // ✅ Agora SDK valid roles: "host" | "audience"
-        // (NOT "publisher"/"subscriber" — that was the bug causing INVALID_PARAMS)
         const agoraRole = isHost ? "host" : "audience";
         // Backend may still expect publisher/subscriber semantics — send both to be safe
         const backendRole = isHost ? "publisher" : "subscriber";
@@ -663,6 +662,9 @@ export default function LiveStream() {
         console.log(`[live] Joining as ${agoraRole}, isHost=${isHost}, user=${user?._id}`);
         await localClient.setClientRole(agoraRole);
 
+        // 🔑 Get token + appID from backend
+        // Backend returns { token, uid, appID } — we prefer appID from backend
+        // because it's always in sync with the token. Env var is a fallback only.
         const { data } = await api.post("/agora/token", {
           channelName: active.roomId,
           role: backendRole,
@@ -670,7 +672,28 @@ export default function LiveStream() {
 
         if (!mounted) return;
 
-        await localClient.join(APP_ID, active.roomId, data.token, data.uid || null);
+        // 🛡️ Resolve which APP_ID to use:
+        //   1. Prefer the appID returned by the backend (most reliable)
+        //   2. Fall back to VITE_AGORA_APP_ID env var
+        //   3. If neither exists, abort with a clear error
+        const resolvedAppId = data.appID || data.appId || APP_ID;
+
+        if (!resolvedAppId) {
+          console.error(
+            "❌ Agora APP_ID could not be resolved.\n" +
+            "Backend did not return appID in /agora/token response, " +
+            "and VITE_AGORA_APP_ID is not set in env. " +
+            "Add VITE_AGORA_APP_ID to .env / Vercel → Environment Variables, then redeploy."
+          );
+          if (isHost) {
+            alert("⚠️ Live streaming is not configured. Agora App ID is missing.");
+          }
+          return;
+        }
+
+        console.log(`[live] Using Agora APP_ID: ${resolvedAppId.slice(0, 8)}…`);
+
+        await localClient.join(resolvedAppId, active.roomId, data.token, data.uid || null);
         console.log(`[live] Joined channel: ${active.roomId}`);
 
         if (agoraRole === "host") {
