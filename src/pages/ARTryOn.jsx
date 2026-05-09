@@ -10,9 +10,7 @@ import Button from "../components/ui/Button";
 import { Reveal } from "../components/animations/Reveal";
 
 /* ---------- Frame catalog ----------
-   Each frame is an inline SVG renderer. This keeps things zero-asset,
-   instant-load, and perfectly themable. Each renderer receives the
-   pixel width of the glasses and returns an SVG string.
+   Each frame is an inline SVG renderer. Zero-asset, instant-load, themable.
 ------------------------------------ */
 
 const FRAMES = {
@@ -21,8 +19,8 @@ const FRAMES = {
     label: "Aviator",
     brand: "Lenskart Air",
     price: 1499,
-    widthScale: 2.15, // glasses width = eye-distance * widthScale
-    yOffset: -0.05, // vertical nudge (% of glasses height)
+    widthScale: 2.15,
+    yOffset: -0.05,
     render: (w) => {
       const h = w * 0.42;
       return `
@@ -33,17 +31,12 @@ const FRAMES = {
               <stop offset="100%" stop-color="#3a3a3a" stop-opacity="0.35"/>
             </linearGradient>
           </defs>
-          <!-- left lens (teardrop) -->
           <path d="M10 28 Q10 14 30 12 L78 12 Q88 12 86 26 L82 58 Q78 74 56 74 Q22 74 14 50 Z"
             fill="url(#lens-av)" stroke="#d4af37" stroke-width="3"/>
-          <!-- right lens -->
           <path d="M190 28 Q190 14 170 12 L122 12 Q112 12 114 26 L118 58 Q122 74 144 74 Q178 74 186 50 Z"
             fill="url(#lens-av)" stroke="#d4af37" stroke-width="3"/>
-          <!-- bridge -->
           <path d="M86 22 Q100 18 114 22" stroke="#d4af37" stroke-width="3" fill="none"/>
-          <!-- top bar -->
           <path d="M30 12 Q100 6 170 12" stroke="#d4af37" stroke-width="2" fill="none"/>
-          <!-- temples -->
           <path d="M10 30 L0 28" stroke="#d4af37" stroke-width="3" fill="none"/>
           <path d="M190 30 L200 28" stroke="#d4af37" stroke-width="3" fill="none"/>
         </svg>`;
@@ -66,15 +59,11 @@ const FRAMES = {
               <stop offset="100%" stop-color="#1a1a1a" stop-opacity="0.5"/>
             </linearGradient>
           </defs>
-          <!-- left lens (trapezoidal) -->
           <path d="M8 22 Q10 12 22 10 L82 10 Q92 10 92 22 L88 58 Q86 70 72 70 L26 70 Q12 70 10 58 Z"
             fill="url(#lens-wf)" stroke="#1a1a1a" stroke-width="4" stroke-linejoin="round"/>
-          <!-- right lens -->
           <path d="M192 22 Q190 12 178 10 L118 10 Q108 10 108 22 L112 58 Q114 70 128 70 L174 70 Q188 70 190 58 Z"
             fill="url(#lens-wf)" stroke="#1a1a1a" stroke-width="4" stroke-linejoin="round"/>
-          <!-- bridge -->
           <path d="M92 24 L108 24" stroke="#1a1a1a" stroke-width="4" stroke-linecap="round"/>
-          <!-- temples -->
           <path d="M8 28 L0 24" stroke="#1a1a1a" stroke-width="4" stroke-linecap="round"/>
           <path d="M192 28 L200 24" stroke="#1a1a1a" stroke-width="4" stroke-linecap="round"/>
         </svg>`;
@@ -97,16 +86,12 @@ const FRAMES = {
               <stop offset="100%" stop-color="#4a2a5a" stop-opacity="0.4"/>
             </linearGradient>
           </defs>
-          <!-- left lens (cat-eye sweep) -->
           <path d="M6 30 Q4 14 24 10 L78 10 Q92 10 94 24 L92 50 Q88 64 70 66 L28 66 Q10 64 6 48 Z"
             fill="url(#lens-ce)" stroke="#7a3a8a" stroke-width="3.5" stroke-linejoin="round"/>
-          <!-- right lens -->
           <path d="M194 30 Q196 14 176 10 L122 10 Q108 10 106 24 L108 50 Q112 64 130 66 L172 66 Q190 64 194 48 Z"
             fill="url(#lens-ce)" stroke="#7a3a8a" stroke-width="3.5" stroke-linejoin="round"/>
-          <!-- pointed corners -->
           <path d="M6 30 L0 18" stroke="#7a3a8a" stroke-width="3.5" stroke-linecap="round"/>
           <path d="M194 30 L200 18" stroke="#7a3a8a" stroke-width="3.5" stroke-linecap="round"/>
-          <!-- bridge -->
           <path d="M94 22 Q100 18 106 22" stroke="#7a3a8a" stroke-width="3.5" fill="none"/>
         </svg>`;
     },
@@ -136,11 +121,11 @@ export default function ARTryOn() {
   const landmarkerRef = useRef(null);
   const rafRef = useRef(null);
   const lastVideoTimeRef = useRef(-1);
-  const smoothRef = useRef(null); // smoothed transform state
+  const smoothRef = useRef(null);
 
   const [active, setActive] = useState(ITEMS[0]);
   const [error, setError] = useState(null);
-  const [status, setStatus] = useState("loading"); // loading | tracking | no-face | error
+  const [status, setStatus] = useState("loading");
   const activeRef = useRef(active);
   activeRef.current = active;
 
@@ -150,7 +135,6 @@ export default function ARTryOn() {
     let cancelled = false;
 
     (async () => {
-      // 1. camera
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -172,7 +156,6 @@ export default function ARTryOn() {
         return;
       }
 
-      // 2. MediaPipe model
       try {
         const vision = await loadMediaPipe();
         const { FilesetResolver, FaceLandmarker } = vision;
@@ -220,7 +203,6 @@ export default function ARTryOn() {
         return;
       }
 
-      // Match canvas size to displayed video
       const rect = video.getBoundingClientRect();
       if (canvas.width !== rect.width || canvas.height !== rect.height) {
         canvas.width = rect.width;
@@ -241,7 +223,6 @@ export default function ARTryOn() {
           if (statusRef.current !== "no-face") setStatus("no-face");
         }
       } else if (smoothRef.current) {
-        // redraw with last known transform for smoother feel
         drawGlassesFromTransform(ctx, canvas, smoothRef.current);
       }
 
@@ -250,49 +231,38 @@ export default function ARTryOn() {
     rafRef.current = requestAnimationFrame(tick);
   }, []);
 
-  // status ref so loop doesn't trigger re-renders unnecessarily
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  /* ----- Compute glasses transform from landmarks ----- */
+  /* ----- Compute glasses transform from landmarks -----
+     IMPORTANT: Both video AND canvas are mirrored via CSS (scale-x-[-1]).
+     So we use raw landmark coords WITHOUT mirroring — the CSS mirror
+     handles flipping for the user's selfie view.
+  ------------------------------------------------------ */
   const drawGlasses = (ctx, canvas, landmarks) => {
-    // MediaPipe face landmark indices:
-    //  - 33  : left eye outer corner
-    //  - 263 : right eye outer corner
-    //  - 133 : left eye inner corner
-    //  - 362 : right eye inner corner
-    //  - 168 : nose bridge top (between eyes)
-    //  - 6   : nose bridge mid
     const W = canvas.width;
     const H = canvas.height;
 
-    // Note: video is mirrored via CSS (scale-x-[-1]). We must mirror X coords too.
-    const toPx = (lm) => ({ x: (1 - lm.x) * W, y: lm.y * H, z: lm.z });
+    const toPx = (lm) => ({ x: lm.x * W, y: lm.y * H, z: lm.z });
 
     const leftEyeOuter = toPx(landmarks[33]);
     const rightEyeOuter = toPx(landmarks[263]);
     const noseBridge = toPx(landmarks[168]);
 
-    // Center between eyes
     const cx = (leftEyeOuter.x + rightEyeOuter.x) / 2;
     const cy = (leftEyeOuter.y + rightEyeOuter.y) / 2;
 
-    // Eye distance (used for sizing)
     const dx = rightEyeOuter.x - leftEyeOuter.x;
     const dy = rightEyeOuter.y - leftEyeOuter.y;
     const eyeDist = Math.hypot(dx, dy);
-
-    // Head roll (rotation in image plane)
     const angle = Math.atan2(dy, dx);
 
-    // Use nose bridge for vertical anchoring (more stable than eye-center alone)
     const anchorY = (cy + noseBridge.y * 0.6) / 1.6;
 
     const target = { cx, cy: anchorY, eyeDist, angle };
 
-    // Smooth (low-pass) to reduce jitter
     const prev = smoothRef.current;
-    const a = prev ? 0.35 : 1; // smoothing factor; first frame snaps in
+    const a = prev ? 0.35 : 1;
     const smoothed = prev
       ? {
           cx: prev.cx + (target.cx - prev.cx) * a,
@@ -328,7 +298,6 @@ export default function ARTryOn() {
   /* ----- Cache rendered SVG -> Image objects ----- */
   const imageCacheRef = useRef(new Map());
   const getFrameImage = (frame, width) => {
-    // Bucket width to avoid generating an image every frame
     const bucket = Math.round(width / 10) * 10;
     const key = `${frame.id}_${bucket}`;
     const cache = imageCacheRef.current;
@@ -340,14 +309,9 @@ export default function ARTryOn() {
     const img = new Image();
     img.src = url;
     cache.set(key, img);
-    // cleanup eventually
-    img.onload = () => {
-      // we keep url alive — small footprint, reused across frames
-    };
     return img;
   };
 
-  // Clear smoothing when switching frames so the new one snaps in cleanly
   useEffect(() => {
     smoothRef.current = null;
   }, [active]);
@@ -394,6 +358,7 @@ export default function ARTryOn() {
             </div>
           ) : (
             <>
+              {/* Video AND canvas BOTH mirrored — keeps selfie feel + glasses orient correctly */}
               <video
                 ref={videoRef}
                 autoPlay
@@ -403,14 +368,14 @@ export default function ARTryOn() {
               />
               <canvas
                 ref={canvasRef}
-                className="absolute inset-0 w-full h-full pointer-events-none"
+                className="absolute inset-0 w-full h-full pointer-events-none scale-x-[-1]"
               />
             </>
           )}
 
           {/* Status pill */}
           {!error && (
-            <div className="absolute top-3 left-3">
+            <div className="absolute top-3 left-3 z-10">
               <motion.div
                 key={status}
                 initial={{ opacity: 0, y: -4 }}
@@ -435,7 +400,7 @@ export default function ARTryOn() {
 
           {/* Bottom product badge */}
           {!error && (
-            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
+            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2 z-10">
               <div className="px-3 py-1.5 rounded-full bg-ink/80 backdrop-blur-md text-cream flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-coral animate-pulse" />
                 <span className="text-[10px] font-jakarta font-semibold uppercase tracking-wider">
