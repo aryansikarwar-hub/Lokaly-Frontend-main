@@ -967,7 +967,7 @@ function SellerSettingsTab({ user, onSaved }) {
   const [country, setCountry] = useState(addr.country || "India");
 
   const [busy, setBusy] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+  // const [verifying, setVerifying] = useState(false);
 
   async function save(e) {
     e.preventDefault();
@@ -995,16 +995,10 @@ function SellerSettingsTab({ user, onSaved }) {
     }
   }
 
-  async function resendVerification() {
-    setVerifying(true);
-    try {
-      await api.post("/auth/resend-verification");
-      toast.success("Verification sent");
-    } catch {
-      toast.error("Failed");
-    } finally {
-      setVerifying(false);
-    }
+  const navigate = useNavigate();
+
+  function goToVerify() {
+    navigate(`/verify-email?email=${encodeURIComponent(user.email || '')}`);
   }
 
   return (
@@ -1074,13 +1068,13 @@ function SellerSettingsTab({ user, onSaved }) {
             className="flex-1 input bg-gray-100 cursor-not-allowed"
           />
 
-          {!user.emailVerified ? (
-            <Button onClick={resendVerification}>
-              {verifying ? "Sending..." : "Verify"}
+          {!(user.isEmailVerified || user.emailVerified) ? (
+            <Button type="button" onClick={goToVerify} leftIcon={<HiOutlineEnvelope />}>
+              Verify
             </Button>
           ) : (
-            <span className="text-green-500 text-xs flex items-center">
-              Verified
+            <span className="inline-flex items-center gap-1 text-leaf dark:text-mint text-xs font-jakarta font-semibold">
+              <HiOutlineCheckBadge /> Verified
             </span>
           )}
         </div>
