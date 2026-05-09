@@ -74,7 +74,44 @@ export default function LocationPrompt({ onResolved, onDismiss }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="relative rounded-2xl bg-gradient-to-br from-peach via-butter to-lavender border border-ink/5 p-5 md:p-6 overflow-hidden"
+      className="
+relative
+group
+rounded-2xl
+
+bg-gradient-to-br
+from-peach
+via-butter
+to-lavender
+
+dark:bg-gradient-to-br
+dark:from-[#211c31]
+dark:via-[#191624]
+dark:to-[#14111d]
+
+dark:backdrop-blur-2xl
+
+border
+border-ink/5
+dark:border-white/10
+
+shadow-[0_10px_40px_rgba(0,0,0,0.08)]
+dark:shadow-[0_10px_60px_rgba(0,0,0,0.45)]
+
+hover:border-ink/10
+dark:hover:border-white/20
+
+transition-all
+duration-300
+
+p-5
+md:p-6
+
+overflow-hidden
+
+text-ink
+dark:text-white
+"
     >
       <div
         className="absolute inset-0 opacity-[0.04] pointer-events-none"
@@ -96,17 +133,17 @@ export default function LocationPrompt({ onResolved, onDismiss }) {
       )}
 
       <div className="relative flex items-start gap-3 md:gap-4">
-        <div className="w-10 h-10 md:w-11 md:h-11 grid place-items-center rounded-xl bg-white/60 backdrop-blur shrink-0">
-          <HiOutlineSparkles className="text-coral text-lg" />
+        <div className="w-10 h-10 md:w-11 md:h-11 grid place-items-center rounded-xl bg-white/60 dark:bg-white/10 border border-ink/10 dark:border-white/10 backdrop-blur shrink-0">
+          <HiOutlineSparkles className="text-coral text-lg dark:text-cream" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[10px] uppercase tracking-[0.2em] font-jakarta font-semibold text-coral mb-1">
             Hyperlocal magic
           </div>
-          <h3 className="font-fraunces text-lg md:text-xl text-ink tracking-tight leading-tight">
+          <h3 className="font-fraunces text-lg md:text-xl text-ink dark:text-cream tracking-tight leading-tight">
             Discover sellers in your neighbourhood
           </h3>
-          <p className="mt-1.5 text-xs text-ink/65 font-jakarta max-w-md leading-relaxed">
+          <p className="mt-1.5 text-xs text-ink/65 dark:text-cream/70 font-jakarta max-w-md leading-relaxed">
             We&apos;ll show you artisans nearby, same-day delivery options, and
             what&apos;s trending in your area.
           </p>
@@ -123,7 +160,7 @@ export default function LocationPrompt({ onResolved, onDismiss }) {
               </button>
               <button
                 onClick={() => setMode("pincode")}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/70 border border-ink/10 text-ink px-4 py-2 text-xs font-jakarta font-semibold hover:border-ink/30 transition"
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/70 dark:bg-white/10 border border-ink/10 dark:border-white/10 text-ink dark:text-cream px-4 py-2 text-xs font-jakarta font-semibold hover:border-ink/30 dark:hover:border-white/20 transition"
               >
                 Enter pincode
               </button>
@@ -143,7 +180,7 @@ export default function LocationPrompt({ onResolved, onDismiss }) {
                 placeholder="6-digit pincode"
                 inputMode="numeric"
                 autoFocus
-                className="flex-1 min-w-[140px] rounded-full bg-white/80 border border-ink/10 px-4 py-2 text-xs font-jakarta outline-none focus:border-ink/30 transition"
+                className="flex-1 min-w-[140px] rounded-full bg-white/80 dark:bg-white/95 border border-ink/10 dark:border-white/10 text-ink dark:text-ink px-4 py-2 text-xs font-jakarta outline-none focus:border-ink/30 dark:focus:border-white/20 transition"
               />
               <button
                 type="submit"
@@ -155,7 +192,7 @@ export default function LocationPrompt({ onResolved, onDismiss }) {
               <button
                 type="button"
                 onClick={() => setMode("idle")}
-                className="rounded-full bg-white/70 border border-ink/10 text-ink px-4 py-2 text-xs font-jakarta font-semibold hover:border-ink/30 transition"
+                className="rounded-full bg-white/70 dark:bg-white/10 border border-ink/10 dark:border-white/10 text-ink dark:text-cream px-4 py-2 text-xs font-jakarta font-semibold hover:border-ink/30 dark:hover:border-white/20 transition"
               >
                 Back
               </button>
