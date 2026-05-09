@@ -97,11 +97,11 @@ const isHostOfSession = (user, session) => {
 // ─── Stat Pill ────────────────────────────────────────────────────────────────
 function StatPill({ icon: Icon, value, label, accent }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/75 border border-ink/5">
+    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/75 dark:bg-ink/70 border border-ink/5 dark:border-white/10">
       <Icon className={`text-lg shrink-0 ${accent}`} />
       <div>
-        <div className="font-fraunces text-sm text-ink leading-none">{value}</div>
-        <div className="text-[9px] font-jakarta text-ink/40 uppercase tracking-wider">{label}</div>
+        <div className="font-fraunces text-sm text-ink dark:text-cream leading-none">{value}</div>
+        <div className="text-[9px] font-jakarta text-ink/40 dark:text-cream/50 uppercase tracking-wider">{label}</div>
       </div>
     </div>
   );
@@ -112,7 +112,7 @@ function ProductCard({ p, compact }) {
   const pct = pctOff(p.price, p.originalPrice);
   if (compact) return (
     <Link to={`/product/${p._id}`}
-      className="shrink-0 w-36 rounded-xl bg-white/80 border border-ink/5 p-2 flex flex-col gap-1.5 hover:shadow-md hover:border-coral/20 transition group">
+      className="shrink-0 w-36 rounded-xl bg-white/80 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-2 flex flex-col gap-1.5 hover:shadow-md hover:border-coral/20 transition group">
       <div className="relative w-full h-24 rounded-lg overflow-hidden bg-peach/20">
         <img src={p.images?.[0]?.url} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
         {pct > 0 && <span className="absolute top-1 right-1 bg-coral text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">{pct}%</span>}
@@ -1080,7 +1080,7 @@ export default function LiveStream() {
 
           {/* Products strip */}
           {active.featuredProducts?.length > 0 && (
-            <div className="rounded-2xl bg-white/70 border border-ink/5 p-3">
+            <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3">
               <div className="flex items-center justify-between mb-2.5">
                 <div className="flex items-center gap-1.5">
                   <HiOutlineTag className="text-coral text-xs" />
@@ -1106,7 +1106,7 @@ export default function LiveStream() {
           </div>
 
           {/* Group buy */}
-          <div className="rounded-2xl bg-white/70 border border-ink/5 p-3.5">
+          <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3.5">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5">
                 <HiOutlineUserGroup className="text-leaf text-sm" />
@@ -1128,9 +1128,9 @@ export default function LiveStream() {
           </div>
 
           {/* Spin the wheel */}
-          <div className="rounded-2xl bg-white/70 border border-ink/5 overflow-hidden">
+          <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 overflow-hidden">
             <button onClick={() => setShowSpin((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-peach/20 transition">
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-peach/20 dark:hover:bg-white/10 transition">
               <div className="flex items-center gap-2">
                 <HiOutlineGift className="text-coral text-base" />
                 <span className="text-xs font-jakarta font-semibold text-ink">Spin the Wheel</span>
@@ -1156,7 +1156,7 @@ export default function LiveStream() {
               { icon: "🚚", title: "Local Delivery", desc: "Direct from maker" },
               { icon: "↩️", title: "7-day Returns", desc: "No questions asked" },
             ].map((b) => (
-              <div key={b.title} className="rounded-xl bg-white/60 border border-ink/5 px-3 py-2.5 flex items-start gap-2">
+              <div key={b.title} className="rounded-xl bg-white/60 dark:bg-ink/60 border border-ink/5 dark:border-white/10 px-3 py-2.5 flex items-start gap-2">
                 <span className="text-base leading-none mt-0.5">{b.icon}</span>
                 <div>
                   <div className="text-[10px] font-jakarta font-semibold text-ink">{b.title}</div>
@@ -1169,14 +1169,14 @@ export default function LiveStream() {
 
         {/* ── RIGHT: Chat sidebar ───────────────────────── */}
         <aside
-          className="rounded-2xl bg-white/80 border border-ink/5 flex flex-col overflow-hidden shadow-sm lg:sticky lg:top-20"
+          className="rounded-2xl bg-white/80 dark:bg-ink/70 border border-ink/5 dark:border-white/10 flex flex-col overflow-hidden shadow-sm lg:sticky lg:top-20"
           style={{ height: "min(calc(100vh - 96px), 680px)" }}
         >
           {/* Tabs */}
           <div className="flex border-b border-ink/5 shrink-0">
             {CHAT_TABS.map((tab) => (
               <button key={tab.id} onClick={() => setChatTab(tab.id)}
-                className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 border-b-2 transition ${chatTab === tab.id ? "border-coral text-coral" : "border-transparent text-ink/35 hover:text-ink/55"}`}>
+                className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 border-b-2 transition ${chatTab === tab.id ? "border-coral text-coral" : "border-transparent text-ink/35 dark:text-cream/55 hover:text-ink/55 dark:hover:text-cream"}`}>
                 <tab.icon className="text-sm" />
                 <div className="flex items-center gap-0.5">
                   <span className="text-[8px] font-jakarta font-bold uppercase tracking-wider">{tab.label}</span>

@@ -274,10 +274,10 @@ export default function Leaderboard() {
                   transition={{ delay: 0.08 * i }}
                   className={`rounded-2xl p-4 border relative overflow-hidden ${
                     i === 0
-                      ? "bg-gradient-to-br from-coral to-tangerine text-white border-ink/5"
+                      ? "bg-gradient-to-br from-coral to-tangerine text-white border-ink/5 dark:from-[#b73d2b] dark:to-[#8d2a1f]"
                       : i === 1
-                        ? "bg-gradient-to-br from-peach to-butter text-ink border-ink/5"
-                        : "bg-gradient-to-br from-lavender to-mint text-ink border-ink/5"
+                        ? "bg-gradient-to-br from-peach to-butter text-ink border-ink/5 dark:bg-gradient-to-br dark:from-[#4c2943] dark:to-[#2f2835] dark:text-cream dark:border-cream/10"
+                        : "bg-gradient-to-br from-lavender to-mint text-ink border-ink/5 dark:bg-gradient-to-br dark:from-[#28213f] dark:to-[#1d2f26] dark:text-cream dark:border-cream/10"
                   } ${mine ? "ring-2 ring-offset-2 ring-coral ring-offset-cream dark:ring-offset-ink" : ""}`}
                 >
                   <div
