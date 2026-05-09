@@ -3,8 +3,25 @@ import { HiStar, HiOutlineBolt, HiOutlineShieldCheck } from "react-icons/hi2";
 import { Tilt } from "./animations/Tilt";
 import DeliveryBadge from "./DeliveryBadge";
 
+const API_ORIGIN = (() => {
+  const raw = import.meta.env.VITE_API_URL;
+  if (!raw) return "";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "";
+  }
+})();
+
+function absolutizeUrl(url) {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
+  if (url.startsWith("/") && API_ORIGIN) return `${API_ORIGIN}${url}`;
+  return url;
+}
+
 export default function ProductCard({ product }) {
-  const img = product.images?.[0]?.url;
+  const img = absolutizeUrl(product.images?.[0]?.url);
   const seller = product.seller || {};
   const discount = product.compareAtPrice
     ? Math.max(
