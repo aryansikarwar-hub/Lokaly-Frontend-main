@@ -58,4 +58,39 @@ api.interceptors.response.use(
   }
 );
 
+// ============================================
+// 🆕 Recommendation API (HuggingFace AI model)
+// ============================================
+
+/**
+ * Search-based recommendations
+ * @param {string} query - Search query (e.g., "biryani", "haircut")
+ * @param {string|null} city - Optional city filter
+ */
+export const searchRecommendations = async (query, city = null) => {
+  const { data } = await api.post('/recommendations/search', { query, city });
+  return data;
+};
+
+/**
+ * Home page "Recommended for you"
+ * @param {string|null} city - User's city
+ * @param {string|null} interest - Optional interest/category
+ */
+export const getForYouRecommendations = async (city = null, interest = null) => {
+  const { data } = await api.get('/recommendations/for-you', {
+    params: { city, interest },
+  });
+  return data;
+};
+
+/**
+ * Product detail page "Similar items"
+ * @param {string} productId - MongoDB product ID
+ */
+export const getSimilarProducts = async (productId) => {
+  const { data } = await api.get(`/recommendations/similar/${productId}`);
+  return data;
+};
+
 export default api;

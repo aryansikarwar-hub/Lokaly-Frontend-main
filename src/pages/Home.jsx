@@ -19,6 +19,7 @@ import { CardStack } from "../components/animations/CardStack";
 import { CountUp } from "../components/animations/CountUp";
 import { Reveal } from "../components/animations/Reveal";
 import NearbySellers from "../features/hyperlocal/NearbySellers";
+import RecommendedForYou from "../components/RecommendedForYou";
 
 const FEATURED_SELLERS = [
   {
@@ -295,6 +296,11 @@ export default function Home() {
             className="w-px h-4 bg-ink/40"
           />
         </motion.div>
+      </section>
+
+      {/* 🆕 AI RECOMMENDATIONS — Hyperlocal rail ke pehle */}
+      <section className="max-w-7xl mx-auto px-4 md:px-8 mt-8">
+        <RecommendedForYou userCity="Indore" />
       </section>
 
       {/* FEATURES */}

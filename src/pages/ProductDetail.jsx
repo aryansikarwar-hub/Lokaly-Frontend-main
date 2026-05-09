@@ -21,6 +21,7 @@ import { Spinner } from "../components/ui/Spinner";
 import { Reveal } from "../components/animations/Reveal";
 import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
+import SimilarProducts from "../components/SimilarProducts";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -357,6 +358,9 @@ export default function ProductDetail() {
           </div>
         )}
       </section>
+
+      {/* 🆕 SIMILAR PRODUCTS — Reviews ke baad */}
+      <SimilarProducts productId={product._id} />
     </div>
   );
 }
