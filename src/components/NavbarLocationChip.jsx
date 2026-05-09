@@ -1,15 +1,15 @@
-import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { HiOutlineMapPin } from "react-icons/hi2";
 import { useLocationStore } from "../store/locationStore";
+import { useUIStore } from "../store/uiStore";
 import LocationPrompt from "../features/hyperlocal/LocationPrompt";
-
 
 export default function NavbarLocationChip() {
   const label = useLocationStore((s) => s.label);
   const pincode = useLocationStore((s) => s.pincode);
   const coords = useLocationStore((s) => s.coords);
-  const [open, setOpen] = useState(false);
+  const open = useLocationStore((s) => s.promptOpen);
+  const setOpen = useLocationStore((s) => s.setPromptOpen);
 
   const display = label || (pincode ? `Pincode ${pincode}` : "Set location");
   const hasLocation = !!(coords || pincode);
@@ -73,5 +73,3 @@ export default function NavbarLocationChip() {
     </div>
   );
 }
-
- 
