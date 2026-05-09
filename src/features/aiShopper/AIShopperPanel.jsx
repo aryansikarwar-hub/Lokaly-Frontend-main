@@ -1,21 +1,28 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { TbWand } from 'react-icons/tb';
-import { HiXMark, HiOutlinePaperAirplane, HiOutlineSparkles } from 'react-icons/hi2';
-import api from '../../services/api';
-import { CardStack } from '../../components/animations/CardStack';
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { TbWand } from "react-icons/tb";
+import {
+  HiXMark,
+  HiOutlinePaperAirplane,
+  HiOutlineSparkles,
+} from "react-icons/hi2";
+import api from "../../services/api";
+import { CardStack } from "../../components/animations/CardStack";
+import { useAIShopperStore } from "../../store/aiShopperStore";
 
 const SUGGESTIONS = [
-  'blue saree under 1500',
-  'gift for mom — handmade',
-  'festive diya set diwali',
-  'pottery for new home',
+  "blue saree under 1500",
+  "gift for mom — handmade",
+  "festive diya set diwali",
+  "pottery for new home",
 ];
+ 
 
 export default function AIShopperPanel() {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  const open = useAIShopperStore((s) => s.open);
+  const setOpen = useAIShopperStore((s) => s.setOpen);
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
   const [history, setHistory] = useState([]);
@@ -23,20 +30,26 @@ export default function AIShopperPanel() {
   async function ask(q) {
     const body = (q || query).trim();
     if (!body) return;
-    setHistory((h) => [...h, { role: 'user', text: body }]);
-    setQuery('');
+    setHistory((h) => [...h, { role: "user", text: body }]);
+    setQuery("");
     setLoading(true);
     try {
-      const { data } = await api.post('/ml/search', { query: body, topK: 6 });
+      const { data } = await api.post("/ml/search", { query: body, topK: 6 });
       setResults(data.hits || []);
       setHistory((h) => [
         ...h,
-        { role: 'bot', text: `Found ${data.hits?.length || 0} matches — swipe through them` },
+        {
+          role: "bot",
+          text: `Found ${data.hits?.length || 0} matches — swipe through them`,
+        },
       ]);
     } catch {
       setHistory((h) => [
         ...h,
-        { role: 'bot', text: 'Hugging Face model is warming up. Try again in a moment.' },
+        {
+          role: "bot",
+          text: "Hugging Face model is warming up. Try again in a moment.",
+        },
       ]);
     } finally {
       setLoading(false);
@@ -50,7 +63,7 @@ export default function AIShopperPanel() {
         onClick={() => setOpen(true)}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        transition={{ type: 'spring', stiffness: 200, damping: 14, delay: 0.4 }}
+        transition={{ type: "spring", stiffness: 200, damping: 14, delay: 0.4 }}
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.94 }}
         className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-coral-gradient shadow-pop text-white grid place-items-center"
@@ -75,7 +88,11 @@ export default function AIShopperPanel() {
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 40, opacity: 0 }}
-              transition={{ type: 'tween', ease: [0.22, 1, 0.36, 1], duration: 0.28 }}
+              transition={{
+                type: "tween",
+                ease: [0.22, 1, 0.36, 1],
+                duration: 0.28,
+              }}
               onClick={(e) => e.stopPropagation()}
               className="bg-cream dark:bg-[#2A2438] w-full md:w-[720px] md:rounded-3xl rounded-t-3xl border border-white dark:border-white/10 shadow-2xl max-h-[85vh] overflow-hidden flex flex-col"
             >
@@ -129,13 +146,13 @@ export default function AIShopperPanel() {
                       {history.map((m, i) => (
                         <div
                           key={i}
-                          className={`max-w-[85%] ${m.role === 'user' ? 'ml-auto' : ''}`}
+                          className={`max-w-[85%] ${m.role === "user" ? "ml-auto" : ""}`}
                         >
                           <div
                             className={`rounded-2xl px-4 py-2 text-sm inline-block ${
-                              m.role === 'user'
-                                ? 'bg-coral text-white'
-                                : 'bg-white dark:bg-white/10 border border-white dark:border-white/10 text-ink dark:text-cream'
+                              m.role === "user"
+                                ? "bg-coral text-white"
+                                : "bg-white dark:bg-white/10 border border-white dark:border-white/10 text-ink dark:text-cream"
                             }`}
                           >
                             {m.text}
@@ -159,7 +176,10 @@ export default function AIShopperPanel() {
                     <CardStack
                       items={results}
                       render={(r) => (
-                        <Link to={`/product/${r.product._id}`} className="block h-full">
+                        <Link
+                          to={`/product/${r.product._id}`}
+                          className="block h-full"
+                        >
                           <div className="h-full w-full relative">
                             <img
                               src={r.product.images?.[0]?.url}
@@ -175,7 +195,8 @@ export default function AIShopperPanel() {
                                 {r.product.title}
                               </div>
                               <div className="font-fraunces text-2xl">
-                                &#8377;{r.product.price?.toLocaleString('en-IN')}
+                                &#8377;
+                                {r.product.price?.toLocaleString("en-IN")}
                               </div>
                             </div>
                           </div>
