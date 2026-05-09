@@ -1,21 +1,28 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import {
   HiOutlineCamera,
   HiOutlineInformationCircle,
   HiOutlineSparkles,
+  HiOutlineCheckCircle,
 } from "react-icons/hi2";
 import { FaRegEye } from "react-icons/fa6";
+import toast from "react-hot-toast";
 import Button from "../components/ui/Button";
 import { Reveal } from "../components/animations/Reveal";
+import { useAuthStore } from "../store/authStore";
+import { useCartStore } from "../store/cartStore";
 
 /* ---------- Frame catalog ----------
-   Each frame is an inline SVG renderer. Zero-asset, instant-load, themable.
+   productId values come from running `node seedGlasses.js` on the backend.
+   Paste the printed _id values here.
 ------------------------------------ */
 
 const FRAMES = {
   aviator: {
     id: "aviator",
+    productId: "PASTE_AVIATOR_ID_HERE", // <-- from seed script
     label: "Aviator",
     brand: "Lenskart Air",
     price: 1499,
@@ -44,6 +51,7 @@ const FRAMES = {
   },
   round: {
     id: "round",
+    productId: "PASTE_WAYFARER_ID_HERE", // <-- from seed script
     label: "Wayfarer",
     brand: "Ray-Ban Classic",
     price: 2499,
@@ -71,6 +79,7 @@ const FRAMES = {
   },
   "cat-eye": {
     id: "cat-eye",
+    productId: "PASTE_CATEYE_ID_HERE", // <-- from seed script
     label: "Cat-eye",
     brand: "Vincent Chase",
     price: 1299,
@@ -117,7 +126,6 @@ function loadMediaPipe() {
 export default function ARTryOn() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const containerRef = useRef(null);
   const landmarkerRef = useRef(null);
   const rafRef = useRef(null);
   const lastVideoTimeRef = useRef(-1);
@@ -126,8 +134,15 @@ export default function ARTryOn() {
   const [active, setActive] = useState(ITEMS[0]);
   const [error, setError] = useState(null);
   const [status, setStatus] = useState("loading");
+  const [adding, setAdding] = useState(false);
+  const [justAdded, setJustAdded] = useState(false);
+
   const activeRef = useRef(active);
   activeRef.current = active;
+
+  const nav = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const addToCart = useCartStore((s) => s.add);
 
   /* ----- Initialize: camera + MediaPipe model ----- */
   useEffect(() => {
@@ -234,11 +249,7 @@ export default function ARTryOn() {
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  /* ----- Compute glasses transform from landmarks -----
-     IMPORTANT: Both video AND canvas are mirrored via CSS (scale-x-[-1]).
-     So we use raw landmark coords WITHOUT mirroring — the CSS mirror
-     handles flipping for the user's selfie view.
-  ------------------------------------------------------ */
+  /* ----- Compute glasses transform from landmarks ----- */
   const drawGlasses = (ctx, canvas, landmarks) => {
     const W = canvas.width;
     const H = canvas.height;
@@ -312,9 +323,41 @@ export default function ARTryOn() {
     return img;
   };
 
+  // Reset smoothing + "just added" state when frame changes
   useEffect(() => {
     smoothRef.current = null;
+    setJustAdded(false);
   }, [active]);
+
+  /* ----- ADD TO CART ----- */
+  async function handleAddToCart() {
+    if (!active.productId || active.productId.startsWith("PASTE_")) {
+      toast.error("Product not configured. Run the seed script first.");
+      console.warn(
+        "[AR] productId missing for",
+        active.id,
+        "— run `node seedGlasses.js` on the backend and paste the IDs into FRAMES."
+      );
+      return;
+    }
+    if (!user) {
+      toast("Please log in to add items to your cart");
+      nav("/login");
+      return;
+    }
+    setAdding(true);
+    try {
+      await addToCart(active.productId, 1);
+      toast.success(`${active.label} added to cart`);
+      setJustAdded(true);
+      // Reset the "Added!" state after a moment
+      setTimeout(() => setJustAdded(false), 2200);
+    } catch (e) {
+      toast.error(e.response?.data?.error || "Could not add to cart");
+    } finally {
+      setAdding(false);
+    }
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 md:py-10">
@@ -341,10 +384,7 @@ export default function ARTryOn() {
 
       <div className="mt-6 grid md:grid-cols-[1fr_280px] gap-4">
         {/* Camera viewport */}
-        <div
-          ref={containerRef}
-          className="relative rounded-2xl overflow-hidden bg-ink/10 aspect-[4/3] border border-ink/5"
-        >
+        <div className="relative rounded-2xl overflow-hidden bg-ink/10 aspect-[4/3] border border-ink/5">
           {error ? (
             <div className="w-full h-full grid place-items-center p-8">
               <div className="text-center max-w-xs">
@@ -358,7 +398,6 @@ export default function ARTryOn() {
             </div>
           ) : (
             <>
-              {/* Video AND canvas BOTH mirrored — keeps selfie feel + glasses orient correctly */}
               <video
                 ref={videoRef}
                 autoPlay
@@ -464,9 +503,32 @@ export default function ARTryOn() {
             </div>
           </div>
 
-          <Button className="w-full" size="md" leftIcon={<HiOutlineCamera />}>
-            Add {active.label} to cart
+          <Button
+            className="w-full"
+            size="md"
+            onClick={handleAddToCart}
+            disabled={adding}
+            leftIcon={
+              justAdded ? <HiOutlineCheckCircle /> : <HiOutlineCamera />
+            }
+          >
+            {adding
+              ? "Adding…"
+              : justAdded
+              ? "Added to cart"
+              : `Add ${active.label} to cart`}
           </Button>
+
+          {justAdded && (
+            <motion.button
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => nav("/cart")}
+              className="w-full text-[11px] font-jakarta font-semibold text-coral hover:text-coral/80 underline underline-offset-4 transition py-1"
+            >
+              View cart →
+            </motion.button>
+          )}
         </aside>
       </div>
     </div>
