@@ -1708,7 +1708,14 @@ export default function LiveStream() {
                       {b.desc}
                     </div>
                   </div>
-                )}
+                </div>
+              ))}
+            </div>
+
+            {/* Live Q&A Section */}
+            <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3.5 flex flex-col gap-3">
+              <div className="text-xs font-jakarta font-semibold text-ink mb-1">Live Q&A</div>
+              <div className="space-y-3">
                 {qaList.map((item) => (
                   <motion.div
                     key={item.id}
@@ -1833,10 +1840,10 @@ export default function LiveStream() {
                     }}
                     className="bg-coral text-white text-[9px] font-bold px-3 py-2 rounded-xl hover:bg-coral/80 transition shrink-0"
                   >
-                    Ask
+                     Ask
                   </button>
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
