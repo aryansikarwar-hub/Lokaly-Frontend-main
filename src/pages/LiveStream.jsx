@@ -1676,167 +1676,130 @@ export default function LiveStream() {
 
             {/* Trust badges */}
             <div className="grid grid-cols-3 gap-2">
-              {[
-                {
-                  icon: "🛡️",
-                  title: "Buyer Protection",
-                  desc: "Money back guarantee",
-                },
-                {
-                  icon: "🚚",
-                  title: "Local Delivery",
-                  desc: "Direct from maker",
-                },
-                {
-                  icon: "↩️",
-                  title: "7-day Returns",
-                  desc: "No questions asked",
-                },
-              ].map((b) => (
-                <div
-                  key={b.title}
-                  className="rounded-xl bg-white/60 dark:bg-ink/60 border border-ink/5 dark:border-white/10 px-3 py-2.5 flex items-start gap-2"
-                >
-                  <span className="text-base leading-none mt-0.5">
-                    {b.icon}
-                  </span>
-                  <div>
-                    <div className="text-[10px] font-jakarta font-semibold text-ink">
-                      {b.title}
-                    </div>
-                    <div className="text-[9px] font-jakarta text-ink/40 mt-0.5">
-                      {b.desc}
-                    </div>
-                  </div>
-                )}
-                {qaList.map((item) => (
-                  <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-xl bg-peach/20 border border-coral/10 p-3 space-y-2"
-                  >
-                    {/* Question */}
-                    <div className="flex items-start gap-1.5">
-                      <div
-                        className="w-5 h-5 rounded-full shrink-0 grid place-items-center text-[8px] font-bold text-ink/70 mt-0.5"
-                        style={{ background: avatarBg(item.askedBy) }}
-                      >
-                        {(item.askedBy || "V")[0]}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[9px] font-jakarta font-bold text-ink/50">
-                          {item.askedBy}
-                        </div>
-                        <div className="text-[11px] font-jakarta font-semibold text-ink">
-                          ❓ {item.question}
-                        </div>
-                      </div>
-                    </div>
+  {[
+    {
+      icon: "🛡️",
+      title: "Buyer Protection",
+      desc: "Money back guarantee",
+    },
+    {
+      icon: "🚚",
+      title: "Local Delivery",
+      desc: "Direct from maker",
+    },
+    {
+      icon: "↩️",
+      title: "7-day Returns",
+      desc: "No questions asked",
+    },
+  ].map((b) => (
+    <div
+      key={b.title}
+      className="rounded-xl bg-white/60 dark:bg-ink/60 border border-ink/5 dark:border-white/10 px-3 py-2.5 flex items-start gap-2"
+    >
+      <span className="text-base leading-none mt-0.5">
+        {b.icon}
+      </span>
 
-                    {/* Answer if exists */}
-                    {item.answer && (
-                      <div className="ml-6 rounded-lg bg-mint/15 border border-mint/30 px-2.5 py-2">
-                        <div className="text-[9px] font-jakarta font-bold text-leaf mb-0.5">
-                          ✅ {item.answeredBy}
-                        </div>
-                        <div className="text-[11px] font-jakarta text-ink/70">
-                          {item.answer}
-                        </div>
-                      </div>
-                    )}
+      <div>
+        <div className="text-[10px] font-jakarta font-semibold text-ink">
+          {b.title}
+        </div>
 
-                    {/* Answer input for host */}
-                    {userIsHost && !item.answer && (
-                      <div className="ml-6 flex gap-1.5">
-                        <input
-                          value={qaAnswers[item.id] || ""}
-                          onChange={(e) =>
-                            setQaAnswers((prev) => ({
-                              ...prev,
-                              [item.id]: e.target.value,
-                            }))
-                          }
-                          onKeyDown={(e) => {
-                            if (
-                              e.key === "Enter" &&
-                              qaAnswers[item.id]?.trim()
-                            ) {
-                              getSocket().emit("live:qa:answer", {
-                                roomId: active.roomId,
-                                questionId: item.id,
-                                answer: qaAnswers[item.id].trim(),
-                              });
-                              setQaAnswers((prev) => ({
-                                ...prev,
-                                [item.id]: "",
-                              }));
-                            }
-                          }}
-                          placeholder="Type answer, press Enter..."
-                          className="flex-1 text-[10px] font-jakarta bg-white/80 border border-ink/10 rounded-lg px-2.5 py-1.5 outline-none focus:border-coral/40"
-                        />
-                        <button
-                          onClick={() => {
-                            if (!qaAnswers[item.id]?.trim()) return;
-                            getSocket().emit("live:qa:answer", {
-                              roomId: active.roomId,
-                              questionId: item.id,
-                              answer: qaAnswers[item.id].trim(),
-                            });
-                            setQaAnswers((prev) => ({
-                              ...prev,
-                              [item.id]: "",
-                            }));
-                          }}
-                          className="bg-coral text-white text-[9px] font-bold px-2 py-1.5 rounded-lg hover:bg-coral/80 transition shrink-0"
-                        >
-                          Reply
-                        </button>
-                      </div>
-                    )}
-                  </motion.div>
-                ))}
-              </div>
+        <div className="text-[9px] font-jakarta text-ink/40 mt-0.5">
+          {b.desc}
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
+
+{/* Q&A LIST */}
+<div className="space-y-3 mt-3">
+  {qaList.map((item) => (
+    <motion.div
+      key={item.id}
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl bg-peach/20 border border-coral/10 p-3 space-y-2"
+    >
+      {/* Question */}
+      <div className="flex items-start gap-1.5">
+        <div
+          className="w-5 h-5 rounded-full shrink-0 grid place-items-center text-[8px] font-bold text-ink/70 mt-0.5"
+          style={{ background: avatarBg(item.askedBy) }}
+        >
+          {(item.askedBy || "V")[0]}
+        </div>
+
+        <div className="min-w-0">
+          <div className="text-[9px] font-jakarta font-bold text-ink/50">
+            {item.askedBy}
+          </div>
+
+          <div className="text-[11px] font-jakarta font-semibold text-ink">
+            ❓ {item.question}
+          </div>
+        </div>
+      </div>
+
+      {/* Answer */}
+      {item.answer && (
+        <div className="ml-6 rounded-lg bg-mint/15 border border-mint/30 px-2.5 py-2">
+          <div className="text-[9px] font-jakarta font-bold text-leaf mb-0.5">
+            ✅ {item.answeredBy}
+          </div>
+
+          <div className="text-[11px] font-jakarta text-ink/70">
+            {item.answer}
+          </div>
+        </div>
+      )}
+    </motion.div>
+  ))}
+</div>
 
               {/* Ask question input — viewers only */}
               {!userIsHost && (
-                <div className="p-2 border-t border-ink/5 flex gap-1.5 shrink-0">
-                  <input
-                    value={qaQuestion}
-                    onChange={(e) => setQaQuestion(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (
-                        e.key === "Enter" &&
-                        qaQuestion.trim() &&
-                        active &&
-                        !isMock
-                      ) {
-                        getSocket().emit("live:qa:ask", {
-                          roomId: active.roomId,
-                          question: qaQuestion.trim(),
-                        });
-                        setQaQuestion("");
-                      }
-                    }}
-                    placeholder="Ask the seller something..."
-                    className="flex-1 text-xs font-jakarta bg-white/80 border border-ink/10 rounded-xl px-3 py-2 outline-none focus:border-coral/40"
-                  />
-                  <button
-                    onClick={() => {
-                      if (!qaQuestion.trim() || !active || isMock) return;
-                      getSocket().emit("live:qa:ask", {
-                        roomId: active.roomId,
-                        question: qaQuestion.trim(),
-                      });
-                      setQaQuestion("");
-                    }}
-                    className="bg-coral text-white text-[9px] font-bold px-3 py-2 rounded-xl hover:bg-coral/80 transition shrink-0"
-                  >
-                    Ask
-                  </button>
-                </div>
-              ))}
+  <div className="p-2 border-t border-ink/5 flex gap-1.5 shrink-0">
+    <input
+      value={qaQuestion}
+      onChange={(e) => setQaQuestion(e.target.value)}
+      onKeyDown={(e) => {
+        if (
+          e.key === "Enter" &&
+          qaQuestion.trim() &&
+          active &&
+          !isMock
+        ) {
+          getSocket().emit("live:qa:ask", {
+            roomId: active.roomId,
+            question: qaQuestion.trim(),
+          });
+          setQaQuestion("");
+        }
+      }}
+      placeholder="Ask the seller something..."
+      className="flex-1 text-xs font-jakarta bg-white/80 border border-ink/10 rounded-xl px-3 py-2 outline-none focus:border-coral/40"
+    />
+
+    <button
+      onClick={() => {
+        if (!qaQuestion.trim() || !active || isMock) return;
+
+        getSocket().emit("live:qa:ask", {
+          roomId: active.roomId,
+          question: qaQuestion.trim(),
+        });
+
+        setQaQuestion("");
+      }}
+      className="bg-coral text-white text-[9px] font-bold px-3 py-2 rounded-xl hover:bg-coral/80 transition shrink-0"
+    >
+      Ask
+    </button>
+  </div>
+ )}
             </div>
           </div>
 
