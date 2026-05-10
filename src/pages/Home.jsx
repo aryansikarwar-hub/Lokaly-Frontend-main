@@ -21,41 +21,53 @@ import { Reveal } from "../components/animations/Reveal";
 import NearbySellers from "../features/hyperlocal/NearbySellers";
 import RecommendedForYou from "../components/RecommendedForYou";
 
-const FEATURED_SELLERS = [
+// 🆕 Live streams imports
+import { useFeaturedStreams } from "../hooks/useFeaturedStreams";
+import LiveSellerCard from "../components/home/LiveSellerCard";
+
+// Fallback static cards (if no live streams available)
+const FALLBACK_SELLERS = [
   {
-    name: "Rang Bazaar",
-    craft: "Banarasi silk sarees",
-    city: "Varanasi",
-    tag: "Textiles",
-    color: "from-coral to-tangerine",
+    streamId: "fallback-1",
+    roomId: null,
+    title: "Banarasi silk sarees",
+    category: "Textiles",
+    status: "ended",
+    coverImage: null,
+    viewers: 0,
+    host: {
+      shopName: "Rang Bazaar",
+      city: "Varanasi",
+      avatar: null,
+    },
   },
   {
-    name: "Khadi Chowk",
-    craft: "Handloom kurtas",
-    city: "Lucknow",
-    tag: "Apparel",
-    color: "from-mint to-leaf",
+    streamId: "fallback-2",
+    roomId: null,
+    title: "Handloom kurtas",
+    category: "Apparel",
+    status: "ended",
+    coverImage: null,
+    viewers: 0,
+    host: {
+      shopName: "Khadi Chowk",
+      city: "Lucknow",
+      avatar: null,
+    },
   },
   {
-    name: "Anaar Studio",
-    craft: "Blue pottery",
-    city: "Jaipur",
-    tag: "Ceramics",
-    color: "from-lavender to-mauve",
-  },
-  {
-    name: "Dhaaga Collective",
-    craft: "Ikkat dupattas",
-    city: "Hyderabad",
-    tag: "Textiles",
-    color: "from-butter to-peach",
-  },
-  {
-    name: "Maati Ghar",
-    craft: "Terracotta decor",
-    city: "Bastar",
-    tag: "Home",
-    color: "from-peach to-coral",
+    streamId: "fallback-3",
+    roomId: null,
+    title: "Blue pottery",
+    category: "Ceramics",
+    status: "ended",
+    coverImage: null,
+    viewers: 0,
+    host: {
+      shopName: "Anaar Studio",
+      city: "Jaipur",
+      avatar: null,
+    },
   },
 ];
 
@@ -99,6 +111,9 @@ const FEATURES = [
 ];
 
 export default function Home() {
+  // 🆕 Fetch featured live streams
+  const { streams, loading } = useFeaturedStreams({ limit: 8 });
+
   const heroRef = useRef(null);
   const { scrollYProgress } = useScroll({
     target: heroRef,
@@ -107,6 +122,9 @@ export default function Home() {
   const blobY = useTransform(scrollYProgress, [0, 1], [0, -120]);
   const headlineY = useTransform(scrollYProgress, [0, 1], [0, -60]);
   const headlineOp = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
+
+  // Use real streams if available, otherwise fallback
+  const cardItems = streams.length > 0 ? streams : FALLBACK_SELLERS;
 
   return (
     <div>
@@ -176,7 +194,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.9, duration: 0.6 }}
-             className="mt-5 text-sm md:text-base text-ink/65 dark:text-white/80 font-jakarta max-w-md leading-relaxed"
+              className="mt-5 text-sm md:text-base text-ink/65 dark:text-white/80 font-jakarta max-w-md leading-relaxed"
             >
               A social commerce platform for India&apos;s artisans,
               home-kitchens and neighbourhood shops — built around live video,
@@ -227,7 +245,7 @@ export default function Home() {
             </motion.div>
           </motion.div>
 
-          {/* Card stack */}
+          {/* 🆕 DYNAMIC Card stack — shows live streams */}
           <div className="relative">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -238,47 +256,15 @@ export default function Home() {
                 ease: [0.22, 1, 0.36, 1],
               }}
             >
-              <CardStack
-                items={FEATURED_SELLERS}
-                render={(s) => (
-                  <div
-                    className={`h-full w-full bg-gradient-to-br ${s.color} p-6 flex flex-col justify-between text-white relative`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="text-[9px] uppercase tracking-[0.2em] opacity-80 font-jakarta font-semibold">
-                          Featured seller
-                        </div>
-                        <h3 className="mt-2.5 font-fraunces text-3xl leading-none">
-                          {s.city}
-                        </h3>
-                      </div>
-                      <span className="text-[9px] uppercase tracking-wider font-jakarta font-semibold px-2 py-0.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20">
-                        {s.tag}
-                      </span>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                        <span className="text-[10px] font-jakarta font-semibold uppercase tracking-wider opacity-90">
-                          Live now
-                        </span>
-                      </div>
-                      <p className="font-jakarta font-semibold text-lg leading-tight">
-                        {s.name}
-                      </p>
-                      <p className="opacity-80 text-xs font-jakarta mt-0.5">
-                        {s.craft}
-                      </p>
-                      <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-[11px] font-jakarta">
-                        <span className="opacity-75">Swipe to explore</span>
-                        <HiArrowLongRight className="text-base" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              />
+              {loading ? (
+                // Loading skeleton
+                <div className="h-[420px] w-full max-w-[380px] mx-auto rounded-2xl bg-gradient-to-br from-coral/30 to-tangerine/30 animate-pulse" />
+              ) : (
+                <CardStack
+                  items={cardItems}
+                  render={(stream) => <LiveSellerCard stream={stream} />}
+                />
+              )}
             </motion.div>
           </div>
         </div>
@@ -298,7 +284,7 @@ export default function Home() {
         </motion.div>
       </section>
 
-      {/* 🆕 AI RECOMMENDATIONS — Hyperlocal rail ke pehle */}
+      {/* AI RECOMMENDATIONS */}
       <section className="max-w-7xl mx-auto px-4 md:px-8 mt-8">
         <RecommendedForYou userCity="Indore" />
       </section>
