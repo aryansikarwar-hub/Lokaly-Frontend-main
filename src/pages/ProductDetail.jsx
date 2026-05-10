@@ -22,13 +22,13 @@ import { Reveal } from "../components/animations/Reveal";
 import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
 import SimilarProducts from "../components/SimilarProducts";
+import ReviewSection from "../components/ReviewSection";
 
 export default function ProductDetail() {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImg, setActiveImg] = useState(0);
-  const [reviews, setReviews] = useState([]);
   const [adding, setAdding] = useState(false);
   const nav = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -41,10 +41,6 @@ export default function ProductDetail() {
       .then(({ data }) => setProduct(data.product))
       .catch(() => setProduct(null))
       .finally(() => setLoading(false));
-    api
-      .get(`/reviews/product/${id}`)
-      .then(({ data }) => setReviews(data.items || []))
-      .catch(() => setReviews([]));
     api.post(`/hyperlocal/products/${id}/view`).catch(() => {});
   }, [id]);
 
@@ -288,77 +284,7 @@ export default function ProductDetail() {
       </div>
 
       {/* Reviews */}
-      <section className="mt-12">
-        <div className="flex items-end justify-between gap-4 mb-4 flex-wrap">
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.25em] font-jakarta font-semibold text-coral mb-1">
-              Community feedback
-            </div>
-            <h2 className="font-fraunces text-xl md:text-2xl text-ink tracking-tight">
-              Reviews{" "}
-              <span className="text-ink/40 font-normal">
-                ({reviews.length})
-              </span>
-            </h2>
-          </div>
-          {reviews.length > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-ink/70 font-jakarta">
-              <HiStar className="text-tangerine" />
-              <span className="font-semibold text-ink">
-                {Number(product.rating || 0).toFixed(1)}
-              </span>
-              <span>average</span>
-            </div>
-          )}
-        </div>
-        {reviews.length === 0 ? (
-          <div className="rounded-2xl bg-white/60 border border-ink/5 p-6 text-center">
-            <p className="text-xs text-ink/55 font-jakarta italic">
-              No reviews yet — be the first to share your experience.
-            </p>
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-2 gap-3">
-            {reviews.slice(0, 6).map((r) => (
-              <div
-                key={r._id}
-                className="rounded-2xl bg-white/70 p-4 border border-ink/5"
-              >
-                <div className="flex items-center gap-2">
-                  <Avatar
-                    src={r.buyer?.avatar}
-                    name={r.buyer?.name}
-                    size="xs"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-jakarta font-semibold text-xs text-ink truncate">
-                      {r.buyer?.name || "Buyer"}
-                    </div>
-                    <div className="flex items-center text-[11px]">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <HiStar
-                          key={i}
-                          className={
-                            i < r.rating ? "text-tangerine" : "text-ink/15"
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  {r.sentiment?.label === "NEGATIVE" ? (
-                    <Badge tone="coral">Critical</Badge>
-                  ) : (
-                    <Badge tone="mint">Positive</Badge>
-                  )}
-                </div>
-                <p className="mt-2 text-[12px] text-ink/75 font-jakarta leading-relaxed">
-                  {r.text}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <ReviewSection productId={product._id} />
 
       {/* 🆕 SIMILAR PRODUCTS — Reviews ke baad */}
       <SimilarProducts productId={product._id} />
