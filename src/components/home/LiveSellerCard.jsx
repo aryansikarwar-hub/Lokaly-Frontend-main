@@ -20,21 +20,36 @@ const CATEGORY_COLORS = {
   default: "from-coral to-tangerine",
 };
 
-export default function LiveSellerCard({ stream }) {
+/**
+ * LiveSellerCard
+ *
+ * @param {Object}  stream      — the stream payload from /api/live/featured
+ * @param {boolean} autoplay    — when true AND stream is live, mini-player
+ *                                starts automatically (used for the top card).
+ *                                For non-top cards, falls back to hover-to-preview.
+ */
+export default function LiveSellerCard({ stream, autoplay = false }) {
   const navigate = useNavigate();
+
+  // 🆕 Decide if this card should auto-stream
+  const shouldAutoplay =
+    autoplay && stream.status === "live" && Boolean(stream.roomId);
+
   const { containerRef, isPreviewing, onHoverStart, onHoverEnd } =
-    useAgoraHoverPreview();
+    useAgoraHoverPreview({
+      autoStart: shouldAutoplay ? { channelName: stream.roomId } : null,
+    });
 
   const gradient =
     CATEGORY_COLORS[stream.category] || CATEGORY_COLORS.default;
 
   const handleClick = () => {
-    // Navigate to live stream page with specific session id
     navigate(`/live/${stream.streamId}`);
   };
 
   const handleMouseEnter = () => {
-    if (stream.status === "live" && stream.roomId) {
+    // Hover preview only when we're NOT already autoplaying
+    if (!shouldAutoplay && stream.status === "live" && stream.roomId) {
       onHoverStart({ channelName: stream.roomId });
     }
   };
@@ -45,6 +60,14 @@ export default function LiveSellerCard({ stream }) {
       : stream.status === "scheduled"
         ? "Coming soon"
         : "Recent stream";
+
+  // 🆕 Smart headline: city → state → shopName → title
+  const headline =
+    stream.host?.city ||
+    stream.host?.state ||
+    stream.host?.shopName ||
+    stream.title ||
+    "Lokaly";
 
   return (
     <div
@@ -68,7 +91,7 @@ export default function LiveSellerCard({ stream }) {
             Featured seller
           </div>
           <h3 className="mt-2.5 font-fraunces text-3xl leading-none">
-            {stream.host.city}
+            {headline}
           </h3>
         </div>
         <span className="text-[9px] uppercase tracking-wider font-jakarta font-semibold px-2 py-0.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20">
@@ -78,7 +101,7 @@ export default function LiveSellerCard({ stream }) {
 
       {/* MIDDLE — Mini player area (thumbnail or live preview) */}
       <div className="absolute inset-x-6 top-[100px] bottom-[140px] rounded-xl overflow-hidden bg-black/15">
-        {/* Agora video container (visible on hover when streaming) */}
+        {/* Agora video container — shows whenever previewing (hover OR autoplay) */}
         <div
           ref={containerRef}
           className={`absolute inset-0 transition-opacity duration-300 ${
@@ -86,7 +109,7 @@ export default function LiveSellerCard({ stream }) {
           }`}
         />
 
-        {/* Thumbnail (default state) */}
+        {/* Thumbnail / placeholder (hidden once preview is live) */}
         {!isPreviewing && (
           <>
             {stream.coverImage ? (
@@ -101,12 +124,15 @@ export default function LiveSellerCard({ stream }) {
                 <div className="text-center text-white/70">
                   <div className="text-3xl mb-2">📡</div>
                   <div className="text-[10px] font-jakarta">
-                    Hover to preview
+                    {stream.status === "live"
+                      ? shouldAutoplay
+                        ? "Connecting…"
+                        : "Hover to preview"
+                      : statusLabel}
                   </div>
                 </div>
               </div>
             )}
-            {/* Subtle dark gradient for text readability */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
           </>
         )}
@@ -119,8 +145,16 @@ export default function LiveSellerCard({ stream }) {
           </div>
         )}
 
-        {/* Hover hint */}
-        {!isPreviewing && stream.status === "live" && (
+        {/* 🆕 Muted-autoplay chip: subtle hint that audio is off */}
+        {isPreviewing && (
+          <div className="absolute top-2 left-2 bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] font-jakarta font-medium z-10 flex items-center gap-1">
+            <span>🔇</span>
+            <span>Muted</span>
+          </div>
+        )}
+
+        {/* Hover hint (only when NOT autoplaying and NOT previewing) */}
+        {!isPreviewing && !shouldAutoplay && stream.status === "live" && (
           <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] font-jakarta font-medium z-10">
             Hover to preview
           </div>

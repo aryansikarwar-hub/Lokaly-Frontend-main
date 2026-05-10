@@ -273,7 +273,9 @@ export default function Home() {
               ) : (
                 <CardStack
                   items={cardItems}
-                  render={(stream) => <LiveSellerCard stream={stream} />}
+                  render={(stream, _realIndex, isTop) => (
+                    <LiveSellerCard stream={stream} autoplay={isTop} />
+                  )}
                 />
               )}
             </motion.div>

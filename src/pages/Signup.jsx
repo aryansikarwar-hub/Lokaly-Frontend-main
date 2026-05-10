@@ -9,6 +9,7 @@ import {
   HiOutlineArrowLongRight,
   HiOutlineCheck,
   HiOutlineChevronDown,
+  HiOutlineMapPin, // 🆕
 } from "react-icons/hi2";
 import { FiUser } from "react-icons/fi";
 import { TbBuildingStore } from "react-icons/tb";
@@ -43,9 +44,6 @@ const BENEFITS = [
 
 /* ─────────────────────────── sub-components ─────────────────────── */
 
-/**
- * Floating blob — purely decorative, pointer-events off
- */
 function Blob({ className, animateProps, transitionProps }) {
   return (
     <motion.div
@@ -69,6 +67,10 @@ export default function Signup() {
   const [shopName, setShopName] = useState("");
   const [shopCategory, setShopCategory] = useState(CATEGORIES[0]);
   const [referralCode, setReferralCode] = useState(params.get("ref") || "");
+  // 🆕 Location fields
+  const [city, setCity] = useState("");
+  const [stateName, setStateName] = useState("");
+  const [pincode, setPincode] = useState("");
   const [loading, setLoading] = useState(false);
 
   const nav = useNavigate();
@@ -76,12 +78,26 @@ export default function Signup() {
 
   async function submit(e) {
     e.preventDefault();
+
+    // 🆕 Client-side guard for sellers
+    if (role === "seller" && !city.trim()) {
+      toast.error("City is required for sellers");
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = { name, email, password, role, referralCode };
       if (role === "seller") {
         payload.shopName = shopName;
         payload.shopCategory = shopCategory;
+        // 🆕 Send location with seller signup
+        payload.city = city.trim();
+        if (stateName.trim()) payload.state = stateName.trim();
+        if (pincode.trim()) payload.pincode = pincode.trim();
+      } else if (city.trim()) {
+        // Buyers can also pass city (optional, used for hyperlocal feed)
+        payload.city = city.trim();
       }
       const { data } = await api.post("/auth/signup", payload);
       hydrate(data.token, data.user);
@@ -111,7 +127,6 @@ export default function Signup() {
           min-h-screen
         "
       >
-        {/* decorative blobs */}
         <Blob
           className="-top-20 -right-20 w-72 lg:w-96 h-72 lg:h-96 bg-white/25"
           animateProps={{ rotate: [0, -6, 4, 0] }}
@@ -123,7 +138,6 @@ export default function Signup() {
           transitionProps={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         />
 
-        {/* subtle grid overlay */}
         <div
           aria-hidden
           className="absolute inset-0 opacity-[0.04] pointer-events-none"
@@ -134,7 +148,6 @@ export default function Signup() {
           }}
         />
 
-        {/* content */}
         <div className="relative text-ink max-w-sm lg:max-w-md z-10">
           <p className="text-[10px] uppercase tracking-[0.3em] font-jakarta font-semibold text-coral mb-3">
             Join the bazaar
@@ -181,7 +194,6 @@ export default function Signup() {
         <Reveal>
           <div className="w-full max-w-[360px] sm:max-w-sm">
 
-            {/* ── logo ── */}
             <Link to="/" className="inline-flex items-center gap-1.5 mb-6">
               <span className="w-8 h-8 rounded-xl bg-coral-gradient grid place-items-center text-white font-fraunces text-sm select-none">
                 L
@@ -189,7 +201,6 @@ export default function Signup() {
               <span className="font-fraunces text-lg text-ink">Lokaly</span>
             </Link>
 
-            {/* ── heading ── */}
             <p className="text-[10px] uppercase tracking-[0.25em] font-jakarta font-semibold text-coral mb-1.5">
               Get started
             </p>
@@ -206,7 +217,6 @@ export default function Signup() {
               </Link>
             </p>
 
-            {/* ── role selector ── */}
             <div className="mt-5">
               <p className="text-[10px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/50 mb-2">
                 I'm joining as
@@ -239,7 +249,6 @@ export default function Signup() {
               </div>
             </div>
 
-            {/* ── form ── */}
             <form onSubmit={submit} className="mt-5 space-y-3" noValidate>
               <Input
                 label="Full name"
@@ -269,7 +278,7 @@ export default function Signup() {
                 required
               />
 
-              {/* seller-only fields with animated mount/unmount */}
+              {/* seller-only fields */}
               <AnimatePresence initial={false}>
                 {role === "seller" && (
                   <motion.div
@@ -316,9 +325,53 @@ export default function Signup() {
                         />
                       </div>
                     </label>
+
+                    {/* 🆕 City — required for sellers (drives Featured Card text + hyperlocal feed) */}
+                    <Input
+                      label="City"
+                      placeholder="e.g. Jaipur, Varanasi, Lucknow"
+                      autoComplete="address-level2"
+                      leftIcon={<HiOutlineMapPin />}
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      required
+                    />
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="State"
+                        placeholder="Optional"
+                        autoComplete="address-level1"
+                        value={stateName}
+                        onChange={(e) => setStateName(e.target.value)}
+                      />
+                      <Input
+                        label="Pincode"
+                        placeholder="Optional"
+                        autoComplete="postal-code"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={pincode}
+                        onChange={(e) =>
+                          setPincode(e.target.value.replace(/\D/g, ""))
+                        }
+                      />
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Optional city field for buyers — for hyperlocal feed */}
+              {role === "buyer" && (
+                <Input
+                  label="City (optional)"
+                  placeholder="Helps us show nearby sellers"
+                  autoComplete="address-level2"
+                  leftIcon={<HiOutlineMapPin />}
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                />
+              )}
 
               <Input
                 label="Referral code (optional)"
@@ -338,7 +391,6 @@ export default function Signup() {
               </Button>
             </form>
 
-            {/* ── fine print ── */}
             <p className="mt-5 text-[10px] text-ink/40 font-jakarta text-center leading-relaxed">
               By creating an account you agree to Lokaly's{" "}
               <Link to="/terms" className="underline underline-offset-2 hover:text-ink/60 transition">
