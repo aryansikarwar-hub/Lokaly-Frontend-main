@@ -524,6 +524,18 @@ export default function Dashboard() {
                             <div className="text-xs text-ink dark:text-cream font-jakarta">
                               {s.message}
                             </div>
+                            {s.detail && (
+                              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                {Object.entries(s.detail).map(([k, v]) => (
+                                  <span
+                                    key={k}
+                                    className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/60 dark:bg-white/10 border border-ink/5 dark:border-white/10 text-ink/65 dark:text-cream/65 font-jakarta tabular-nums"
+                                  >
+                                    {k}: {String(v)}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </li>
                         ))}
                       </ul>

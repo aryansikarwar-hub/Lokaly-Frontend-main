@@ -15,7 +15,13 @@ function RecommendationSearch({ defaultCity = 'Indore' }) {
     
     try {
       const data = await searchRecommendations(query.trim(), defaultCity);
-      setResults(data.results || []);
+      // Backend now guarantees results is an array; defensive fallback for nested shape
+      const list = Array.isArray(data?.results)
+        ? data.results
+        : Array.isArray(data?.results?.recommendations)
+          ? data.results.recommendations
+          : [];
+      setResults(list);
     } catch {
       setResults([]);
     } finally {
