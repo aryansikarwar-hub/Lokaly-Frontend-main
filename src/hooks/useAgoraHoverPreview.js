@@ -6,10 +6,19 @@ import { APP_ID } from "../services/agora";
 const HOVER_DELAY_MS = 400;
 
 /**
- * Hook: starts Agora preview on hover, cleans up on leave
- * Cost-optimized: only joins channel when user actually hovers
+ * Hook: starts Agora preview either on hover OR automatically.
+ *
+ * Cost-optimized: only joins channel when actually previewing
+ * (hover OR autoplay-eligible card).
+ *
+ * Usage:
+ *   const { containerRef, isPreviewing, onHoverStart, onHoverEnd } =
+ *     useAgoraHoverPreview({ autoStart: { channelName: "live_xxx" } });
+ *
+ * If `autoStart.channelName` is provided, the preview begins immediately
+ * and stays live until unmount or autoStart goes null.
  */
-export function useAgoraHoverPreview() {
+export function useAgoraHoverPreview({ autoStart = null } = {}) {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState(null);
 
@@ -88,7 +97,7 @@ export function useAgoraHoverPreview() {
               user.videoTrack.play(player);
               setIsPreviewing(true);
             }
-            // We DO NOT play audio — preview is muted by design
+            // Audio stays muted by design (autoplay policies + UX)
           } catch (err) {
             console.error("[AgoraPreview] subscribe error:", err);
           }
@@ -128,8 +137,25 @@ export function useAgoraHoverPreview() {
       clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
     }
-    cleanup();
-  }, [cleanup]);
+    // 🆕 If autoStart is active, don't tear down on mouse leave —
+    // autoplay should persist regardless of hover.
+    if (!autoStart?.channelName) {
+      cleanup();
+    }
+  }, [cleanup, autoStart]);
+
+  // 🆕 Autoplay effect: if a channelName is supplied, start immediately.
+  useEffect(() => {
+    if (autoStart?.channelName) {
+      startPreview({ channelName: autoStart.channelName });
+    } else if (currentChannelRef.current) {
+      // autoStart removed — tear down
+      cleanup();
+    }
+    // We intentionally don't clean up on every re-render;
+    // unmount cleanup is handled below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart?.channelName]);
 
   useEffect(() => {
     return () => {

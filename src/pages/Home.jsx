@@ -1,6 +1,8 @@
 import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion, useScroll, useTransform } from "framer-motion";
+import { useAIShopperStore } from "../store/aiShopperStore";
+import { useLocationStore } from "../store/locationStore";
 import {
   HiOutlineSparkles,
   HiOutlineVideoCamera,
@@ -77,36 +79,42 @@ const FEATURES = [
     color: "bg-coral/10 text-coral",
     title: "Live selling",
     copy: "Flash deals, group-buy unlocks, and spin-the-wheel moments — streamed from the shop floor.",
+    to: "/live",
   },
   {
     icon: HiOutlineShieldCheck,
     color: "bg-mint text-leaf",
     title: "Trust Graph",
     copy: "A six-signal seller score rendered as a visible aura. Buyers know who they are dealing with.",
+    to: "/leaderboard",
   },
   {
     icon: TbCoins,
     color: "bg-butter text-tangerine",
     title: "Community Coins",
     copy: "Reviews, answers, and referrals earn coins. Redeemable at checkout across the marketplace.",
+    to: "/coins",
   },
   {
     icon: TbCrystalBall,
     color: "bg-lavender text-mauve",
     title: "AI Personal Shopper",
     copy: "Hinglish-native. Queries embed on-device and surface products without cloud round-trips.",
+    action: "ai",
   },
   {
     icon: HiOutlineMapPin,
     color: "bg-peach text-coral",
     title: "Hyperlocal",
     copy: "Artisans within a 10 km radius. Same-day delivery routed through neighbourhood logistics.",
+    action: "location",
   },
   {
     icon: HiOutlineLanguage,
     color: "bg-mint text-leaf",
     title: "Vernacular first",
     copy: "Browse and transact in 12 Indian languages, with voice shopping for low-literacy buyers.",
+    action: "language",
   },
 ];
 
@@ -115,6 +123,9 @@ export default function Home() {
   const { streams, loading } = useFeaturedStreams({ limit: 8 });
 
   const heroRef = useRef(null);
+  const nearbyRef = useRef(null);
+  const setAIOpen = useAIShopperStore((s) => s.setOpen);
+  const setLocationOpen = useLocationStore((s) => s.setPromptOpen);
   const { scrollYProgress } = useScroll({
     target: heroRef,
     offset: ["start start", "end start"],
@@ -262,7 +273,9 @@ export default function Home() {
               ) : (
                 <CardStack
                   items={cardItems}
-                  render={(stream) => <LiveSellerCard stream={stream} />}
+                  render={(stream, _realIndex, isTop) => (
+                    <LiveSellerCard stream={stream} autoplay={isTop} />
+                  )}
                 />
               )}
             </motion.div>
@@ -315,22 +328,26 @@ export default function Home() {
           {FEATURES.map((f, i) => (
             <Reveal key={f.title} delay={i * 0.05}>
               <Tilt max={4}>
-                <div className="group rounded-2xl bg-white/70 backdrop-blur p-5 border border-ink/5 hover:border-ink/10 transition-all h-full">
-                  <div
-                    className={`w-9 h-9 rounded-lg grid place-items-center text-base ${f.color}`}
-                  >
-                    <f.icon />
-                  </div>
-                  <h3 className="mt-4 font-fraunces text-lg text-ink tracking-tight">
-                    {f.title}
-                  </h3>
-                  <p className="mt-1.5 text-[13px] text-ink/60 font-jakarta leading-relaxed">
-                    {f.copy}
-                  </p>
-                  <div className="mt-3 flex items-center gap-1 text-[11px] font-jakarta font-semibold text-ink/40 group-hover:text-coral transition-colors">
-                    Learn more <HiArrowLongRight className="text-xs" />
-                  </div>
-                </div>
+                <FeatureCard
+                  f={f}
+                  onAI={() => setAIOpen(true)}
+                  onLocation={() => {
+                    nearbyRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "center",
+                    });
+                  }}
+                  onLanguage={() => {
+                    // Scroll to top where language switcher is in navbar
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                    // Small delay then highlight — user sees navbar
+                    setTimeout(() => {
+                      document
+                        .querySelector('[aria-label="Change language"]')
+                        ?.click();
+                    }, 600);
+                  }}
+                />
               </Tilt>
             </Reveal>
           ))}
@@ -338,7 +355,7 @@ export default function Home() {
       </section>
 
       {/* Hyperlocal rail */}
-      <section className="max-w-7xl mx-auto px-4 md:px-8 mb-12">
+      <section ref={nearbyRef} className="max-w-7xl mx-auto px-4 md:px-8 mb-12">
         <NearbySellers />
       </section>
 
@@ -427,6 +444,35 @@ export default function Home() {
         </div>
       </section>
     </div>
+  );
+}
+function FeatureCard({ f, onAI, onLocation, onLanguage }) {
+  const inner = (
+    <div className="group rounded-2xl bg-white/70 backdrop-blur p-5 border border-ink/5 hover:border-coral/20 transition-all h-full cursor-pointer">
+      <div
+        className={`w-9 h-9 rounded-lg grid place-items-center text-base ${f.color}`}
+      >
+        <f.icon />
+      </div>
+      <h3 className="mt-4 font-fraunces text-lg text-ink tracking-tight">
+        {f.title}
+      </h3>
+      <p className="mt-1.5 text-[13px] text-ink/60 font-jakarta leading-relaxed">
+        {f.copy}
+      </p>
+      <div className="mt-3 flex items-center gap-1 text-[11px] font-jakarta font-semibold text-ink/40 group-hover:text-coral transition-colors">
+        Learn more <HiArrowLongRight className="text-xs" />
+      </div>
+    </div>
+  );
+
+  if (f.action === "ai") return <div onClick={onAI}>{inner}</div>;
+  if (f.action === "location") return <div onClick={onLocation}>{inner}</div>;
+  if (f.action === "language") return <div onClick={onLanguage}>{inner}</div>;
+  return (
+    <Link to={f.to} className="block h-full">
+      {inner}
+    </Link>
   );
 }
 

@@ -59,7 +59,7 @@ export function CardStack({
                 className="w-full h-full"
                 style={{ pointerEvents: isTop ? 'auto' : 'none' }}
               >
-                {render(item, realIndex)}
+                {render(item, realIndex, isTop)}
               </motion.div>
             </motion.div>
           );
