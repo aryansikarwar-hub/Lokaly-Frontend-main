@@ -170,7 +170,17 @@ export default function Profile() {
         <motion.div
           initial={{ y: -16 }}
           animate={{ y: 0 }}
-          className="absolute inset-0 bg-gradient-to-br from-peach via-lavender to-mint"
+          className="
+absolute
+inset-0
+
+bg-gradient-to-br
+from-peach
+via-lavender
+to-mint
+
+dark:bg-[radial-gradient(circle_at_top_left,_#2a2238_0%,_#171320_45%,_#0d0b14_100%)]
+"
         />
         {/* Subtle grid overlay */}
         <div

@@ -1,9 +1,27 @@
 import { Link } from "react-router-dom";
 import { HiStar, HiOutlineBolt, HiOutlineShieldCheck } from "react-icons/hi2";
 import { Tilt } from "./animations/Tilt";
+import DeliveryBadge from "./DeliveryBadge";
+
+const API_ORIGIN = (() => {
+  const raw = import.meta.env.VITE_API_URL;
+  if (!raw) return "";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "";
+  }
+})();
+
+function absolutizeUrl(url) {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
+  if (url.startsWith("/") && API_ORIGIN) return `${API_ORIGIN}${url}`;
+  return url;
+}
 
 export default function ProductCard({ product }) {
-  const img = product.images?.[0]?.url;
+  const img = absolutizeUrl(product.images?.[0]?.url);
   const seller = product.seller || {};
   const discount = product.compareAtPrice
     ? Math.max(
@@ -37,6 +55,17 @@ export default function ProductCard({ product }) {
               −{discount}%
             </span>
           )}
+          {/* Same-day delivery badge — overlays bottom-left when available.
+              Only renders for products coming from /api/hyperlocal/*. */}
+          {product.delivery && product.delivery.tier === "same_day" && (
+            <div className="absolute bottom-2.5 left-2.5">
+              <DeliveryBadge
+                delivery={product.delivery}
+                distanceKm={product.distanceKm}
+                compact
+              />
+            </div>
+          )}
         </div>
         <div className="p-3">
           <div className="flex items-center gap-1 text-[10px] text-ink/50 font-jakarta">
@@ -68,6 +97,17 @@ export default function ProductCard({ product }) {
             <span className="text-ink/30">·</span>
             <span>{product.reviewCount || 0} reviews</span>
           </div>
+          {/* Non-same-day delivery badges shown inline under the rating row.
+              Same-day is shown as an image overlay above for higher visibility. */}
+          {product.delivery && product.delivery.tier !== "same_day" && (
+            <div className="mt-2">
+              <DeliveryBadge
+                delivery={product.delivery}
+                distanceKm={product.distanceKm}
+                compact
+              />
+            </div>
+          )}
         </div>
       </Link>
     </Tilt>

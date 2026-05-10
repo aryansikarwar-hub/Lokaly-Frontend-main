@@ -2,11 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================================
+   GLOBAL RESET
+========================================================= */
+
 html,
 body,
 #root {
   overflow-x: hidden;
   max-width: 100%;
+  scroll-behavior: smooth;
 }
 
 * {
@@ -19,189 +24,282 @@ video {
   max-width: 100%;
   height: auto;
 }
- 
 
-/* Dark-mode base tweaks. The `ink` color already exists; just ensure sensible
-   defaults so `bg-white dark:bg-ink` style works everywhere. */
-html.dark body {
-  background-color: #1f1a2b;
-  background-image: none;
-  color: #faf6ef;
+/* =========================================================
+   THEME VARIABLES
+========================================================= */
+
+:root {
+  --bg-primary: #faf6ef;
+  --bg-secondary: #f5efe6;
+  --surface: #ffffff;
+
+  --text-primary: #1f1a2b;
+  --text-secondary: rgba(31, 26, 43, 0.72);
+
+  --border-light: rgba(31, 26, 43, 0.08);
+
+  --accent-primary: #f97316;
+  --accent-secondary: #ec4899;
+
+  --shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
 html.dark {
   color-scheme: dark;
+
+  --bg-primary: #12101a;
+  --bg-secondary: #1b1725;
+  --surface: #241f31;
+
+  --text-primary: #faf6ef;
+  --text-secondary: rgba(250, 246, 239, 0.72);
+
+  --border-light: rgba(255, 255, 255, 0.08);
+
+  --accent-primary: #fb923c;
+  --accent-secondary: #f472b6;
+
+  --shadow-soft: 0 14px 40px rgba(0, 0, 0, 0.32);
 }
 
-/* -----------------------------------------------------------------------
-   Global dark-mode fallbacks.
-   Many components use the brand's light palette (bg-white, bg-cream,
-   bg-peach, text-ink, etc.) without explicit `dark:` variants. Remap those
-   utility classes under `html.dark` so pages blend into the dark theme
-   without touching every component.
-   ----------------------------------------------------------------------- */
-html.dark .bg-white {
-  background-color: #2a2438 !important;
+/* =========================================================
+   BODY
+========================================================= */
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
+
+html.dark body {
+  background:
+    radial-gradient(circle at top left,
+      rgba(251, 146, 60, 0.08),
+      transparent 24%),
+    radial-gradient(circle at bottom right,
+      rgba(244, 114, 182, 0.06),
+      transparent 28%),
+    var(--bg-primary);
+
+  color: var(--text-primary);
+}
+
+/* =========================================================
+   GLOBAL TRANSITIONS
+========================================================= */
+
+button,
+a,
+input,
+textarea,
+select,
+.card,
+.surface {
+  transition: all 0.25s ease;
+}
+
+/* =========================================================
+   DARK MODE SURFACE REMAPS
+========================================================= */
+
+html.dark .bg-white,
 html.dark .bg-cream {
-  background-color: #2a2438 !important;
-}
-html.dark .bg-bone {
-  background-color: #241f31 !important;
-}
-html.dark .bg-peach {
-  background-color: #3a2e44 !important;
-}
-html.dark .bg-lavender {
-  background-color: #352a4a !important;
-}
-html.dark .bg-mint {
-  background-color: #243a33 !important;
-}
-html.dark .bg-butter {
-  background-color: #3a3526 !important;
+  background-color: var(--surface) !important;
 }
 
-/* Surface tints with opacity modifiers */
+html.dark .bg-bone {
+  background-color: #1f1b2b !important;
+}
+
+html.dark .bg-peach {
+  background-color: #2b2237 !important;
+}
+
+html.dark .bg-lavender {
+  background-color: #2a2338 !important;
+}
+
+html.dark .bg-mint {
+  background-color: #1f2b28 !important;
+}
+
+html.dark .bg-butter {
+  background-color: #2f2a1f !important;
+}
+
+/* =========================================================
+   OPACITY SURFACES
+========================================================= */
+
 html.dark .bg-white\/40,
 html.dark .bg-white\/50,
 html.dark .bg-white\/60,
 html.dark .bg-white\/70,
 html.dark .bg-white\/80,
-html.dark .bg-white\/90 {
-  background-color: rgba(255, 255, 255, 0.06) !important;
-}
+html.dark .bg-white\/90,
 html.dark .bg-cream\/40,
 html.dark .bg-cream\/50,
 html.dark .bg-cream\/60,
 html.dark .bg-cream\/70,
 html.dark .bg-cream\/80,
 html.dark .bg-cream\/90 {
-  background-color: rgba(255, 255, 255, 0.06) !important;
-}
-html.dark .bg-peach\/20,
-html.dark .bg-peach\/30,
-html.dark .bg-peach\/40,
-html.dark .bg-peach\/50,
-html.dark .bg-peach\/60 {
-  background-color: rgba(255, 214, 186, 0.12) !important;
-}
-html.dark .bg-lavender\/20,
-html.dark .bg-lavender\/30,
-html.dark .bg-lavender\/40,
-html.dark .bg-lavender\/50 {
-  background-color: rgba(228, 212, 244, 0.12) !important;
-}
-html.dark .bg-mint\/20,
-html.dark .bg-mint\/30,
-html.dark .bg-mint\/40 {
-  background-color: rgba(200, 244, 222, 0.12) !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(12px);
 }
 
-/* FIX: bg-white/8 — language picker dark mode background */
 html.dark .bg-white\/8 {
   background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-/* Text colors */
+/* =========================================================
+   TEXT COLORS
+========================================================= */
+
 html.dark .text-ink {
-  color: #faf6ef !important;
+  color: var(--text-primary) !important;
 }
+
 html.dark .text-ink\/90 {
   color: rgba(250, 246, 239, 0.92) !important;
 }
+
 html.dark .text-ink\/80 {
   color: rgba(250, 246, 239, 0.82) !important;
 }
-html.dark .text-ink\/70 {
-  color: rgba(250, 246, 239, 0.72) !important;
-}
-html.dark .text-ink\/60 {
-  color: rgba(250, 246, 239, 0.6) !important;
-}
-html.dark .text-ink\/50 {
-  color: rgba(250, 246, 239, 0.5) !important;
-}
-html.dark .text-ink\/45 {
-  color: rgba(250, 246, 239, 0.45) !important;
-}
-html.dark .text-ink\/40 {
-  color: rgba(250, 246, 239, 0.4) !important;
-}
-/* FIX: text-ink/55 was missing — subtitle & example queries were invisible in dark mode */
-html.dark .text-ink\/55 {
-  color: rgba(250, 246, 239, 0.55) !important;
-}
+
 html.dark .text-ink\/75 {
   color: rgba(250, 246, 239, 0.75) !important;
 }
-html.dark .text-mauve {
-  color: #b8a8d4 !important;
+
+html.dark .text-ink\/70 {
+  color: rgba(250, 246, 239, 0.7) !important;
 }
 
-/* Borders */
-html.dark .border-white {
-  border-color: rgba(255, 255, 255, 0.08) !important;
+html.dark .text-ink\/60 {
+  color: rgba(250, 246, 239, 0.6) !important;
 }
+
+html.dark .text-ink\/55 {
+  color: rgba(250, 246, 239, 0.55) !important;
+}
+
+html.dark .text-ink\/50 {
+  color: rgba(250, 246, 239, 0.5) !important;
+}
+
+html.dark .text-ink\/45 {
+  color: rgba(250, 246, 239, 0.45) !important;
+}
+
+html.dark .text-ink\/40 {
+  color: rgba(250, 246, 239, 0.4) !important;
+}
+
+html.dark .text-mauve {
+  color: #d6bcfa !important;
+}
+
+/* =========================================================
+   BORDERS
+========================================================= */
+
+html.dark .border-white,
 html.dark .border-white\/60,
 html.dark .border-white\/70,
-html.dark .border-white\/80 {
-  border-color: rgba(255, 255, 255, 0.08) !important;
-}
-html.dark .border-ink\/5 {
-  border-color: rgba(255, 255, 255, 0.06) !important;
-}
-html.dark .border-ink\/10 {
-  border-color: rgba(255, 255, 255, 0.08) !important;
-}
-html.dark .border-ink\/15 {
-  border-color: rgba(255, 255, 255, 0.1) !important;
-}
+html.dark .border-white\/80,
+html.dark .border-ink\/5,
+html.dark .border-ink\/10,
+html.dark .border-ink\/15,
 html.dark .border-ink\/20 {
-  border-color: rgba(255, 255, 255, 0.12) !important;
+  border-color: var(--border-light) !important;
 }
-html.dark .divide-ink\/5 > :not([hidden]) ~ :not([hidden]) {
-  border-color: rgba(255, 255, 255, 0.06) !important;
-}
+
+html.dark .divide-ink\/5 > :not([hidden]) ~ :not([hidden]),
 html.dark .divide-ink\/10 > :not([hidden]) ~ :not([hidden]) {
   border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-/* Gradient card backgrounds */
-html.dark .from-butter {
-  --tw-gradient-from: #3a3526 var(--tw-gradient-from-position) !important;
-}
-html.dark .to-peach {
-  --tw-gradient-to: #3a2e44 var(--tw-gradient-to-position) !important;
-}
-html.dark .from-lavender\/40 {
-  --tw-gradient-from: rgba(228, 212, 244, 0.12) var(--tw-gradient-from-position) !important;
-}
-html.dark .to-peach\/40 {
-  --tw-gradient-to: rgba(255, 214, 186, 0.12) var(--tw-gradient-to-position) !important;
+/* =========================================================
+   GLASSMORPHISM EFFECTS
+========================================================= */
+
+html.dark nav,
+html.dark .glass,
+html.dark .surface-glass {
+  background: rgba(18, 16, 26, 0.72);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* Hover states */
-html.dark .hover\:bg-white:hover {
-  background-color: rgba(255, 255, 255, 0.08) !important;
+/* =========================================================
+   CARD DEPTH
+========================================================= */
+
+html.dark .card,
+html.dark .shadow-card {
+  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
+
+/* =========================================================
+   GRADIENTS
+========================================================= */
+
+html.dark .from-butter {
+  --tw-gradient-from: #3a3124 var(--tw-gradient-from-position) !important;
+}
+
+html.dark .to-peach {
+  --tw-gradient-to: #47293a var(--tw-gradient-to-position) !important;
+}
+
+html.dark .from-lavender\/40 {
+  --tw-gradient-from:
+    rgba(214, 188, 250, 0.12)
+    var(--tw-gradient-from-position) !important;
+}
+
+html.dark .to-peach\/40 {
+  --tw-gradient-to:
+    rgba(251, 146, 60, 0.12)
+    var(--tw-gradient-to-position) !important;
+}
+
+/* =========================================================
+   HOVER STATES
+========================================================= */
+
+html.dark .hover\:bg-white:hover,
 html.dark .hover\:bg-white\/50:hover,
 html.dark .hover\:bg-white\/60:hover,
 html.dark .hover\:bg-white\/70:hover {
   background-color: rgba(255, 255, 255, 0.08) !important;
 }
+
 html.dark .hover\:bg-peach\/40:hover,
 html.dark .hover\:bg-peach\/50:hover {
-  background-color: rgba(255, 214, 186, 0.16) !important;
+  background-color: rgba(251, 146, 60, 0.16) !important;
 }
 
-/* Input / form surfaces */
+button:hover,
+.card:hover {
+  transform: translateY(-2px);
+}
+
+/* =========================================================
+   FORMS
+========================================================= */
+
 html.dark input,
 html.dark textarea,
 html.dark select {
-  color: #faf6ef !important;
-  background-color: #2a2438 !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: var(--text-primary) !important;
+  background-color: var(--surface) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 html.dark input::placeholder,
@@ -209,7 +307,18 @@ html.dark textarea::placeholder {
   color: rgba(250, 246, 239, 0.4);
 }
 
-/* FIX: Native select + option visibility in dark mode */
+html.dark input:focus,
+html.dark textarea:focus,
+html.dark select:focus {
+  outline: none;
+  border-color: rgba(251, 146, 60, 0.4) !important;
+  box-shadow: 0 0 0 4px rgba(251, 146, 60, 0.12);
+}
+
+/* =========================================================
+   SELECT FIXES
+========================================================= */
+
 html.dark select {
   appearance: none;
   -webkit-appearance: none;
@@ -217,22 +326,98 @@ html.dark select {
 }
 
 html.dark select option {
-  background-color: #2a2438;
+  background-color: #241f31;
   color: #faf6ef;
 }
 
-html.dark select option:checked,
 html.dark select option:hover,
-html.dark select option:focus {
-  background-color: #3a2e44;
+html.dark select option:focus,
+html.dark select option:checked {
+  background-color: #332845;
   color: #faf6ef;
 }
 
-html.dark select:focus {
-  outline: none;
+/* =========================================================
+   SIGNUP PAGE — STYLING
+========================================================= */
+
+/* Light mode styling for signup left section (marketing panel) */
+aside.bg-gradient-to-br[class*="from-lavender"] {
+  background: linear-gradient(135deg, #E85A5A 0%, #F39445 100%) !important;
 }
 
-/* --- Google Translate / accessibility widget --- */
+aside.bg-gradient-to-br[class*="from-lavender"] .text-ink {
+  color: #ffffff !important;
+}
+
+aside.bg-gradient-to-br[class*="from-lavender"] .text-coral {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+aside.bg-gradient-to-br[class*="from-lavender"] .text-ink\/70 {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+aside.bg-gradient-to-br[class*="from-lavender"] .text-ink\/80 {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+aside.bg-gradient-to-br[class*="from-lavender"] .bg-coral\/20 {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Dark mode styling for signup left section (marketing panel) */
+html.dark aside.bg-gradient-to-br {
+  background: linear-gradient(135deg, #E85A5A 0%, #F39445 100%) !important;
+  position: relative;
+}
+
+/* Dark mode text on coral gradient */
+html.dark aside.bg-gradient-to-br .text-ink {
+  color: #ffffff !important;
+}
+
+html.dark aside.bg-gradient-to-br .text-coral {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.dark aside.bg-gradient-to-br .text-ink\/70 {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark aside.bg-gradient-to-br .text-ink\/80 {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark aside.bg-gradient-to-br .bg-coral\/20 {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Dark mode styling for signup right section (form panel) */
+html.dark main.bg-white {
+  background-color: var(--bg-primary) !important;
+}
+
+html.dark main.bg-white .text-ink {
+  color: var(--text-primary) !important;
+}
+
+html.dark main.bg-white .bg-coral\/5 {
+  background-color: rgba(251, 146, 60, 0.08) !important;
+}
+
+html.dark main.bg-white .border-ink\/8 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark main.bg-white .bg-white\/60 {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* =========================================================
+   ACCESSIBILITY / GOOGLE TRANSLATE
+========================================================= */
+
 .skiptranslate iframe.goog-te-banner-frame,
 iframe.goog-te-banner-frame.skiptranslate {
   display: none !important;
@@ -258,16 +443,22 @@ body {
   background-color: #1f1a2b;
   color: #faf6ef;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 4px 24px -10px rgba(31, 26, 43, 0.35);
+  box-shadow: var(--shadow-soft);
 }
+
 html.dark .a11y-widget {
   background-color: #faf6ef;
   color: #1f1a2b;
   border-color: rgba(31, 26, 43, 0.2);
 }
+
 .a11y-widget:hover {
   transform: translateY(-1px);
 }
+
+/* =========================================================
+   REMOVE GOOGLE TOOLTIP
+========================================================= */
 
 .goog-tooltip,
 .goog-tooltip:hover,
@@ -276,3 +467,4 @@ html.dark .a11y-widget {
   box-shadow: none !important;
   background: transparent !important;
 }
+

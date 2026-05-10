@@ -21,6 +21,7 @@ import {
   HiOutlineMoon,
   HiOutlineArrowRightOnRectangle,
 } from "react-icons/hi2";
+import NavbarLocationChip from "../NavbarLocationChip";
 import { FiUser } from "react-icons/fi";
 import { Avatar } from "../ui/Avatar";
 import { useAuthStore } from "../../store/authStore";
@@ -83,14 +84,13 @@ export default function Navbar() {
 
   /* close profile dropdown on outside click */
   useEffect(() => {
-    if (!profileOpen) return;
     const handler = (e) => {
       if (profileRef.current && !profileRef.current.contains(e.target))
         setProfileOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [profileOpen]);
+  }, []);
 
   /* lock body scroll when sidebar is open */
   useEffect(() => {
@@ -212,7 +212,7 @@ export default function Navbar() {
               <CoinsWidget />
             </div>
           )}
-
+          <NavbarLocationChip />
           {/* cart */}
           <Link
             to="/cart"
@@ -271,7 +271,7 @@ export default function Navbar() {
                     <button
                       onClick={() => {
                         setProfileOpen(false);
-                        navigate(`/profile/${myId}`);
+                        setTimeout(() => navigate(`/profile/${myId}`), 50);
                       }}
                       className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-jakarta font-semibold text-ink/80 dark:text-cream/80 hover:bg-peach/60 dark:hover:bg-white/10 transition"
                       role="menuitem"
@@ -281,7 +281,7 @@ export default function Navbar() {
                     <button
                       onClick={() => {
                         setProfileOpen(false);
-                        navigate(dashboardPath);
+                        setTimeout(() => navigate(dashboardPath), 50);
                       }}
                       className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-jakarta font-semibold text-ink/80 dark:text-cream/80 hover:bg-peach/60 dark:hover:bg-white/10 transition"
                       role="menuitem"
@@ -289,7 +289,10 @@ export default function Navbar() {
                       <HiOutlineSquares2X2 className="text-base" /> Dashboard
                     </button>
                     <button
-                      onClick={() => toggleTheme()}
+                      onClick={() => {
+                        toggleTheme();
+                        setProfileOpen(false);
+                      }}
                       className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-jakarta font-semibold text-ink/80 dark:text-cream/80 hover:bg-peach/60 dark:hover:bg-white/10 transition"
                       role="menuitem"
                     >
