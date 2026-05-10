@@ -14,7 +14,18 @@ export default function RecommendedForYou({ userCity = "Indore", interest = null
     getForYouRecommendations(userCity, interest)
       .then((data) => {
         if (cancelled) return;
-        setProducts(data.recommendations || []);
+
+        // ✅ FIX: API response nested ho sakta hai
+        // Case 1: data.recommendations = [...] (direct array)
+        // Case 2: data.recommendations = { recommendations: [...] } (nested object from HuggingFace)
+        const reco = data.recommendations;
+        const list = Array.isArray(reco)
+          ? reco
+          : Array.isArray(reco?.recommendations)
+            ? reco.recommendations
+            : [];
+
+        setProducts(list);
         setLoading(false);
       })
       .catch(() => {
@@ -77,12 +88,11 @@ export default function RecommendedForYou({ userCity = "Indore", interest = null
 
 // Branded card matching tumhare design system
 function RecoCard({ product }) {
-  // HuggingFace API ke response ko handle karte hue (multiple field names try karte hain)
   const id = product._id || product.id;
   const title = product.title || product.name || product.business_name || "Untitled";
   const image = product.image || product.imageUrl || product.image_url || product.images?.[0]?.url;
   const price = product.price;
-  const city = product.city || product.location?.city;
+  const city = product.city_name || product.city || product.location?.city;
   const category = product.category || product.tag;
 
   return (
