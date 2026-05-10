@@ -5,4 +5,6 @@ const useLocationStore = create((set) => ({
   setLocation: (loc) => set({ location: loc }),
 }))
 
+// Dono exports — taaki named aur default dono import kaam karein
+export { useLocationStore }
 export default useLocationStore
