@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 
 const API_URL = 'https://sawan-kush-ai-chatbot.hf.space/chat';
 
@@ -31,6 +31,16 @@ export default function ChatbotWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Drag state — button position persisted in localStorage
+  const [btnPos, setBtnPos] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lokaly_chat_btn_pos');
+      return saved ? JSON.parse(saved) : { x: 0, y: 0 };
+    } catch { return { x: 0, y: 0 }; }
+  });
+  const dragStartRef = useRef(null); // tracks if it's a drag vs click
+  const isDraggingRef = useRef(false);
 
   // Save messages to localStorage
   useEffect(() => {
@@ -140,21 +150,44 @@ export default function ChatbotWidget() {
 
   return (
     <>
-      {/* Floating Button — Bottom Left */}
+      {/* Draggable Floating Button */}
       <motion.button
-        onClick={() => setIsOpen((p) => !p)}
-        initial={{ scale: 0, opacity: 0 }}
+        drag
+        dragMomentum={false}
+        dragElastic={0.1}
+        dragConstraints={{
+          top: -(window.innerHeight - 100),
+          left: -(window.innerWidth - 80),
+          right: window.innerWidth - 80,
+          bottom: window.innerHeight - 100,
+        }}
+        initial={{ x: btnPos.x, y: btnPos.y, scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
+        onDragStart={() => { isDraggingRef.current = false; dragStartRef.current = Date.now(); }}
+        onDrag={() => { isDraggingRef.current = true; }}
+        onDragEnd={(_, info) => {
+          // Save position
+          const newPos = { x: btnPos.x + info.offset.x, y: btnPos.y + info.offset.y };
+          setBtnPos(newPos);
+          try { localStorage.setItem('lokaly_chat_btn_pos', JSON.stringify(newPos)); } catch {}
+        }}
+        onClick={() => {
+          // Only toggle if it wasn't a drag
+          if (!isDraggingRef.current) setIsOpen((p) => !p);
+          isDraggingRef.current = false;
+        }}
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
         className="fixed bottom-5 left-5 z-[9998] w-14 h-14 rounded-full
                    bg-gradient-to-br from-[#E07856] to-[#B8492C]
                    shadow-lg shadow-black/20 hover:shadow-xl
                    flex items-center justify-center
                    text-white transition-shadow duration-200
-                   ring-4 ring-white/40 dark:ring-black/20"
+                   ring-4 ring-white/40 dark:ring-black/20
+                   cursor-grab active:cursor-grabbing"
+        style={{ touchAction: 'none' }}
       >
         <AnimatePresence mode="wait" initial={false}>
           {isOpen ? (
