@@ -885,6 +885,9 @@ export default function LiveStream() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [endingSession, setEndingSession] = useState(false);
   const [promoCode, setPromoCode] = useState("");
+  const [qaList, setQaList] = useState([]);
+  const [qaAnswers, setQaAnswers] = useState({});
+  const [qaQuestion, setQaQuestion] = useState("");
 
   // Derived: is current user the host of the active session?
   const userIsSeller = isUserSeller(user);
