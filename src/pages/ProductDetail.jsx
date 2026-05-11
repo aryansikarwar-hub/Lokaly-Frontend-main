@@ -349,16 +349,6 @@ function nextImg() {
                     </div>
                   </div>
                 </Link>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <Link
-                  to={`/messages?to=${seller._id}`}
-                  className="rounded-full bg-peach/60 hover:bg-peach text-ink text-[11px] font-jakarta font-semibold py-2 text-center inline-flex items-center justify-center gap-1.5 transition"
-                >
-                  <HiOutlineChatBubbleLeftRight className="text-sm" /> Message
-                </Link>
-
                 <button
                   onClick={handleSave}
                   className={`rounded-full text-[11px] font-jakarta font-semibold py-2 inline-flex items-center justify-center gap-1.5 transition ${
