@@ -15,13 +15,14 @@ function RecommendationSearch({ defaultCity = 'Indore' }) {
     
     try {
       const data = await searchRecommendations(query.trim(), defaultCity);
-      // Backend now guarantees results is an array; defensive fallback for nested shape
-      const list = Array.isArray(data?.results)
-        ? data.results
-        : Array.isArray(data?.results?.recommendations)
-          ? data.results.recommendations
-          : [];
-      setResults(list);
+      
+      // ✅ FIX: Backend `image: ''` ko ProductCard ke liye `images: [{url}]` mein convert karo
+      const mapped = (data.results || []).map((r) => ({
+        ...r,
+        images: [{ url: r.image || r.imageUrl || r.image_url || '' }],
+      }));
+
+      setResults(mapped);
     } catch {
       setResults([]);
     } finally {
