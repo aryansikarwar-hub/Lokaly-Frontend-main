@@ -2,7 +2,6 @@ import { useNavigate } from "react-router-dom";
 import { HiArrowLongRight } from "react-icons/hi2";
 import { useAgoraHoverPreview } from "../../hooks/useAgoraHoverPreview";
 
-// Color palette mapping by category
 const CATEGORY_COLORS = {
   "Handloom & Sarees": "from-coral to-tangerine",
   "Ethnic Wear": "from-mint to-leaf",
@@ -20,22 +19,13 @@ const CATEGORY_COLORS = {
   default: "from-coral to-tangerine",
 };
 
-/**
- * LiveSellerCard
- *
- * @param {Object}  stream      — the stream payload from /api/live/featured
- * @param {boolean} autoplay    — when true AND stream is live, mini-player
- *                                starts automatically (used for the top card).
- *                                For non-top cards, falls back to hover-to-preview.
- */
 export default function LiveSellerCard({ stream, autoplay = false }) {
   const navigate = useNavigate();
 
-  // 🆕 Decide if this card should auto-stream
   const shouldAutoplay =
     autoplay && stream.status === "live" && Boolean(stream.roomId);
 
-  const { containerRef, isPreviewing, onHoverStart, onHoverEnd } =
+  const { containerRef, isPreviewing, noHost, onHoverStart, onHoverEnd } =
     useAgoraHoverPreview({
       autoStart: shouldAutoplay ? { channelName: stream.roomId } : null,
     });
@@ -48,7 +38,6 @@ export default function LiveSellerCard({ stream, autoplay = false }) {
   };
 
   const handleMouseEnter = () => {
-    // Hover preview only when we're NOT already autoplaying
     if (!shouldAutoplay && stream.status === "live" && stream.roomId) {
       onHoverStart({ channelName: stream.roomId });
     }
@@ -61,13 +50,21 @@ export default function LiveSellerCard({ stream, autoplay = false }) {
         ? "Coming soon"
         : "Recent stream";
 
-  // 🆕 Smart headline: city → state → shopName → title
   const headline =
     stream.host?.city ||
     stream.host?.state ||
     stream.host?.shopName ||
     stream.title ||
     "Lokaly";
+
+  // Placeholder text logic
+  const placeholderText = () => {
+    if (noHost) return "Stream ended";
+    if (stream.status === "live") {
+      return shouldAutoplay ? "Connecting…" : "Hover to preview";
+    }
+    return statusLabel;
+  };
 
   return (
     <div
@@ -84,7 +81,7 @@ export default function LiveSellerCard({ stream, autoplay = false }) {
       }}
       className={`h-full w-full bg-gradient-to-br ${gradient} p-6 flex flex-col justify-between text-white relative cursor-pointer overflow-hidden`}
     >
-      {/* TOP — Featured seller + category badge */}
+      {/* TOP */}
       <div className="flex items-start justify-between relative z-10">
         <div>
           <div className="text-[9px] uppercase tracking-[0.2em] opacity-80 font-jakarta font-semibold">
@@ -99,9 +96,9 @@ export default function LiveSellerCard({ stream, autoplay = false }) {
         </span>
       </div>
 
-      {/* MIDDLE — Mini player area (thumbnail or live preview) */}
+      {/* MIDDLE — Mini player */}
       <div className="absolute inset-x-6 top-[100px] bottom-[140px] rounded-xl overflow-hidden bg-black/15">
-        {/* Agora video container — shows whenever previewing (hover OR autoplay) */}
+        {/* Agora video container */}
         <div
           ref={containerRef}
           className={`absolute inset-0 transition-opacity duration-300 ${
@@ -109,7 +106,7 @@ export default function LiveSellerCard({ stream, autoplay = false }) {
           }`}
         />
 
-        {/* Thumbnail / placeholder (hidden once preview is live) */}
+        {/* Thumbnail / placeholder */}
         {!isPreviewing && (
           <>
             {stream.coverImage ? (
@@ -122,13 +119,11 @@ export default function LiveSellerCard({ stream, autoplay = false }) {
             ) : (
               <div className="absolute inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center">
                 <div className="text-center text-white/70">
-                  <div className="text-3xl mb-2">📡</div>
+                  <div className="text-3xl mb-2">
+                    {noHost ? "📴" : "📡"}
+                  </div>
                   <div className="text-[10px] font-jakarta">
-                    {stream.status === "live"
-                      ? shouldAutoplay
-                        ? "Connecting…"
-                        : "Hover to preview"
-                      : statusLabel}
+                    {placeholderText()}
                   </div>
                 </div>
               </div>
@@ -137,7 +132,7 @@ export default function LiveSellerCard({ stream, autoplay = false }) {
           </>
         )}
 
-        {/* Viewer count overlay (top right) */}
+        {/* Viewer count */}
         {stream.status === "live" && stream.viewers > 0 && (
           <div className="absolute top-2 right-2 bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-jakarta font-semibold flex items-center gap-1 z-10">
             <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
@@ -145,7 +140,7 @@ export default function LiveSellerCard({ stream, autoplay = false }) {
           </div>
         )}
 
-        {/* 🆕 Muted-autoplay chip: subtle hint that audio is off */}
+        {/* Muted chip */}
         {isPreviewing && (
           <div className="absolute top-2 left-2 bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] font-jakarta font-medium z-10 flex items-center gap-1">
             <span>🔇</span>
@@ -153,24 +148,24 @@ export default function LiveSellerCard({ stream, autoplay = false }) {
           </div>
         )}
 
-        {/* Hover hint (only when NOT autoplaying and NOT previewing) */}
-        {!isPreviewing && !shouldAutoplay && stream.status === "live" && (
+        {/* Hover hint */}
+        {!isPreviewing && !shouldAutoplay && !noHost && stream.status === "live" && (
           <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] font-jakarta font-medium z-10">
             Hover to preview
           </div>
         )}
       </div>
 
-      {/* BOTTOM — Live now + shop name + product + swipe hint */}
+      {/* BOTTOM */}
       <div className="relative z-10">
         <div className="flex items-center gap-1.5 mb-2.5">
           <span
             className={`w-1.5 h-1.5 rounded-full bg-white ${
-              stream.status === "live" ? "animate-pulse" : ""
+              stream.status === "live" && !noHost ? "animate-pulse" : ""
             }`}
           />
           <span className="text-[10px] font-jakarta font-semibold uppercase tracking-wider opacity-90">
-            {statusLabel}
+            {noHost ? "Offline" : statusLabel}
           </span>
         </div>
         <p className="font-jakarta font-semibold text-lg leading-tight">

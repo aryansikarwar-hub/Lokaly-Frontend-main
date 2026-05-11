@@ -84,8 +84,8 @@ export default function Sidebar({ role = 'seller', active, onNavigate }) {
 
   return (
     <>
-      {/* Mobile top bar (<768px): collapsible icons-only drawer */}
-      <div className="md:hidden sticky top-[56px] z-30 bg-cream/90 dark:bg-ink/90 backdrop-blur border-b border-ink/5 dark:border-white/5">
+      {/* Mobile top strip (<768px) */}
+      <div className="md:hidden w-full bg-cream/95 dark:bg-ink/95 backdrop-blur border-b border-ink/5 dark:border-white/5 z-30">
         <div className="flex items-center justify-between px-3 py-2">
           <div className="text-[10px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/60 dark:text-cream/60">
             {role === 'buyer' ? 'Buyer' : 'Seller'} panel
@@ -98,21 +98,27 @@ export default function Sidebar({ role = 'seller', active, onNavigate }) {
             {open ? <HiOutlineXMark className="text-lg" /> : <HiOutlineBars3 className="text-lg" />}
           </button>
         </div>
-        {/* Collapsed row: icons-only quick access (<768px default) */}
+
+        {/* Icon-only scrollable strip */}
         {!open && (
-          <div className="flex items-center gap-1 overflow-x-auto px-2 pb-2">
+          <div
+            className="flex items-center overflow-x-auto px-2 pb-2 gap-1"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
             {items.map((it) => renderItem(it, { iconOnly: true }))}
           </div>
         )}
+
+        {/* Expanded full-label menu */}
         {open && (
-          <div className="px-2 pb-3 space-y-0.5 border-t border-ink/5 dark:border-white/5">
+          <div className="px-2 pb-3 space-y-0.5 border-t border-ink/5 dark:border-white/5 max-h-[50vh] overflow-y-auto">
             {items.map((it) => renderItem(it))}
           </div>
         )}
       </div>
 
-      {/* Desktop sidebar (md+) */}
-      <aside className="hidden md:block w-60 shrink-0 border-r border-ink/5 dark:border-white/5 bg-white/60 dark:bg-ink/60 backdrop-blur">
+      {/* Desktop sidebar (md+) — sits beside main content */}
+      <aside className="hidden md:flex md:flex-col w-56 shrink-0 border-r border-ink/5 dark:border-white/5 bg-white/60 dark:bg-ink/60 backdrop-blur">
         <div className="sticky top-[64px] p-3">
           <div className="text-[10px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/50 dark:text-cream/50 px-2 mb-2">
             {role === 'buyer' ? 'Buyer' : 'Seller'} panel

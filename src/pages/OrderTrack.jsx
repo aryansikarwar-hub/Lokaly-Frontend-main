@@ -10,6 +10,7 @@ import {
   HiOutlineCheckBadge,
   HiOutlineXCircle,
   HiOutlineArrowPath,
+  HiOutlineArrowDownTray,
 } from "react-icons/hi2";
 import api from "../services/api";
 import { Spinner } from "../components/ui/Spinner";
@@ -36,6 +37,141 @@ const LABELS = {
   cancelled: "Cancelled",
   refunded: "Refunded",
 };
+
+// ✅ Generate and download invoice PDF using browser's print dialog
+function downloadInvoice(order) {
+  const orderId = String(order._id).slice(-8).toUpperCase();
+  const placedOn = dayjs(order.createdAt).format("D MMM YYYY, h:mm A");
+
+  const itemsHtml = order.items
+    .map(
+      (it) => `
+      <tr>
+        <td style="padding:8px 6px;border-bottom:1px solid #f0ece6;">${it.title}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #f0ece6;text-align:center;">${it.quantity}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #f0ece6;text-align:right;">₹${(it.price).toLocaleString("en-IN")}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #f0ece6;text-align:right;">₹${(it.price * it.quantity).toLocaleString("en-IN")}</td>
+      </tr>
+    `
+    )
+    .join("");
+
+  const { address } = order;
+  const addressLines = [
+    address.line1,
+    address.line2,
+    `${address.city}, ${address.state} ${address.pincode}`,
+    address.phone,
+  ]
+    .filter(Boolean)
+    .join("<br/>");
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8" />
+      <title>Invoice #${orderId} — Lokaly</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: #fff; padding: 40px; font-size: 13px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
+        .brand { font-size: 22px; font-weight: 700; color: #FF6B6B; letter-spacing: -0.5px; }
+        .brand span { display: block; font-size: 10px; font-weight: 400; color: #999; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+        .invoice-title { text-align: right; }
+        .invoice-title h2 { font-size: 20px; font-weight: 600; color: #333; }
+        .invoice-title p { font-size: 11px; color: #999; margin-top: 3px; }
+        .divider { border: none; border-top: 2px solid #f0ece6; margin: 20px 0; }
+        .two-col { display: flex; gap: 40px; margin-bottom: 28px; }
+        .two-col > div { flex: 1; }
+        .section-label { font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: #aaa; margin-bottom: 6px; }
+        .section-value { font-size: 13px; color: #333; line-height: 1.7; }
+        .section-value strong { color: #1a1a1a; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        thead { background: #fff8f5; }
+        thead th { padding: 9px 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888; text-align: left; border-bottom: 2px solid #f0ece6; }
+        thead th:last-child, thead th:nth-child(3), thead th:nth-child(2) { text-align: right; }
+        thead th:nth-child(2) { text-align: center; }
+        .total-row td { padding: 10px 6px; font-weight: 600; font-size: 14px; border-top: 2px solid #f0ece6; }
+        .total-row td:last-child { color: #FF6B6B; text-align: right; font-size: 16px; }
+        .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #bbb; }
+        .status-badge { display: inline-block; background: #e6f9f0; color: #1a7a4a; font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; margin-top: 4px; }
+        @media print {
+          body { padding: 20px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="brand">
+          Lokaly
+          <span>Local Love, Live</span>
+        </div>
+        <div class="invoice-title">
+          <h2>Invoice</h2>
+          <p>#${orderId}</p>
+          <p style="margin-top:6px;">${placedOn}</p>
+          <div class="status-badge">${LABELS[order.status] || order.status}</div>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="two-col">
+        <div>
+          <div class="section-label">Bill To</div>
+          <div class="section-value">
+            <strong>${address.fullName}</strong><br/>
+            ${addressLines}
+          </div>
+        </div>
+        <div>
+          <div class="section-label">Order Details</div>
+          <div class="section-value">
+            Order ID: <strong>#${orderId}</strong><br/>
+            Date: ${dayjs(order.createdAt).format("D MMM YYYY")}<br/>
+            Payment: <strong>Razorpay</strong>
+          </div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th style="text-align:center;">Qty</th>
+            <th style="text-align:right;">Unit Price</th>
+            <th style="text-align:right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td colspan="3">Total Paid</td>
+            <td>₹${order.total.toLocaleString("en-IN")}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div class="footer">
+        Thank you for shopping with Lokaly — India's social commerce hub for artisans, home-kitchens &amp; neighbourhood shops.<br/>
+        For support, visit lokaly.in/support
+      </div>
+    </body>
+    </html>
+  `;
+
+  // Open in new window and trigger print (Save as PDF)
+  const win = window.open("", "_blank", "width=800,height=900");
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => {
+    win.print();
+  }, 400);
+}
 
 export default function OrderTrack() {
   const { id } = useParams();
@@ -93,7 +229,18 @@ export default function OrderTrack() {
             Placed on {dayjs(order.createdAt).format("D MMM YYYY, h:mm A")}
           </div>
         </div>
-        <Badge tone="mint">{LABELS[order.status] || order.status}</Badge>
+
+        {/* ✅ Right side: Status badge + Download Invoice button */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <Badge tone="mint">{LABELS[order.status] || order.status}</Badge>
+          <button
+            onClick={() => downloadInvoice(order)}
+            className="inline-flex items-center gap-1.5 text-[11px] font-jakarta font-semibold text-ink/70 hover:text-coral border border-ink/15 hover:border-coral/40 rounded-lg px-3 py-1.5 transition-all bg-white/60 hover:bg-white"
+          >
+            <HiOutlineArrowDownTray className="text-base" />
+            Download Invoice
+          </button>
+        </div>
       </div>
 
       {/* Timeline */}

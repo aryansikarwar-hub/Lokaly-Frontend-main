@@ -4,31 +4,25 @@ import api from "../services/api";
 import { APP_ID } from "../services/agora";
 
 const HOVER_DELAY_MS = 400;
+const NO_HOST_TIMEOUT_MS = 5000;
 
-/**
- * Hook: starts Agora preview either on hover OR automatically.
- *
- * Cost-optimized: only joins channel when actually previewing
- * (hover OR autoplay-eligible card).
- *
- * Usage:
- *   const { containerRef, isPreviewing, onHoverStart, onHoverEnd } =
- *     useAgoraHoverPreview({ autoStart: { channelName: "live_xxx" } });
- *
- * If `autoStart.channelName` is provided, the preview begins immediately
- * and stays live until unmount or autoStart goes null.
- */
 export function useAgoraHoverPreview({ autoStart = null } = {}) {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState(null);
+  const [noHost, setNoHost] = useState(false);
 
   const clientRef = useRef(null);
   const containerRef = useRef(null);
   const hoverTimerRef = useRef(null);
+  const noHostTimerRef = useRef(null);
   const currentChannelRef = useRef(null);
 
   const cleanup = useCallback(async () => {
     try {
+      if (noHostTimerRef.current) {
+        clearTimeout(noHostTimerRef.current);
+        noHostTimerRef.current = null;
+      }
       if (clientRef.current) {
         await clientRef.current.leave();
         clientRef.current.removeAllListeners();
@@ -42,6 +36,7 @@ export function useAgoraHoverPreview({ autoStart = null } = {}) {
       }
       currentChannelRef.current = null;
       setIsPreviewing(false);
+      setNoHost(false);
     } catch (e) {
       console.error("[AgoraPreview] cleanup error:", e);
     }
@@ -52,10 +47,11 @@ export function useAgoraHoverPreview({ autoStart = null } = {}) {
       if (!channelName) return;
       if (currentChannelRef.current === channelName) return;
 
+      setNoHost(false);
+
       try {
         await cleanup();
 
-        // Get token from backend
         const { data } = await api.post("/agora/token", {
           channelName,
           role: "subscriber",
@@ -75,8 +71,14 @@ export function useAgoraHoverPreview({ autoStart = null } = {}) {
         clientRef.current = client;
         currentChannelRef.current = channelName;
 
-        // Subscribe to remote stream
         client.on("user-published", async (user, mediaType) => {
+          // Host aa gaya — timeout cancel karo
+          if (noHostTimerRef.current) {
+            clearTimeout(noHostTimerRef.current);
+            noHostTimerRef.current = null;
+          }
+          setNoHost(false);
+
           try {
             await client.subscribe(user, mediaType);
             if (mediaType === "video" && containerRef.current) {
@@ -97,7 +99,6 @@ export function useAgoraHoverPreview({ autoStart = null } = {}) {
               user.videoTrack.play(player);
               setIsPreviewing(true);
             }
-            // Audio stays muted by design (autoplay policies + UX)
           } catch (err) {
             console.error("[AgoraPreview] subscribe error:", err);
           }
@@ -113,6 +114,14 @@ export function useAgoraHoverPreview({ autoStart = null } = {}) {
           data.token,
           data.uid || null,
         );
+
+        // Join ke baad 5 sec mein koi host nahi aaya toh cleanup
+        noHostTimerRef.current = setTimeout(() => {
+          console.log("[AgoraPreview] No host found, cleaning up");
+          setNoHost(true);
+          cleanup();
+        }, NO_HOST_TIMEOUT_MS);
+
       } catch (err) {
         console.error("[AgoraPreview] join failed:", err);
         setPreviewError(err);
@@ -137,23 +146,17 @@ export function useAgoraHoverPreview({ autoStart = null } = {}) {
       clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
     }
-    // 🆕 If autoStart is active, don't tear down on mouse leave —
-    // autoplay should persist regardless of hover.
     if (!autoStart?.channelName) {
       cleanup();
     }
   }, [cleanup, autoStart]);
 
-  // 🆕 Autoplay effect: if a channelName is supplied, start immediately.
   useEffect(() => {
     if (autoStart?.channelName) {
       startPreview({ channelName: autoStart.channelName });
     } else if (currentChannelRef.current) {
-      // autoStart removed — tear down
       cleanup();
     }
-    // We intentionally don't clean up on every re-render;
-    // unmount cleanup is handled below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart?.channelName]);
 
@@ -168,6 +171,7 @@ export function useAgoraHoverPreview({ autoStart = null } = {}) {
     containerRef,
     isPreviewing,
     previewError,
+    noHost,
     onHoverStart,
     onHoverEnd,
   };

@@ -60,39 +60,58 @@ const PINNED_MESSAGE = {
   text: "Use code SARAH10 for 10% OFF all items — only while live!",
 };
 
-function LiveCarouselCard({ stream, active, onClick }) {
+// Gradient palettes for carousel cards
+const CARD_GRADIENTS = [
+  "from-[#3d1a0e] via-[#7a2e10] to-[#c0440f]",
+  "from-[#1a1040] via-[#3d1f7a] to-[#7c3aed]",
+  "from-[#0e2a1a] via-[#1a5c34] to-[#2d8c50]",
+  "from-[#2a1a0e] via-[#7a4a10] to-[#c0820f]",
+  "from-[#1a0e2a] via-[#4a1a7a] to-[#8c2dc0]",
+];
+
+function LiveCarouselCard({ stream, active, onClick, gradientIdx = 0 }) {
+  const grad = CARD_GRADIENTS[gradientIdx % CARD_GRADIENTS.length];
+  const handle = "@" + (stream.host?.shopName || stream.host?.name || "seller")
+    .replace(/\s+/g, "").toLowerCase().slice(0, 12);
+
   return (
     <button
       type="button"
       onClick={() => onClick(stream)}
-      className={`group shrink-0 min-w-[180px] rounded-3xl overflow-hidden border transition shadow-sm ${
-        active
-          ? "border-coral shadow-glow"
-          : "border-transparent hover:border-ink/10"
+      className={`group shrink-0 w-[200px] rounded-2xl overflow-hidden border-2 transition shadow-md ${
+        active ? "border-coral" : "border-transparent hover:border-white/20"
       }`}
     >
-      <div className="relative h-36 bg-slate-100 dark:bg-white/5 overflow-hidden">
-        <img
-          src={stream.coverImage}
-          alt={stream.title}
-          className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-        <div className="absolute left-3 top-3 flex items-center gap-1 bg-black/65 text-white text-[9px] font-semibold uppercase tracking-[0.18em] px-2 py-1 rounded-full">
-          <span className="w-1.5 h-1.5 rounded-full bg-coral animate-pulse" />
-          LIVE
+      <div className={`relative h-44 bg-gradient-to-br ${grad} overflow-hidden`}>
+        {stream.coverImage && (
+          <img
+            src={stream.coverImage}
+            alt={stream.title}
+            className="w-full h-full object-cover opacity-25 transition duration-500 group-hover:scale-105 mix-blend-luminosity"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+        {/* Top row */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+          <span className="flex items-center gap-1 bg-coral text-white text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            LIVE
+          </span>
+          <span className="flex items-center gap-1 bg-black/40 text-white text-[9px] font-semibold px-2 py-1 rounded-full backdrop-blur-sm">
+            <HiOutlineUserGroup className="text-[10px]" />
+            {stream.stats?.peakViewers?.toLocaleString() || "0"}
+          </span>
         </div>
-        <div className="absolute right-3 top-3 flex items-center gap-1 bg-white/15 text-white text-[9px] font-semibold px-2 py-1 rounded-full backdrop-blur-sm">
-          <HiOutlineUserGroup className="text-[10px]" />
-          {stream.stats?.peakViewers?.toLocaleString() || "0"}
-        </div>
-      </div>
-      <div className="p-3 bg-white dark:bg-ink/80">
-        <div className="text-[10px] font-jakarta text-ink/70 dark:text-cream/60 line-clamp-1">
-          {stream.host?.shopName || stream.host?.name}
-        </div>
-        <div className="mt-1 text-sm font-fraunces text-ink dark:text-cream leading-tight line-clamp-2">
-          {stream.title}
+        {/* Bottom info */}
+        <div className="absolute bottom-3 left-3 right-3">
+          <div className="text-[10px] font-jakarta text-white/60 mb-0.5">{handle}</div>
+          <div className="text-sm font-fraunces text-white leading-tight line-clamp-2 font-semibold">
+            {stream.title}
+          </div>
+          <div className="mt-1.5 flex items-center gap-1 text-[9px] text-white/50 font-jakarta">
+            <HiOutlineFire className="text-coral text-xs" />
+            Trending in your city
+          </div>
         </div>
       </div>
     </button>
@@ -1409,12 +1428,12 @@ export default function LiveStream() {
 
               <div className="max-w-2xl">
                 <h1 className="font-fraunces text-3xl sm:text-4xl tracking-tight leading-tight text-ink dark:text-cream">
-                  Premium live commerce for curated local drops.
+                  Live{" "}
+                  <span className="text-coral italic">drops,</span>{" "}
+                  locally curated.
                 </h1>
                 <p className="mt-3 text-sm sm:text-base text-ink/65 dark:text-cream/65 max-w-xl leading-7">
-                  Discover the ultimate livestream shopping stage with curated
-                  deals, interactive chat, and cinematic live commerce designed
-                  for modern buyers.
+                  Watch, chat, shop — in real time.
                 </p>
               </div>
             </div>
@@ -1436,12 +1455,13 @@ export default function LiveStream() {
             </div>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-3">
-            {sessions.map((s) => (
+            {sessions.map((s, idx) => (
               <LiveCarouselCard
                 key={s._id}
                 stream={s}
                 active={active?._id === s._id}
                 onClick={setActive}
+                gradientIdx={idx}
               />
             ))}
           </div>
@@ -1548,22 +1568,42 @@ export default function LiveStream() {
                 <FloatingProductCard product={active.featuredProducts[0]} />
               )}
 
-              {/* Bottom: title + reaction */}
-              <div className="absolute bottom-3 inset-x-3 flex items-end justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-[8px] uppercase tracking-[0.2em] font-jakarta font-semibold text-white/55 mb-0.5">
-                    {active.category || "Live drop"}
+              {/* Bottom: product name + promo + controls */}
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 to-transparent px-4 pb-4 pt-8">
+                <div className="flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    {active.featuredProducts?.[0] && (
+                      <div className="font-fraunces text-base text-white font-semibold line-clamp-1">
+                        {active.featuredProducts[0].title} · Limited{" "}
+                        {active.featuredProducts[0].stock || 12}
+                      </div>
+                    )}
+                    <div className="text-[10px] font-jakarta text-white/60 mt-0.5">
+                      Use code <span className="text-coral font-bold">{promoCode || "LIVE10"}</span> — 10% off
+                    </div>
                   </div>
-                  <div className="font-fraunces text-lg sm:text-xl text-white tracking-tight line-clamp-1">
-                    {active.title}
+                  {/* Controls */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button className="w-8 h-8 rounded-full bg-white/15 backdrop-blur grid place-items-center text-white hover:bg-white/25 transition">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                      </svg>
+                    </button>
+                    <button
+                      onClick={sendReaction}
+                      className="w-8 h-8 rounded-full bg-white/15 backdrop-blur grid place-items-center text-white hover:bg-white/25 transition"
+                    >
+                      <HiOutlineHeart className="text-sm" />
+                    </button>
+                    <button className="w-8 h-8 rounded-full bg-white/15 backdrop-blur grid place-items-center text-white hover:bg-white/25 transition">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+                        <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+                      </svg>
+                    </button>
                   </div>
                 </div>
-                <button
-                  onClick={sendReaction}
-                  className="w-10 h-10 rounded-full bg-white/15 backdrop-blur border border-white/20 grid place-items-center text-white hover:bg-white/25 transition shrink-0"
-                >
-                  <HiOutlineHeart className="text-base" />
-                </button>
               </div>
 
               {/* Reaction bursts */}
@@ -1609,52 +1649,41 @@ export default function LiveStream() {
             )}
 
             {/* Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <StatPill
-                icon={HiOutlineUserGroup}
-                value={(viewers || stats.peakViewers || 0).toLocaleString()}
-                label="Live viewers"
-                accent="text-coral"
-              />
-              <StatPill
-                icon={TbHeartFilled}
-                value={
-                  stats.heartsSent
-                    ? `${(stats.heartsSent / 1000).toFixed(1)}k`
-                    : "0"
-                }
-                label="Hearts sent"
-                accent="text-coral"
-              />
-              <StatPill
-                icon={HiOutlineShoppingBag}
-                value={stats.itemsSold || 0}
-                label="Items sold"
-                accent="text-leaf"
-              />
-              <StatPill
-                icon={TbCoin}
-                value={`+${stats.coinsEarned || 0}`}
-                label="Coins earned"
-                accent="text-amber-500"
-              />
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { icon: HiOutlineUserGroup, value: (viewers || stats.peakViewers || 0).toLocaleString(), label: "LIVE VIEWERS", accent: "text-white/70" },
+                { icon: TbHeartFilled, value: stats.heartsSent ? `${(stats.heartsSent / 1000).toFixed(1)}k` : "0", label: "HEARTS SENT", accent: "text-coral" },
+                { icon: HiOutlineShoppingBag, value: stats.itemsSold || 0, label: "ITEMS SOLD", accent: "text-white/70" },
+                { icon: TbCoin, value: `+${stats.coinsEarned || 0}`, label: "COINS EARNED", accent: "text-white/70" },
+              ].map((s, i) => (
+                <div key={i} className="rounded-2xl bg-white/5 dark:bg-white/5 border border-white/10 p-4 flex items-center gap-3">
+                  <s.icon className={`text-2xl shrink-0 ${s.accent}`} />
+                  <div>
+                    <div className="font-fraunces text-xl text-ink dark:text-cream">{s.value}</div>
+                    <div className="text-[9px] font-jakarta font-semibold text-ink/40 dark:text-cream/50 uppercase tracking-widest mt-0.5">{s.label}</div>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Group buy */}
             <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3.5">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-1.5">
                   <HiOutlineUserGroup className="text-leaf text-sm" />
-                  <span className="text-xs font-jakarta font-semibold text-ink">
+                  <span className="text-xs font-jakarta font-semibold text-ink dark:text-cream">
                     Group Buy
                   </span>
-                  <span className="text-[9px] bg-mint/15 text-leaf font-bold px-1.5 py-0.5 rounded-full">
+                  <span className="text-[9px] bg-coral/20 text-coral font-bold px-1.5 py-0.5 rounded-full">
                     {grpCount}/{grpMax} joined
                   </span>
                 </div>
                 <span className="text-[10px] font-jakarta text-coral font-bold">
                   {grpMax - grpCount} more needed!
                 </span>
+              </div>
+              <div className="text-[10px] font-jakarta text-ink/50 dark:text-cream/50 mb-2">
+                Unlock 25% off when {grpMax} join
               </div>
               <div className="h-2 rounded-full bg-ink/8 overflow-hidden">
                 <motion.div
@@ -1933,21 +1962,24 @@ export default function LiveStream() {
                   </span>
                 </div>
 
-                <div className="mx-3 mt-3 rounded-3xl bg-slate-50 dark:bg-white/10 border border-ink/10 dark:border-white/10 p-3">
-                  <div className="text-[9px] font-jakarta font-semibold uppercase tracking-[0.22em] text-ink/50 dark:text-cream/55">
-                    Pinned
+                <div className="mx-3 mt-3 shrink-0 rounded-xl bg-[#1a1020]/80 dark:bg-white/5 border border-coral/20 p-3">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="text-coral text-[9px]">📌</span>
+                    <span className="text-[9px] font-jakarta font-bold uppercase tracking-[0.2em] text-coral/80">PINNED</span>
                   </div>
-                  <div className="mt-3 flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-2xl bg-coral/10 text-coral grid place-items-center text-sm font-bold">
+                  <div className="flex items-start gap-2.5">
+                    <div
+                      className="w-7 h-7 rounded-full shrink-0 grid place-items-center text-[10px] font-bold text-white"
+                      style={{ background: avatarBg(hostName) }}
+                    >
                       {hostName[0]?.toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-[11px] font-semibold text-ink dark:text-cream">
-                        {hostName} (Host)
+                      <div className="text-[10px] font-jakarta font-bold text-white/90">
+                        {hostName} <span className="text-white/40 font-normal">(Host)</span>
                       </div>
-                      <p className="mt-1 text-[11px] text-ink/70 dark:text-cream/65 leading-snug">
-                        Use code {promoCode || "LIVE10"} for 10% OFF all items —
-                        only while live!
+                      <p className="mt-0.5 text-[10px] text-white/60 font-jakarta leading-snug">
+                        Use code <span className="text-coral font-bold">{promoCode || "LIVE10"}</span> for 10% OFF — only while live!
                       </p>
                     </div>
                   </div>
@@ -1965,28 +1997,24 @@ export default function LiveStream() {
                       key={i}
                       initial={{ opacity: 0, x: -6 }}
                       animate={{ opacity: 1, x: 0 }}
-                      className="flex items-start gap-1.5"
+                      className="flex items-start gap-2"
                     >
                       <div
-                        className="w-5 h-5 rounded-full shrink-0 grid place-items-center text-[8px] font-bold text-ink/70 mt-0.5"
+                        className="w-6 h-6 rounded-full shrink-0 grid place-items-center text-[9px] font-bold text-white mt-0.5"
                         style={{ background: avatarBg(m.user) }}
                       >
-                        {(m.user || "V")[0]}
+                        {(m.user || "V")[0].toUpperCase()}
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span
-                            className={`text-[10px] font-jakarta font-bold leading-none ${m.isMe ? "text-coral" : "text-ink"}`}
-                          >
-                            {m.user || "viewer"}
+                      <div className="min-w-0 flex-1">
+                        <span className={`text-[10px] font-jakarta font-bold ${m.isMe ? "text-coral" : "text-white/90 dark:text-white/90"}`}>
+                          {m.user || "viewer"}{" "}
+                        </span>
+                        {m.bought && (
+                          <span className="text-[7px] bg-coral/20 text-coral font-bold px-1.5 py-0.5 rounded-full mr-1">
+                            🛒 Bought
                           </span>
-                          {m.bought && (
-                            <span className="text-[7px] bg-mint/20 text-leaf font-bold px-1 py-0.5 rounded-full">
-                              Bought
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-jakarta text-ink/70 break-words">
+                        )}
+                        <span className="text-[11px] font-jakarta text-white/60 dark:text-white/60 break-words">
                           {m.text}
                         </span>
                       </div>
@@ -1995,13 +2023,13 @@ export default function LiveStream() {
                   <div ref={chatEndRef} />
                 </div>
 
-                {/* Emoji bar */}
-                <div className="px-3 py-1.5 border-t border-ink/5 flex gap-2 overflow-x-auto shrink-0">
-                  {EMOJIS.map((e) => (
+                {/* Emoji reaction bar */}
+                <div className="px-3 py-2 border-t border-white/10 dark:border-white/10 flex gap-1.5 overflow-x-auto shrink-0 bg-black/20 dark:bg-black/20">
+                  {["❤️","🔥","😍","✨","👏","😮","🙏","🌸"].map((e) => (
                     <button
                       key={e}
-                      onClick={() => setText((t) => t + e)}
-                      className="text-sm hover:scale-125 transition-transform leading-none"
+                      onClick={() => { setText((t) => t + e); sendReaction(); }}
+                      className="text-lg hover:scale-125 transition-transform leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
                     >
                       {e}
                     </button>
