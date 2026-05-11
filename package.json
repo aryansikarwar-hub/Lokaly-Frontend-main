@@ -29,7 +29,7 @@
     "react-masonry-css": "^1.0.16",
     "react-router-dom": "^6.26.0",
     "socket.io-client": "^4.7.5",
-    "zustand": "^4.5.0"
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
