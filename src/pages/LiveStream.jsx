@@ -23,7 +23,7 @@ import {
   HiOutlineVideoCamera,
   HiOutlineMicrophone,
   HiOutlineStop,
-  HiMiniSignal,
+  HiOutlineShare,
   HiOutlinePlus,
   HiOutlineXMark,
 } from "react-icons/hi2";
@@ -46,6 +46,106 @@ const CHAT_TABS = [
   { id: "qa", label: "Q&A", icon: HiOutlineQuestionMarkCircle, count: 2 },
   { id: "poll", label: "Poll", icon: HiOutlineChartBar },
 ];
+
+const LIVE_NAV_LINKS = [
+  { label: "Feed", href: "/feed" },
+  { label: "Shop", href: "/products" },
+  { label: "Live", href: "/live" },
+  { label: "Leaderboard", href: "/leaderboard" },
+];
+
+const PINNED_MESSAGE = {
+  tag: "Pinned",
+  user: "Sarah (Host)",
+  text: "Use code SARAH10 for 10% OFF all items — only while live!",
+};
+
+function LiveCarouselCard({ stream, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(stream)}
+      className={`group shrink-0 min-w-[180px] rounded-3xl overflow-hidden border transition shadow-sm ${
+        active
+          ? "border-coral shadow-glow"
+          : "border-transparent hover:border-ink/10"
+      }`}
+    >
+      <div className="relative h-36 bg-slate-100 dark:bg-white/5 overflow-hidden">
+        <img
+          src={stream.coverImage}
+          alt={stream.title}
+          className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+        <div className="absolute left-3 top-3 flex items-center gap-1 bg-black/65 text-white text-[9px] font-semibold uppercase tracking-[0.18em] px-2 py-1 rounded-full">
+          <span className="w-1.5 h-1.5 rounded-full bg-coral animate-pulse" />
+          LIVE
+        </div>
+        <div className="absolute right-3 top-3 flex items-center gap-1 bg-white/15 text-white text-[9px] font-semibold px-2 py-1 rounded-full backdrop-blur-sm">
+          <HiOutlineUserGroup className="text-[10px]" />
+          {stream.stats?.peakViewers?.toLocaleString() || "0"}
+        </div>
+      </div>
+      <div className="p-3 bg-white dark:bg-ink/80">
+        <div className="text-[10px] font-jakarta text-ink/70 dark:text-cream/60 line-clamp-1">
+          {stream.host?.shopName || stream.host?.name}
+        </div>
+        <div className="mt-1 text-sm font-fraunces text-ink dark:text-cream leading-tight line-clamp-2">
+          {stream.title}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function FloatingProductCard({ product }) {
+  const pct = pctOff(product.price, product.originalPrice);
+  return (
+    <div className="absolute right-4 top-24 w-72 rounded-[2rem] bg-white/90 dark:bg-ink/85 border border-white/20 dark:border-white/10 shadow-2xl p-4 backdrop-blur-xl z-20">
+      <div className="flex items-start gap-3">
+        <div className="relative w-20 h-20 rounded-3xl overflow-hidden bg-slate-100 dark:bg-white/5 shadow-soft">
+          <img
+            src={product.images?.[0]?.url}
+            alt={product.title}
+            className="w-full h-full object-cover"
+          />
+          {pct > 0 && (
+            <span className="absolute top-2 left-2 bg-coral text-white text-[9px] font-semibold px-2 py-1 rounded-full">
+              {pct}% OFF
+            </span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.22em] font-jakarta text-ink/40 dark:text-cream/50 mb-1">
+            Hot Deal
+          </div>
+          <div className="text-sm font-fraunces text-ink dark:text-cream leading-tight line-clamp-2">
+            {product.title}
+          </div>
+          <div className="mt-2 flex items-end gap-2">
+            <span className="text-lg font-fraunces text-ink dark:text-cream">
+              ₹{product.price?.toLocaleString("en-IN")}
+            </span>
+            {product.originalPrice > product.price && (
+              <span className="text-[10px] text-ink/35 dark:text-cream/50 line-through">
+                ₹{product.originalPrice?.toLocaleString("en-IN")}
+              </span>
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="flex-1 text-[10px] rounded-2xl bg-coral text-white py-2 font-semibold hover:bg-coral/90 transition">
+              Buy now
+            </button>
+            <button className="flex items-center justify-center gap-1 px-3 py-2 rounded-2xl bg-ink/5 dark:bg-white/10 text-[10px] text-ink dark:text-cream font-semibold hover:bg-ink/10 transition">
+              <HiOutlineShare className="text-sm" /> Share
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 const MOCK_SESSION = {
@@ -456,7 +556,7 @@ function GoLiveModal({ open, onClose, onCreated }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-ink/5">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-coral/10 grid place-items-center">
-              <HiMiniSignal className="text-coral text-base" />
+              <HiOutlineVideoCamera className="text-coral text-base" />
             </div>
             <h2 className="font-fraunces text-lg text-ink">
               {step === "form" ? "Start a Live Session" : "Camera Preview"}
@@ -784,13 +884,23 @@ export default function LiveStream() {
   const [showGoLive, setShowGoLive] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [endingSession, setEndingSession] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
   const [qaList, setQaList] = useState([]);
+  const [qaAnswers, setQaAnswers] = useState({});
   const [qaQuestion, setQaQuestion] = useState("");
-  const [qaAnswers, setQaAnswers] = useState({});  
 
   // Derived: is current user the host of the active session?
   const userIsSeller = isUserSeller(user);
   const userIsHost = active && !isMock && isHostOfSession(user, active);
+  const hostName = active
+    ? typeof active.host === "string"
+      ? active.host
+      : active.host?.shopName ||
+        active.host?.name ||
+        active.host?.username ||
+        active.host?.userName ||
+        "Host"
+    : "Host";
 
   async function goLive(session) {
     // Refresh sessions list and switch to the new session
@@ -867,6 +977,16 @@ export default function LiveStream() {
     const t = setTimeout(inject, 700);
     return () => clearTimeout(t);
   }, [isMock]);
+
+  useEffect(() => {
+    if (!active) return;
+    const base = String(hostName || "LIVE")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .slice(0, 6)
+      .toUpperCase();
+    const digits = Math.floor(100 + Math.random() * 900);
+    setPromoCode(`${base}${digits}`);
+  }, [active?._id, hostName]);
 
   // ─── Load sessions ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1250,585 +1370,355 @@ export default function LiveStream() {
   const showGoLiveFAB = user && userIsSeller && !userIsHost;
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-      {/* Hero header — always visible for sellers */}
-      <div className="mb-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            {isMock ? (
-              <span className="inline-flex items-center gap-1.5 bg-ink/8 text-ink/60 text-[9px] font-bold px-2.5 py-1 rounded-full">
-                EXPLORE LIVE
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 bg-coral text-white text-[9px] font-bold px-2.5 py-1 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                LIVE NOW
-              </span>
-            )}
-            {userIsHost && (
-              <span className="inline-flex items-center gap-1 bg-mint/15 text-leaf text-[9px] font-bold px-2 py-1 rounded-full">
-                ★ You're hosting
-              </span>
-            )}
-          </div>
-
-          <div className="flex gap-2 shrink-0">
-            {!userIsHost && user && userIsSeller && (
-              <button
-                onClick={() => setShowGoLive(true)}
-                className="flex items-center gap-1.5 text-xs font-jakarta font-bold text-white bg-coral px-4 py-2 rounded-full hover:bg-coral/90 transition shadow-md hover:shadow-lg"
-              >
-                <HiMiniSignal className="text-base" />
-                Go Live
-              </button>
-            )}
-            {userIsHost && (
-              <button
-                onClick={endLive}
-                disabled={endingSession}
-                className="flex items-center gap-1.5 text-xs font-jakarta font-bold text-white bg-red-500 px-4 py-2 rounded-full hover:bg-red-600 transition shadow-md disabled:opacity-50"
-              >
-                <HiOutlineStop className="text-base" />
-                {endingSession ? "Ending..." : "End Live"}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {isMock && (
-          <div className="mt-3">
-            <h1 className="font-fraunces text-2xl sm:text-3xl text-ink tracking-tight leading-snug">
-              Watch artisans{" "}
-              <span className="text-coral italic">create magic</span>,{" "}
-              <br className="hidden sm:block" />
-              shop in real time.
-            </h1>
-            <p className="text-ink/45 font-jakarta text-xs mt-1 max-w-sm">
-              Tune into live drops from neighbourhood sellers across India. Ask,
-              react, and grab one-of-a-kind pieces before they're gone.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Session strip */}
-      {sessions.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
-          {sessions.map((s) => (
-            <button
-              key={s._id}
-              onClick={() => setActive(s)}
-              className={`shrink-0 rounded-xl overflow-hidden border-2 transition-all ${active._id === s._id ? "border-coral shadow-md" : "border-transparent opacity-65 hover:opacity-100"}`}
-            >
-              <div className="relative w-36 h-20 bg-peach/30">
-                {s.coverImage && (
-                  <img
-                    src={s.coverImage}
-                    className="w-full h-full object-cover"
-                    alt={s.title}
-                  />
-                )}
-                {s.status === "live" && (
-                  <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 bg-coral text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
-                    <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
-                    LIVE
+    <div className="min-h-screen bg-cream/90 text-ink dark:bg-[#09050f] dark:text-cream transition-colors duration-300">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <section className="rounded-[2rem] border border-ink/5 bg-white/90 dark:bg-white/5 shadow-soft backdrop-blur-xl p-5 lg:p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 rounded-3xl bg-gradient-to-r from-coral to-tangerine px-4 py-2 shadow-glow text-white text-[11px] font-semibold tracking-[0.18em]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                  LIVE SHOPPING
+                </div>
+                {userIsHost && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/90 dark:bg-white/10 border border-ink/10 dark:border-white/10 px-3 py-2 text-[10px] font-semibold text-ink dark:text-cream">
+                    <HiOutlineVideoCamera className="text-sm text-coral" />
+                    Hosting Now
                   </span>
                 )}
-                <div className="absolute bottom-0 inset-x-0 p-1.5 bg-gradient-to-t from-black/70 text-white text-[9px] font-jakarta font-semibold line-clamp-1">
-                  {s.title}
-                </div>
+                {userIsHost && isPublishing && (
+                  <button
+                    onClick={endLive}
+                    disabled={endingSession}
+                    className="inline-flex items-center gap-2 rounded-full bg-ink/95 text-white px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] hover:bg-ink transition disabled:opacity-60"
+                  >
+                    <HiOutlineStop className="text-sm" />
+                    Stop Live
+                  </button>
+                )}
               </div>
-            </button>
-          ))}
-        </div>
-      )}
 
-      {/* Main grid */}
-      <div className="grid lg:grid-cols-[1fr_340px] gap-4 items-start">
-        {/* ── LEFT ─────────────────────────────────────── */}
-        <div className="flex flex-col gap-3 min-w-0">
-          {/* Video */}
-          <div className="relative aspect-video rounded-2xl overflow-hidden bg-ink shadow-xl border border-ink/5">
-            <div ref={videoRef} className="absolute inset-0 w-full h-full" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/40 pointer-events-none" />
-
-            {/* Top-left LIVE badge */}
-            <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1 bg-coral text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                LIVE
-              </span>
-              {userIsHost && isPublishing && (
-                <span className="inline-flex items-center gap-1 bg-mint/90 text-white text-[9px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm">
-                  <HiOutlineVideoCamera className="text-xs" />
-                  ON AIR
+              <div className="flex flex-wrap items-center gap-3 text-[11px] text-ink/65 dark:text-cream/65">
+                <span className="rounded-full border border-ink/10 bg-slate-50 dark:bg-white/10 px-3 py-2 font-semibold">
+                  Host: {hostName}
                 </span>
-              )}
-            </div>
-
-            {/* Top-right stats */}
-            <div className="absolute top-3 right-3 flex items-center gap-1.5">
-              <span className="flex items-center gap-1 text-[10px] font-jakarta font-semibold text-white bg-black/35 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                <HiOutlineFire className="text-coral text-xs" />
-                {(viewers || stats.peakViewers || 0).toLocaleString()}
-              </span>
-              <span className="flex items-center gap-1 text-[10px] font-jakarta font-semibold text-white bg-black/35 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                <HiOutlineUserGroup className="text-mint text-xs" />
-                {grpCount}/{grpMax}
-              </span>
-            </div>
-
-            {/* Host info */}
-            <div className="absolute top-10 left-3 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full grid place-items-center font-fraunces font-bold text-sm border-2 border-white/40 bg-coral text-white">
-                {(active.host?.shopName || active.host?.name || "L")[0]}
+                <span className="rounded-full border border-coral/15 bg-coral/10 px-3 py-2 font-semibold text-coral">
+                  Use code {promoCode || "LIVE10"}
+                </span>
               </div>
-              <div>
-                <div className="font-jakarta font-bold text-[11px] text-white leading-none">
-                  {active.host?.shopName || active.host?.name}
-                </div>
-                <div className="text-[9px] text-white/55 font-jakarta">
-                  4.9★ · 2.1k followers
-                </div>
-              </div>
-              {!userIsHost && (
-                <button className="text-[9px] bg-white text-ink font-bold px-2 py-0.5 rounded-full hover:bg-peach transition ml-1">
-                  + Follow
-                </button>
-              )}
-            </div>
 
-            {/* Empty state for non-host before any publisher joins */}
-            {!userIsHost && !isMock && (
-              <div className="absolute inset-0 grid place-items-center pointer-events-none">
-                <div className="text-center text-white/60">
-                  <div className="text-3xl mb-2 opacity-50">📡</div>
-                  <div className="text-xs font-jakarta">
-                    Waiting for host to start streaming…
+              <div className="max-w-2xl">
+                <h1 className="font-fraunces text-3xl sm:text-4xl tracking-tight leading-tight text-ink dark:text-cream">
+                  Premium live commerce for curated local drops.
+                </h1>
+                <p className="mt-3 text-sm sm:text-base text-ink/65 dark:text-cream/65 max-w-xl leading-7">
+                  Discover the ultimate livestream shopping stage with curated
+                  deals, interactive chat, and cinematic live commerce designed
+                  for modern buyers.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div>
+              <div className="text-xs uppercase tracking-[0.24em] font-semibold text-ink/40 dark:text-cream/55">
+                Top streams
+              </div>
+              <h2 className="mt-2 text-2xl font-fraunces text-ink dark:text-cream">
+                Explore live drops now.
+              </h2>
+            </div>
+            <div className="text-[11px] text-ink/50 dark:text-cream/60">
+              Swipe through current streams
+            </div>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-3">
+            {sessions.map((s) => (
+              <LiveCarouselCard
+                key={s._id}
+                stream={s}
+                active={active?._id === s._id}
+                onClick={setActive}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Main grid */}
+        <div className="grid lg:grid-cols-[1fr_340px] gap-4 items-start">
+          {/* ── LEFT ─────────────────────────────────────── */}
+          <div className="flex flex-col gap-3 min-w-0">
+            {/* Video */}
+            <div className="relative aspect-video rounded-2xl overflow-hidden bg-ink shadow-xl border border-ink/5">
+              <div ref={videoRef} className="absolute inset-0 w-full h-full" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/40 pointer-events-none" />
+
+              {/* Top-left LIVE badge */}
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
+                <span className="inline-flex items-center gap-1 bg-coral text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                  LIVE
+                </span>
+                {userIsHost && isPublishing && (
+                  <span className="inline-flex items-center gap-1 bg-mint/90 text-white text-[9px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm">
+                    <HiOutlineVideoCamera className="text-xs" />
+                    ON AIR
+                  </span>
+                )}
+              </div>
+
+              {/* Top-right stats */}
+              <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                <span className="flex items-center gap-1 text-[10px] font-jakarta font-semibold text-white bg-black/35 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                  <HiOutlineFire className="text-coral text-xs" />
+                  {(viewers || stats.peakViewers || 0).toLocaleString()}
+                </span>
+                <span className="flex items-center gap-1 text-[10px] font-jakarta font-semibold text-white bg-black/35 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                  <HiOutlineUserGroup className="text-mint text-xs" />
+                  {grpCount}/{grpMax}
+                </span>
+              </div>
+
+              {/* Host info */}
+              <div className="absolute top-10 left-3 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full grid place-items-center font-fraunces font-bold text-sm border-2 border-white/40 bg-coral text-white">
+                  {hostName[0]?.toUpperCase()}
+                </div>
+                <div>
+                  <div className="font-jakarta font-bold text-[11px] text-white leading-none">
+                    {hostName}
+                  </div>
+                  <div className="text-[9px] text-white/55 font-jakarta">
+                    4.9★ · 2.1k followers
                   </div>
                 </div>
+                {!userIsHost && (
+                  <button className="text-[9px] bg-white text-ink font-bold px-2 py-0.5 rounded-full hover:bg-peach transition ml-1">
+                    + Follow
+                  </button>
+                )}
+              </div>
+
+              {/* Empty state for non-host before any publisher joins */}
+              {!userIsHost && !isMock && (
+                <div className="absolute inset-0 grid place-items-center pointer-events-none">
+                  <div className="text-center text-white/60">
+                    <div className="text-3xl mb-2 opacity-50">📡</div>
+                    <div className="text-xs font-jakarta">
+                      Waiting for host to start streaming…
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Flash deal banner */}
+              <AnimatePresence>
+                {(flashDeal || isMock) && (
+                  <motion.div
+                    initial={{ y: -20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -20, opacity: 0 }}
+                    className="absolute top-[68px] left-3 right-3 flex items-center gap-2 bg-coral/90 backdrop-blur text-white px-3 py-1.5 rounded-xl text-[10px] font-jakarta font-bold shadow-lg"
+                  >
+                    <motion.span
+                      animate={{ scale: [1, 1.3, 1] }}
+                      transition={{ repeat: Infinity, duration: 0.9 }}
+                    >
+                      <HiOutlineBolt className="text-sm" />
+                    </motion.span>
+                    {flashDeal
+                      ? `FLASH DEAL · ${countdown}s LEFT`
+                      : "FLASH DEAL · 8 MIN LEFT"}
+                    <span className="ml-auto font-normal text-white/80">
+                      {flashDeal
+                        ? `${flashDeal.discountPct}% off`
+                        : "10% off · code "}
+                      {!flashDeal && (
+                        <span className="font-bold text-white">LIVE10</span>
+                      )}
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {active.featuredProducts?.[0] && (
+                <FloatingProductCard product={active.featuredProducts[0]} />
+              )}
+
+              {/* Bottom: title + reaction */}
+              <div className="absolute bottom-3 inset-x-3 flex items-end justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[8px] uppercase tracking-[0.2em] font-jakarta font-semibold text-white/55 mb-0.5">
+                    {active.category || "Live drop"}
+                  </div>
+                  <div className="font-fraunces text-lg sm:text-xl text-white tracking-tight line-clamp-1">
+                    {active.title}
+                  </div>
+                </div>
+                <button
+                  onClick={sendReaction}
+                  className="w-10 h-10 rounded-full bg-white/15 backdrop-blur border border-white/20 grid place-items-center text-white hover:bg-white/25 transition shrink-0"
+                >
+                  <HiOutlineHeart className="text-base" />
+                </button>
+              </div>
+
+              {/* Reaction bursts */}
+              {bursts.map((b) => {
+                const Icon = b.Icon;
+                return (
+                  <motion.div
+                    key={b.id}
+                    className="absolute bottom-12 text-xl text-white pointer-events-none"
+                    initial={{ y: 0, opacity: 1, scale: 0.8, x: `${b.left}%` }}
+                    animate={{ y: -220, opacity: 0, scale: 1.4 }}
+                    transition={{ duration: 1.6, ease: "easeOut" }}
+                  >
+                    <Icon />
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Products strip */}
+            {active.featuredProducts?.length > 0 && (
+              <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <HiOutlineTag className="text-coral text-xs" />
+                    <span className="text-[9px] uppercase tracking-[0.2em] font-jakarta font-bold text-ink/50">
+                      Tagged in this drop
+                    </span>
+                    <span className="text-[9px] font-bold text-coral bg-coral/10 px-1.5 py-0.5 rounded-full">
+                      {active.featuredProducts.length}
+                    </span>
+                  </div>
+                  <button className="text-[9px] font-jakarta font-semibold text-coral flex items-center gap-0.5 hover:gap-1.5 transition-all">
+                    View all <HiOutlineChevronRight className="text-xs" />
+                  </button>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {active.featuredProducts.map((p) => (
+                    <ProductCard key={p._id} p={p} compact />
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Flash deal banner */}
-            <AnimatePresence>
-              {(flashDeal || isMock) && (
-                <motion.div
-                  initial={{ y: -20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: -20, opacity: 0 }}
-                  className="absolute top-[68px] left-3 right-3 flex items-center gap-2 bg-coral/90 backdrop-blur text-white px-3 py-1.5 rounded-xl text-[10px] font-jakarta font-bold shadow-lg"
-                >
-                  <motion.span
-                    animate={{ scale: [1, 1.3, 1] }}
-                    transition={{ repeat: Infinity, duration: 0.9 }}
-                  >
-                    <HiOutlineBolt className="text-sm" />
-                  </motion.span>
-                  {flashDeal
-                    ? `FLASH DEAL · ${countdown}s LEFT`
-                    : "FLASH DEAL · 8 MIN LEFT"}
-                  <span className="ml-auto font-normal text-white/80">
-                    {flashDeal
-                      ? `${flashDeal.discountPct}% off`
-                      : "10% off · code "}
-                    {!flashDeal && (
-                      <span className="font-bold text-white">LIVE10</span>
-                    )}
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Bottom: title + reaction */}
-            <div className="absolute bottom-3 inset-x-3 flex items-end justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-[8px] uppercase tracking-[0.2em] font-jakarta font-semibold text-white/55 mb-0.5">
-                  {active.category || "Live drop"}
-                </div>
-                <div className="font-fraunces text-lg sm:text-xl text-white tracking-tight line-clamp-1">
-                  {active.title}
-                </div>
-              </div>
-              <button
-                onClick={sendReaction}
-                className="w-10 h-10 rounded-full bg-white/15 backdrop-blur border border-white/20 grid place-items-center text-white hover:bg-white/25 transition shrink-0"
-              >
-                <HiOutlineHeart className="text-base" />
-              </button>
-            </div>
-
-            {/* Reaction bursts */}
-            {bursts.map((b) => {
-              const Icon = b.Icon;
-              return (
-                <motion.div
-                  key={b.id}
-                  className="absolute bottom-12 text-xl text-white pointer-events-none"
-                  initial={{ y: 0, opacity: 1, scale: 0.8, x: `${b.left}%` }}
-                  animate={{ y: -220, opacity: 0, scale: 1.4 }}
-                  transition={{ duration: 1.6, ease: "easeOut" }}
-                >
-                  <Icon />
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {/* Products strip */}
-          {active.featuredProducts?.length > 0 && (
-            <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3">
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-1.5">
-                  <HiOutlineTag className="text-coral text-xs" />
-                  <span className="text-[9px] uppercase tracking-[0.2em] font-jakarta font-bold text-ink/50">
-                    Tagged in this drop
-                  </span>
-                  <span className="text-[9px] font-bold text-coral bg-coral/10 px-1.5 py-0.5 rounded-full">
-                    {active.featuredProducts.length}
-                  </span>
-                </div>
-                <button className="text-[9px] font-jakarta font-semibold text-coral flex items-center gap-0.5 hover:gap-1.5 transition-all">
-                  View all <HiOutlineChevronRight className="text-xs" />
-                </button>
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {active.featuredProducts.map((p) => (
-                  <ProductCard key={p._id} p={p} compact />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatPill
-              icon={HiOutlineUserGroup}
-              value={(viewers || stats.peakViewers || 0).toLocaleString()}
-              label="Live viewers"
-              accent="text-coral"
-            />
-            <StatPill
-              icon={TbHeartFilled}
-              value={
-                stats.heartsSent
-                  ? `${(stats.heartsSent / 1000).toFixed(1)}k`
-                  : "0"
-              }
-              label="Hearts sent"
-              accent="text-coral"
-            />
-            <StatPill
-              icon={HiOutlineShoppingBag}
-              value={stats.itemsSold || 0}
-              label="Items sold"
-              accent="text-leaf"
-            />
-            <StatPill
-              icon={TbCoin}
-              value={`+${stats.coinsEarned || 0}`}
-              label="Coins earned"
-              accent="text-amber-500"
-            />
-          </div>
-
-          {/* Group buy */}
-          <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3.5">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5">
-                <HiOutlineUserGroup className="text-leaf text-sm" />
-                <span className="text-xs font-jakarta font-semibold text-ink">
-                  Group Buy
-                </span>
-                <span className="text-[9px] bg-mint/15 text-leaf font-bold px-1.5 py-0.5 rounded-full">
-                  {grpCount}/{grpMax} joined
-                </span>
-              </div>
-              <span className="text-[10px] font-jakarta text-coral font-bold">
-                {grpMax - grpCount} more needed!
-              </span>
-            </div>
-            <div className="h-2 rounded-full bg-ink/8 overflow-hidden">
-              <motion.div
-                className="h-full bg-gradient-to-r from-leaf to-mint rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${grpPct}%` }}
-                transition={{ duration: 1, ease: "easeOut" }}
+            {/* Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <StatPill
+                icon={HiOutlineUserGroup}
+                value={(viewers || stats.peakViewers || 0).toLocaleString()}
+                label="Live viewers"
+                accent="text-coral"
+              />
+              <StatPill
+                icon={TbHeartFilled}
+                value={
+                  stats.heartsSent
+                    ? `${(stats.heartsSent / 1000).toFixed(1)}k`
+                    : "0"
+                }
+                label="Hearts sent"
+                accent="text-coral"
+              />
+              <StatPill
+                icon={HiOutlineShoppingBag}
+                value={stats.itemsSold || 0}
+                label="Items sold"
+                accent="text-leaf"
+              />
+              <StatPill
+                icon={TbCoin}
+                value={`+${stats.coinsEarned || 0}`}
+                label="Coins earned"
+                accent="text-amber-500"
               />
             </div>
-            <button
-              onClick={() =>
-                user &&
-                api
-                  .post(`/live/sessions/${active._id}/group-buy/join`)
-                  .catch(() => {})
-              }
-              className="mt-2 w-full text-[10px] font-jakarta font-semibold text-white bg-leaf rounded-lg py-1.5 hover:bg-leaf/80 transition"
-            >
-              Join Group Buy
-            </button>
-          </div>
 
-          {/* Spin the wheel */}
-          <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 overflow-hidden">
-            <button
-              onClick={() => setShowSpin((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-peach/20 dark:hover:bg-white/10 transition"
-            >
-              <div className="flex items-center gap-2">
-                <HiOutlineGift className="text-coral text-base" />
-                <span className="text-xs font-jakarta font-semibold text-ink">
-                  Spin the Wheel
-                </span>
-                <span className="text-[9px] bg-coral/10 text-coral font-bold px-1.5 py-0.5 rounded-full">
-                  Win prizes!
-                </span>
-              </div>
-              <motion.div
-                animate={{ rotate: showSpin ? 90 : 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <HiOutlineChevronRight className="text-ink/30" />
-              </motion.div>
-            </button>
-            <AnimatePresence>
-              {showSpin && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="p-3 pt-0">
-                    <SpinTheWheel onSpun={spin} />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Trust badges */}
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              {
-                icon: "🛡️",
-                title: "Buyer Protection",
-                desc: "Money back guarantee",
-              },
-              {
-                icon: "🚚",
-                title: "Local Delivery",
-                desc: "Direct from maker",
-              },
-              {
-                icon: "↩️",
-                title: "7-day Returns",
-                desc: "No questions asked",
-              },
-            ].map((b) => (
-              <div
-                key={b.title}
-                className="rounded-xl bg-white/60 dark:bg-ink/60 border border-ink/5 dark:border-white/10 px-3 py-2.5 flex items-start gap-2"
-              >
-                <span className="text-base leading-none mt-0.5">{b.icon}</span>
-                <div>
-                  <div className="text-[10px] font-jakarta font-semibold text-ink">
-                    {b.title}
-                  </div>
-                  <div className="text-[9px] font-jakarta text-ink/40 mt-0.5">
-                    {b.desc}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── RIGHT: Chat sidebar ───────────────────────── */}
-        <aside
-          className="rounded-2xl bg-white/80 dark:bg-ink/70 border border-ink/5 dark:border-white/10 flex flex-col overflow-hidden shadow-sm lg:sticky lg:top-20"
-          style={{ height: "min(calc(100vh - 96px), 680px)" }}
-        >
-          {/* Tabs */}
-          <div className="flex border-b border-ink/5 shrink-0">
-            {CHAT_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setChatTab(tab.id)}
-                className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 border-b-2 transition ${chatTab === tab.id ? "border-coral text-coral" : "border-transparent text-ink/35 dark:text-cream/55 hover:text-ink/55 dark:hover:text-cream"}`}
-              >
-                <tab.icon className="text-sm" />
-                <div className="flex items-center gap-0.5">
-                  <span className="text-[8px] font-jakarta font-bold uppercase tracking-wider">
-                    {tab.label}
+            {/* Group buy */}
+            <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3.5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <HiOutlineUserGroup className="text-leaf text-sm" />
+                  <span className="text-xs font-jakarta font-semibold text-ink">
+                    Group Buy
                   </span>
-                  {tab.count && (
-                    <span className="w-3.5 h-3.5 rounded-full bg-coral text-white text-[7px] grid place-items-center font-bold">
-                      {tab.count}
-                    </span>
-                  )}
+                  <span className="text-[9px] bg-mint/15 text-leaf font-bold px-1.5 py-0.5 rounded-full">
+                    {grpCount}/{grpMax} joined
+                  </span>
                 </div>
+                <span className="text-[10px] font-jakarta text-coral font-bold">
+                  {grpMax - grpCount} more needed!
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-ink/8 overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-leaf to-mint rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${grpPct}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                />
+              </div>
+              <button
+                onClick={() =>
+                  user &&
+                  api
+                    .post(`/live/sessions/${active._id}/group-buy/join`)
+                    .catch(() => {})
+                }
+                className="mt-2 w-full text-[10px] font-jakarta font-semibold text-white bg-leaf rounded-lg py-1.5 hover:bg-leaf/80 transition"
+              >
+                Join Group Buy
               </button>
-            ))}
-          </div>
+            </div>
 
-          {/* ── CHAT TAB ── */}
-          {chatTab === "chat" && (
-            <>
-              {/* Currently selling banner */}
-              {active.featuredProducts?.[0] && (
-                <div className="mx-3 mt-3 shrink-0 rounded-xl bg-gradient-to-r from-peach/60 to-coral/5 border border-coral/15 p-2.5 flex items-center gap-2.5">
-                  <div className="w-1 h-10 rounded-full bg-coral shrink-0" />
-                  <img
-                    src={active.featuredProducts[0].images?.[0]?.url}
-                    alt=""
-                    className="w-10 h-10 rounded-lg object-cover shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[7px] uppercase tracking-widest font-bold text-coral">
-                      • Selling Now
+            {/* Trust badges */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                {
+                  icon: "🛡️",
+                  title: "Buyer Protection",
+                  desc: "Money back guarantee",
+                },
+                {
+                  icon: "🚚",
+                  title: "Local Delivery",
+                  desc: "Direct from maker",
+                },
+                {
+                  icon: "↩️",
+                  title: "7-day Returns",
+                  desc: "No questions asked",
+                },
+              ].map((b) => (
+                <div
+                  key={b.title}
+                  className="rounded-xl bg-white/60 dark:bg-ink/60 border border-ink/5 dark:border-white/10 px-3 py-2.5 flex items-start gap-2"
+                >
+                  <span className="text-base leading-none mt-0.5">
+                    {b.icon}
+                  </span>
+                  <div>
+                    <div className="text-[10px] font-jakarta font-semibold text-ink">
+                      {b.title}
                     </div>
-                    <div className="text-[10px] font-jakarta font-semibold text-ink line-clamp-1">
-                      {active.featuredProducts[0].title}
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="font-fraunces text-xs text-ink">
-                        ₹
-                        {active.featuredProducts[0].price?.toLocaleString(
-                          "en-IN",
-                        )}
-                      </span>
-                      {active.featuredProducts[0].originalPrice >
-                        active.featuredProducts[0].price && (
-                        <span className="text-[8px] text-ink/30 line-through">
-                          ₹
-                          {active.featuredProducts[0].originalPrice?.toLocaleString(
-                            "en-IN",
-                          )}
-                        </span>
-                      )}
+                    <div className="text-[9px] font-jakarta text-ink/40 mt-0.5">
+                      {b.desc}
                     </div>
                   </div>
-                  <button className="bg-coral text-white text-[9px] font-bold px-2 py-1.5 rounded-lg hover:bg-coral/80 transition shrink-0">
-                    Buy
-                  </button>
                 </div>
-              )}
-
-              {/* Chat header */}
-              <div className="px-3 py-2 shrink-0 flex items-center justify-between border-b border-ink/5">
-                <span className="text-[9px] font-jakarta text-ink/40 uppercase tracking-wider flex items-center gap-1">
-                  <HiOutlineSparkles className="text-coral" />
-                  Live chat
-                </span>
-                <span className="text-[9px] font-jakarta text-leaf font-semibold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-leaf animate-pulse" />
-                  Live
-                </span>
-              </div>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
-                {chat.length === 0 && (
-                  <p className="text-ink/35 font-jakarta italic text-[10px] pt-2">
-                    Chat will light up once people join...
-                  </p>
-                )}
-                {chat.map((m, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, x: -6 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="flex items-start gap-1.5"
-                  >
-                    <div
-                      className="w-5 h-5 rounded-full shrink-0 grid place-items-center text-[8px] font-bold text-ink/70 mt-0.5"
-                      style={{ background: avatarBg(m.user) }}
-                    >
-                      {(m.user || "V")[0]}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <span
-                          className={`text-[10px] font-jakarta font-bold leading-none ${m.isMe ? "text-coral" : "text-ink"}`}
-                        >
-                          {m.user || "viewer"}
-                        </span>
-                        {m.bought && (
-                          <span className="text-[7px] bg-mint/20 text-leaf font-bold px-1 py-0.5 rounded-full">
-                            Bought
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[11px] font-jakarta text-ink/70 break-words">
-                        {m.text}
-                      </span>
-                    </div>
-                  </motion.div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-
-              {/* Emoji bar */}
-              <div className="px-3 py-1.5 border-t border-ink/5 flex gap-2 overflow-x-auto shrink-0">
-                {EMOJIS.map((e) => (
-                  <button
-                    key={e}
-                    onClick={() => setText((t) => t + e)}
-                    className="text-sm hover:scale-125 transition-transform leading-none"
-                  >
-                    {e}
-                  </button>
-                ))}
-              </div>
-
-              {/* Input */}
-              <form
-                onSubmit={sendChat}
-                className="p-2 border-t border-ink/5 flex gap-1.5 shrink-0"
-              >
-                <Input
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder="Say something nice..."
-                  className="flex-1 text-xs"
-                />
-                <Button
-                  type="submit"
-                  size="sm"
-                  leftIcon={<HiOutlinePaperAirplane className="text-xs" />}
-                >
-                  Send
-                </Button>
-              </form>
-            </>
-          )}
-
-          {/* ── SHOP TAB ── */}
-          {chatTab === "shop" && (
-            <div className="flex-1 overflow-y-auto py-2">
-              {(active.featuredProducts || []).map((p) => (
-                <ProductCard key={p._id} p={p} compact={false} />
               ))}
             </div>
-          )}
 
-          {/* ── Q&A TAB ── */}
-          {chatTab === "qa" && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Questions list */}
-              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
-                {qaList.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-full gap-2 text-center pt-8">
-                    <div className="text-2xl">🙋</div>
-                    <div className="font-fraunces text-sm text-ink">
-                      No questions yet
-                    </div>
-                    <div className="text-[10px] font-jakarta text-ink/40 max-w-[160px]">
-                      Be the first to ask the seller something!
-                    </div>
-                  </div>
-                )}
+            {/* Live Q&A Section */}
+            <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3.5 flex flex-col gap-3">
+              <div className="text-xs font-jakarta font-semibold text-ink mb-1">Live Q&A</div>
+              <div className="space-y-3">
                 {qaList.map((item) => (
                   <motion.div
                     key={item.id}
@@ -1953,138 +1843,426 @@ export default function LiveStream() {
                     }}
                     className="bg-coral text-white text-[9px] font-bold px-3 py-2 rounded-xl hover:bg-coral/80 transition shrink-0"
                   >
-                    Ask
+                     Ask
                   </button>
                 </div>
               )}
             </div>
-          )}
-          
-          {/* ── POLL TAB ── */}
-          {chatTab === "poll" && (
-            <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
-              {!activePoll ? (
-                <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-peach/40 grid place-items-center text-2xl">
-                    📊
-                  </div>
-                  <div className="font-fraunces text-base text-ink">
-                    No active poll
-                  </div>
-                  <div className="text-[10px] font-jakarta text-ink/40 max-w-[180px]">
-                    {userIsHost
-                      ? "Engage your viewers — start a poll below!"
-                      : "The seller will start one soon. Stay tuned!"}
-                  </div>
-                  {userIsHost && (
-                    <button
-                      onClick={() => setShowCreatePoll(true)}
-                      className="mt-2 inline-flex items-center gap-1.5 bg-coral text-white text-xs font-jakarta font-bold px-4 py-2 rounded-full hover:bg-coral/90 transition shadow-md"
-                    >
-                      <HiOutlinePlus className="text-sm" />
-                      Create Poll
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* Question */}
-                  <div className="rounded-xl bg-gradient-to-br from-peach/40 to-lavender/30 border border-coral/15 p-3">
-                    <div className="text-[8px] uppercase tracking-[0.2em] font-jakarta font-bold text-coral mb-1">
-                      Live Poll
-                    </div>
-                    <div className="font-fraunces text-sm text-ink leading-snug">
-                      {activePoll.question}
-                    </div>
-                  </div>
+          </div>
 
-                  {/* Options */}
-                  <div className="space-y-2">
-                    {activePoll.options.map((opt, i) => {
-                      const total = activePoll.options.reduce(
-                        (s, o) => s + o.votes,
-                        0,
-                      );
-                      const pct = total
-                        ? Math.round((opt.votes / total) * 100)
-                        : 0;
-                      const hasVoted = myVote !== null;
-                      const isMyChoice = myVote === i;
-                      // Hosts see live results immediately and can't vote on their own poll
-                      const showResults = hasVoted || userIsHost;
-                      const disableButton = hasVoted || userIsHost;
-                      return (
-                        <button
-                          key={i}
-                          disabled={disableButton}
-                          onClick={async () => {
-                            if (hasVoted) return;
-                            try {
-                              setMyVote(i); // optimistic
-                              await api.post(
-                                `/live/sessions/${active._id}/poll/${activePoll._id}/vote`,
-                                { optionIndex: i },
-                              );
-                            } catch (err) {
-                              setMyVote(null); // rollback on error
-                              alert(err.response?.data?.error || "Vote failed");
-                            }
-                          }}
-                          className={`w-full text-left rounded-xl border overflow-hidden transition ${
-                            isMyChoice
-                              ? "border-coral bg-coral/5"
-                              : disableButton
-                                ? "border-ink/10 cursor-default"
-                                : "border-ink/10 hover:border-coral/30 cursor-pointer"
-                          }`}
-                        >
-                          <div className="px-3 py-2.5 relative">
-                            {/* Bar fill */}
-                            <div
-                              className={`absolute inset-y-0 left-0 transition-all duration-500 ${
-                                isMyChoice ? "bg-coral/20" : "bg-coral/10"
-                              }`}
-                              style={{ width: showResults ? `${pct}%` : "0%" }}
-                            />
-                            <div className="relative flex justify-between items-center text-[11px] font-jakarta gap-2">
-                              <span className="font-semibold flex items-center gap-1.5">
-                                {isMyChoice && !userIsHost && (
-                                  <span className="text-coral">✓</span>
-                                )}
-                                {opt.text}
-                              </span>
-                              {showResults && (
-                                <span className="text-ink/50 tabular-nums shrink-0">
-                                  {pct}% · {opt.votes}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Total votes + host controls */}
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[9px] font-jakarta text-ink/40">
-                      {activePoll.options.reduce((s, o) => s + o.votes, 0)}{" "}
-                      total votes
+          {/* ── RIGHT: Chat sidebar ───────────────────────── */}
+          <aside
+            className="rounded-2xl bg-white/80 dark:bg-ink/70 border border-ink/5 dark:border-white/10 flex flex-col overflow-hidden shadow-sm lg:sticky lg:top-20"
+            style={{ height: "min(calc(100vh - 96px), 680px)" }}
+          >
+            {/* Tabs */}
+            <div className="flex border-b border-ink/5 shrink-0">
+              {CHAT_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setChatTab(tab.id)}
+                  className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 border-b-2 transition ${chatTab === tab.id ? "border-coral text-coral" : "border-transparent text-ink/35 dark:text-cream/55 hover:text-ink/55 dark:hover:text-cream"}`}
+                >
+                  <tab.icon className="text-sm" />
+                  <div className="flex items-center gap-0.5">
+                    <span className="text-[8px] font-jakarta font-bold uppercase tracking-wider">
+                      {tab.label}
                     </span>
+                    {tab.count && (
+                      <span className="w-3.5 h-3.5 rounded-full bg-coral text-white text-[7px] grid place-items-center font-bold">
+                        {tab.count}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* ── CHAT TAB ── */}
+            {chatTab === "chat" && (
+              <>
+                {/* Currently selling banner */}
+                {active.featuredProducts?.[0] && (
+                  <div className="mx-3 mt-3 shrink-0 rounded-xl bg-gradient-to-r from-peach/60 to-coral/5 border border-coral/15 p-2.5 flex items-center gap-2.5">
+                    <div className="w-1 h-10 rounded-full bg-coral shrink-0" />
+                    <img
+                      src={active.featuredProducts[0].images?.[0]?.url}
+                      alt=""
+                      className="w-10 h-10 rounded-lg object-cover shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[7px] uppercase tracking-widest font-bold text-coral">
+                        • Selling Now
+                      </div>
+                      <div className="text-[10px] font-jakarta font-semibold text-ink line-clamp-1">
+                        {active.featuredProducts[0].title}
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="font-fraunces text-xs text-ink">
+                          ₹
+                          {active.featuredProducts[0].price?.toLocaleString(
+                            "en-IN",
+                          )}
+                        </span>
+                        {active.featuredProducts[0].originalPrice >
+                          active.featuredProducts[0].price && (
+                          <span className="text-[8px] text-ink/30 line-through">
+                            ₹
+                            {active.featuredProducts[0].originalPrice?.toLocaleString(
+                              "en-IN",
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button className="bg-coral text-white text-[9px] font-bold px-2 py-1.5 rounded-lg hover:bg-coral/80 transition shrink-0">
+                      Buy
+                    </button>
+                  </div>
+                )}
+
+                {/* Chat header */}
+                <div className="px-3 py-2 shrink-0 flex items-center justify-between border-b border-ink/5">
+                  <span className="text-[9px] font-jakarta text-ink/40 uppercase tracking-wider flex items-center gap-1">
+                    <HiOutlineSparkles className="text-coral" />
+                    Live chat
+                  </span>
+                  <span className="text-[9px] font-jakarta text-leaf font-semibold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-leaf animate-pulse" />
+                    Live
+                  </span>
+                </div>
+
+                <div className="mx-3 mt-3 rounded-3xl bg-slate-50 dark:bg-white/10 border border-ink/10 dark:border-white/10 p-3">
+                  <div className="text-[9px] font-jakarta font-semibold uppercase tracking-[0.22em] text-ink/50 dark:text-cream/55">
+                    Pinned
+                  </div>
+                  <div className="mt-3 flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-2xl bg-coral/10 text-coral grid place-items-center text-sm font-bold">
+                      {hostName[0]?.toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-semibold text-ink dark:text-cream">
+                        {hostName} (Host)
+                      </div>
+                      <p className="mt-1 text-[11px] text-ink/70 dark:text-cream/65 leading-snug">
+                        Use code {promoCode || "LIVE10"} for 10% OFF all items —
+                        only while live!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+                  {chat.length === 0 && (
+                    <p className="text-ink/35 font-jakarta italic text-[10px] pt-2">
+                      Chat will light up once people join...
+                    </p>
+                  )}
+                  {chat.map((m, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-start gap-1.5"
+                    >
+                      <div
+                        className="w-5 h-5 rounded-full shrink-0 grid place-items-center text-[8px] font-bold text-ink/70 mt-0.5"
+                        style={{ background: avatarBg(m.user) }}
+                      >
+                        {(m.user || "V")[0]}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span
+                            className={`text-[10px] font-jakarta font-bold leading-none ${m.isMe ? "text-coral" : "text-ink"}`}
+                          >
+                            {m.user || "viewer"}
+                          </span>
+                          {m.bought && (
+                            <span className="text-[7px] bg-mint/20 text-leaf font-bold px-1 py-0.5 rounded-full">
+                              Bought
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-jakarta text-ink/70 break-words">
+                          {m.text}
+                        </span>
+                      </div>
+                    </motion.div>
+                  ))}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Emoji bar */}
+                <div className="px-3 py-1.5 border-t border-ink/5 flex gap-2 overflow-x-auto shrink-0">
+                  {EMOJIS.map((e) => (
+                    <button
+                      key={e}
+                      onClick={() => setText((t) => t + e)}
+                      className="text-sm hover:scale-125 transition-transform leading-none"
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Input */}
+                <form
+                  onSubmit={sendChat}
+                  className="p-2 border-t border-ink/5 flex items-center gap-2 w-full"
+                >
+                  <div className="flex-1 min-w-0">
+                    <Input
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      placeholder="Say something nice..."
+                      className="w-full text-xs"
+                    />
+                  </div>
+
+                  <div className="w-auto flex-shrink-0">
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="!w-auto px-4"
+                      leftIcon={<HiOutlinePaperAirplane className="text-xs" />}
+                    >
+                      Send
+                    </Button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* ── SHOP TAB ── */}
+            {chatTab === "shop" && (
+              <div className="flex-1 overflow-y-auto py-2">
+                {(active.featuredProducts || []).map((p) => (
+                  <ProductCard key={p._id} p={p} compact={false} />
+                ))}
+              </div>
+            )}
+
+            {/* ── Q&A TAB ── */}
+            {chatTab === "qa" && (
+              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+                {[
+                  {
+                    q: "Is this pure silk?",
+                    a: "Yes! 100% pure Kanchipuram silk with zari border.",
+                  },
+                  {
+                    q: "Do you ship internationally?",
+                    a: "Currently India only, international launching soon!",
+                  },
+                ].map((item, i) => (
+                  <div
+                    key={i}
+                    className="rounded-xl bg-peach/20 border border-coral/10 p-3"
+                  >
+                    <div className="text-[10px] font-jakarta font-semibold text-ink mb-1">
+                      ❓ {item.q}
+                    </div>
+                    <div className="text-[10px] font-jakarta text-ink/60">
+                      ↳ {item.a}
+                    </div>
+                  </div>
+                ))}
+                <button className="w-full rounded-xl border border-dashed border-ink/15 py-2.5 text-[10px] font-jakarta text-ink/40 hover:border-coral/30 hover:text-coral transition">
+                  + Ask a question
+                </button>
+              </div>
+            )}
+
+            {/* ── POLL TAB ── */}
+            {chatTab === "poll" && (
+              <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
+                {!activePoll ? (
+                  <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-peach/40 grid place-items-center text-2xl">
+                      📊
+                    </div>
+                    <div className="font-fraunces text-base text-ink">
+                      No active poll
+                    </div>
+                    <div className="text-[10px] font-jakarta text-ink/40 max-w-[180px]">
+                      {userIsHost
+                        ? "Engage your viewers — start a poll below!"
+                        : "The seller will start one soon. Stay tuned!"}
+                    </div>
                     {userIsHost && (
                       <button
                         onClick={() => setShowCreatePoll(true)}
-                        className="text-[9px] font-jakarta font-semibold text-coral hover:underline"
+                        className="mt-2 inline-flex items-center gap-1.5 bg-coral text-white text-xs font-jakarta font-bold px-4 py-2 rounded-full hover:bg-coral/90 transition shadow-md"
                       >
-                        + New poll
+                        <HiOutlinePlus className="text-sm" />
+                        Create Poll
                       </button>
                     )}
                   </div>
-                </>
-              )}
+                ) : (
+                  <>
+                    {/* Question */}
+                    <div className="rounded-xl bg-gradient-to-br from-peach/40 to-lavender/30 border border-coral/15 p-3">
+                      <div className="text-[8px] uppercase tracking-[0.2em] font-jakarta font-bold text-coral mb-1">
+                        Live Poll
+                      </div>
+                      <div className="font-fraunces text-sm text-ink leading-snug">
+                        {activePoll.question}
+                      </div>
+                    </div>
+
+                    {/* Options */}
+                    <div className="space-y-2">
+                      {activePoll.options.map((opt, i) => {
+                        const total = activePoll.options.reduce(
+                          (s, o) => s + o.votes,
+                          0,
+                        );
+                        const pct = total
+                          ? Math.round((opt.votes / total) * 100)
+                          : 0;
+                        const hasVoted = myVote !== null;
+                        const isMyChoice = myVote === i;
+                        // Hosts see live results immediately and can't vote on their own poll
+                        const showResults = hasVoted || userIsHost;
+                        const disableButton = hasVoted || userIsHost;
+                        return (
+                          <button
+                            key={i}
+                            disabled={disableButton}
+                            onClick={async () => {
+                              if (hasVoted) return;
+                              try {
+                                setMyVote(i); // optimistic
+                                await api.post(
+                                  `/live/sessions/${active._id}/poll/${activePoll._id}/vote`,
+                                  { optionIndex: i },
+                                );
+                              } catch (err) {
+                                setMyVote(null); // rollback on error
+                                alert(
+                                  err.response?.data?.error || "Vote failed",
+                                );
+                              }
+                            }}
+                            className={`w-full text-left rounded-xl border overflow-hidden transition ${
+                              isMyChoice
+                                ? "border-coral bg-coral/5"
+                                : disableButton
+                                  ? "border-ink/10 cursor-default"
+                                  : "border-ink/10 hover:border-coral/30 cursor-pointer"
+                            }`}
+                          >
+                            <div className="px-3 py-2.5 relative">
+                              {/* Bar fill */}
+                              <div
+                                className={`absolute inset-y-0 left-0 transition-all duration-500 ${
+                                  isMyChoice ? "bg-coral/20" : "bg-coral/10"
+                                }`}
+                                style={{
+                                  width: showResults ? `${pct}%` : "0%",
+                                }}
+                              />
+                              <div className="relative flex justify-between items-center text-[11px] font-jakarta gap-2">
+                                <span className="font-semibold flex items-center gap-1.5">
+                                  {isMyChoice && !userIsHost && (
+                                    <span className="text-coral">✓</span>
+                                  )}
+                                  {opt.text}
+                                </span>
+                                {showResults && (
+                                  <span className="text-ink/50 tabular-nums shrink-0">
+                                    {pct}% · {opt.votes}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Total votes + host controls */}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[9px] font-jakarta text-ink/40">
+                        {activePoll.options.reduce((s, o) => s + o.votes, 0)}{" "}
+                        total votes
+                      </span>
+                      {userIsHost && (
+                        <button
+                          onClick={() => setShowCreatePoll(true)}
+                          className="text-[9px] font-jakarta font-semibold text-coral hover:underline"
+                        >
+                          + New poll
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </aside>
+        </div>
+
+        <section className="mt-6 w-full">
+          <div className="w-full rounded-[2rem] bg-white/90 dark:bg-ink/80 border border-ink/10 dark:border-white/10 p-5 shadow-soft">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-3xl bg-mint/10 text-leaf grid place-items-center text-xl">
+                🎡
+              </div>
+
+              <div>
+                <div className="text-[11px] font-semibold text-ink dark:text-cream">
+                  Spin the Wheel
+                </div>
+
+                <div className="text-[9px] text-ink/50 dark:text-cream/60">
+                  Win coins & deals
+                </div>
+              </div>
             </div>
-          )}
-        </aside>
+
+            <Button
+              onClick={() => setShowSpin((v) => !v)}
+              className="w-full py-3 text-sm"
+            >
+              {showSpin ? "Hide wheel" : "Try your luck"}
+            </Button>
+          </div>
+          <AnimatePresence>
+            {showSpin && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 16 }}
+                className="mt-4 rounded-[2rem] bg-white/90 dark:bg-ink/80 border border-ink/10 dark:border-white/10 p-5 shadow-soft"
+              >
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-3xl bg-mint/10 text-leaf grid place-items-center text-xl">
+                    🎡
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-semibold text-ink dark:text-cream">
+                      Spin the Wheel
+                    </div>
+
+                    <div className="text-[9px] text-ink/50 dark:text-cream/60">
+                      One spin per session
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-center scale-[0.65] md:scale-75 lg:scale-90 origin-top">
+                  <SpinTheWheel onSpun={spin} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
       </div>
 
       {/* Floating Go Live FAB for sellers (mobile + always-accessible CTA) */}
@@ -2098,7 +2276,7 @@ export default function LiveStream() {
         >
           <span className="relative flex">
             <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-50 animate-ping" />
-            <HiMiniSignal className="text-base relative" />
+            <HiOutlineVideoCamera className="text-base relative" />
           </span>
           <span className="font-jakarta font-bold text-sm">Go Live</span>
         </motion.button>
