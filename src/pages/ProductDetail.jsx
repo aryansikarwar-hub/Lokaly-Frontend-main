@@ -21,6 +21,7 @@ import { Spinner } from "../components/ui/Spinner";
 import { Reveal } from "../components/animations/Reveal";
 import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
+import { isWishlisted, toggleWishlist } from "../store/wishlistStore";
 import SimilarProducts from "../components/SimilarProducts";
 import ReviewSection from "../components/ReviewSection";
 
@@ -30,15 +31,23 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [activeImg, setActiveImg] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [saved, setSaved] = useState(false);
   const nav = useNavigate();
   const user = useAuthStore((s) => s.user);
   const addToCart = useCartStore((s) => s.add);
 
   useEffect(() => {
+    if (product?._id) setSaved(isWishlisted(product._id));
+  }, [product?._id]);
+
+  useEffect(() => {
     setLoading(true);
     api
       .get(`/products/${id}`)
-      .then(({ data }) => setProduct(data.product))
+      .then(({ data }) => {
+        setProduct(data.product);
+        setSaved(isWishlisted(id));
+      })
       .catch(() => setProduct(null))
       .finally(() => setLoading(false));
     api.post(`/hyperlocal/products/${id}/view`).catch(() => {});
@@ -88,6 +97,17 @@ export default function ProductDetail() {
   async function handleBuyNow() {
     await handleAddToCart();
     nav("/cart");
+  }
+
+  function handleSave() {
+    if (!user) {
+      toast("Please log in to save products");
+      nav("/login");
+      return;
+    }
+    const added = toggleWishlist(product._id);
+    setSaved(added);
+    toast.success(added ? "Saved to wishlist ❤️" : "Removed from wishlist");
   }
 
   return (
@@ -264,8 +284,18 @@ export default function ProductDetail() {
                 >
                   <HiOutlineChatBubbleLeftRight className="text-sm" /> Message
                 </Link>
-                <button className="rounded-full bg-lavender text-ink text-[11px] font-jakarta font-semibold py-1.5 hover:bg-lavender/80 inline-flex items-center justify-center gap-1 transition">
-                  <HiOutlineHeart className="text-sm" /> Save
+                <button
+                  onClick={handleSave}
+                  className={`rounded-full text-[11px] font-jakarta font-semibold py-1.5 hover:opacity-90 inline-flex items-center justify-center gap-1 transition ${
+                    saved
+                      ? "bg-coral text-white"
+                      : "bg-lavender text-ink hover:bg-lavender/80"
+                  }`}
+                >
+                  <HiOutlineHeart
+                    className={`text-sm ${saved ? "fill-white" : ""}`}
+                  />
+                  {saved ? "Saved ❤️" : "Save"}
                 </button>
               </div>
             </div>

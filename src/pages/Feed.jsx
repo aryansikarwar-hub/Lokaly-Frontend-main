@@ -38,13 +38,50 @@ function timeAgo(dateStr) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+function ShareButton({ postId, shares: initialShares }) {
+  const [shares, setShares] = useState(initialShares || 0);
+  const [shared, setShared] = useState(false);
+
+  async function handleShare() {
+    const url = `${window.location.origin}/feed?post=${postId}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ url, title: "Check this out on Lokaly!" });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard!");
+      }
+      const { data } = await api.post(`/posts/${postId}/share`);
+      setShares(data.shares);
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+    } catch (_) {}
+  }
+
+  return (
+    <button
+      onClick={handleShare}
+      className={`flex items-center gap-1.5 text-[11px] font-jakarta font-semibold transition ml-auto ${
+        shared
+          ? "text-coral"
+          : "text-ink/50 dark:text-cream/50 hover:text-ink dark:hover:text-cream"
+      }`}
+    >
+      <HiOutlinePaperAirplane className="text-sm" />
+      {shares > 0 && shares}
+    </button>
+  );
+}
+
 /* ══════════════════════════════════════════
    POST CARD — uniform fixed height
 ══════════════════════════════════════════ */
-function PostCard({ post, onOpen }) {
+function PostCard({ post, onOpen, onDeleted }) {
   const user = useAuthStore((s) => s.user);
   const [liked, setLiked] = useState(post.likes?.includes?.(user?._id));
   const [likeCount, setLikeCount] = useState(post.likes?.length || 0);
+  const [deleted, setDeleted] = useState(false);
+  const isOwner = user && String(post.author?._id) === String(user._id);
   const img = post.media?.[0]?.url;
   const tagged = post.taggedProducts || [];
   const hasImage = Boolean(img);
@@ -57,8 +94,27 @@ function PostCard({ post, onOpen }) {
       const { data } = await api.post(`/posts/${post._id}/like`);
       setLiked(data.liked);
       setLikeCount(data.likeCount);
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
   }
+
+  async function handleDelete() {
+    if (!window.confirm("Delete this post?")) return;
+    try {
+      await api.delete(`/posts/${post._id}`);
+      onDeleted?.(post._id);
+      setDeleted(true);
+      toast.success("Post deleted");
+    } catch (err) {
+      console.error("Delete error:", err);
+      if (err.response?.status !== 200 && err.response?.status !== 204) {
+        toast.error(err.response?.data?.error || "Could not delete post");
+      }
+    }
+  }
+
+  if (deleted) return null;
 
   return (
     <motion.article
@@ -104,7 +160,9 @@ function PostCard({ post, onOpen }) {
             className="absolute bottom-2.5 left-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur text-ink text-[10px] font-jakarta font-semibold hover:bg-white transition shadow-soft"
           >
             <HiOutlineShoppingBag className="text-xs text-coral" />
-            <span className="truncate max-w-[130px]">{tagged[0].title?.slice(0, 26)}</span>
+            <span className="truncate max-w-[130px]">
+              {tagged[0].title?.slice(0, 26)}
+            </span>
           </Link>
         )}
       </div>
@@ -124,7 +182,9 @@ function PostCard({ post, onOpen }) {
           />
           <div className="flex-1 min-w-0">
             <p className="font-jakarta font-semibold text-[11px] text-ink dark:text-cream flex items-center gap-1 truncate group-hover/author:text-coral transition-colors">
-              <span className="truncate">{post.author?.shopName || post.author?.name}</span>
+              <span className="truncate">
+                {post.author?.shopName || post.author?.name}
+              </span>
               {post.author?.isVerifiedSeller && (
                 <HiOutlineShieldCheck className="text-leaf shrink-0 text-xs" />
               )}
@@ -167,25 +227,36 @@ function PostCard({ post, onOpen }) {
               animate={liked ? { scale: [1, 1.35, 1] } : { scale: 1 }}
               transition={{ duration: 0.3 }}
             >
-              {liked
-                ? <HiHeart className="text-coral text-sm" />
-                : <HiOutlineHeart className="text-sm group-hover/like:text-coral transition" />
-              }
+              {liked ? (
+                <HiHeart className="text-coral text-sm" />
+              ) : (
+                <HiOutlineHeart className="text-sm group-hover/like:text-coral transition" />
+              )}
             </motion.span>
             {likeCount > 0 && likeCount}
           </button>
 
           <button
-            onClick={() => onOpen?.(post)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen?.(post);
+            }}
             className="flex items-center gap-1.5 text-[11px] font-jakarta font-semibold text-ink/50 dark:text-cream/50 hover:text-ink dark:hover:text-cream transition"
           >
             <HiOutlineChatBubbleOvalLeft className="text-sm" />
             {post.comments?.length > 0 && post.comments.length}
           </button>
 
-          <button className="flex items-center gap-1.5 text-[11px] font-jakarta font-semibold text-ink/50 dark:text-cream/50 hover:text-ink dark:hover:text-cream transition ml-auto">
-            <HiOutlinePaperAirplane className="text-sm" />
-          </button>
+          {isOwner && (
+            <button
+              onClick={handleDelete}
+              className="flex items-center gap-1 text-[11px] font-jakarta font-semibold text-ink/30 hover:text-coral transition"
+              title="Delete post"
+            >
+              <HiOutlineXMark className="text-sm" />
+            </button>
+          )}
+          <ShareButton postId={post._id} shares={post.shares} />
         </div>
       </div>
     </motion.article>
@@ -195,11 +266,11 @@ function PostCard({ post, onOpen }) {
 /* ══════════════════════════════════════════
    FEED GRID — uniform CSS grid (not masonry)
 ══════════════════════════════════════════ */
-function FeedGrid({ posts, onOpen }) {
+function FeedGrid({ posts, onOpen, onDeleted }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {posts.map((p) => (
-        <PostCard key={p._id} post={p} onOpen={onOpen} />
+        <PostCard key={p._id} post={p} onOpen={onOpen} onDeleted={onDeleted} />
       ))}
     </div>
   );
@@ -212,13 +283,32 @@ function PostModal({ post, onClose }) {
   const [text, setText] = useState("");
   const [comments, setComments] = useState([]);
   const user = useAuthStore((s) => s.user);
+  const [liked, setLiked] = useState(post?.likes?.includes?.(user?._id));
+  const [likeCount, setLikeCount] = useState(post?.likes?.length || 0);
+
+  async function toggleLike() {
+    if (!user) return;
+    setLiked((v) => !v);
+    setLikeCount((c) => c + (liked ? -1 : 1));
+    try {
+      const { data } = await api.post(`/posts/${post._id}/like`);
+      setLiked(data.liked);
+      setLikeCount(data.likeCount);
+    } catch {}
+  }
+
+  const loadedPostId = useRef(null);
 
   useEffect(() => {
-    if (!post) return;
+    if (!post?._id) return;
+    if (loadedPostId.current === post._id) return;
+    loadedPostId.current = post._id;
+    setComments(post.comments || []);
     api
       .get(`/posts/${post._id}`)
-      .then(({ data }) => setComments(data.post.comments || []));
-  }, [post]);
+      .then(({ data }) => setComments(data.post?.comments || []))
+      .catch(() => setComments(post.comments || []));
+  }, [post?._id]);
 
   async function submit(e) {
     e.preventDefault();
@@ -281,37 +371,88 @@ function PostModal({ post, onClose }) {
           </p>
         )}
 
+        {/* like + comment count row */}
+        <div className="flex items-center gap-3 py-1 border-t border-b border-ink/5 dark:border-white/8">
+          <button
+            onClick={toggleLike}
+            className="flex items-center gap-1.5 text-[11px] font-jakarta font-semibold text-ink/50 hover:text-coral transition"
+          >
+            <motion.span
+              animate={liked ? { scale: [1, 1.35, 1] } : { scale: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              {liked ? (
+                <HiHeart className="text-coral text-sm" />
+              ) : (
+                <HiOutlineHeart className="text-sm" />
+              )}
+            </motion.span>
+            {likeCount > 0 ? `${likeCount} likes` : "Like"}
+          </button>
+          <span className="text-[11px] font-jakarta text-ink/40">
+            {comments.length} {comments.length === 1 ? "comment" : "comments"}
+          </span>
+        </div>
+
         {/* comments */}
         {comments.length > 0 && (
           <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-            {comments.map((c, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <div className="w-6 h-6 rounded-full bg-lavender/60 grid place-items-center text-[10px] font-fraunces text-ink shrink-0 mt-0.5">
-                  {(c.user?.name || "?")[0].toUpperCase()}
+            {comments.map((c, i) => {
+              const isCommentOwner =
+                user && String(c.user?._id) === String(user._id);
+              return (
+                <div key={i} className="flex items-start gap-2 group/comment">
+                  <Avatar src={c.user?.avatar} name={c.user?.name} size="xs" />
+                  <div className="flex-1 min-w-0 rounded-xl bg-cream/60 dark:bg-white/5 px-3 py-2">
+                    <p className="text-[11px] font-jakarta font-semibold text-ink dark:text-cream">
+                      {c.user?.name || "Buyer"}
+                    </p>
+                    <p
+                      className={`text-[11px] mt-0.5 font-jakarta ${
+                        c.moderation?.flagged
+                          ? "text-coral italic"
+                          : "text-ink/70 dark:text-cream/70"
+                      }`}
+                    >
+                      {c.moderation?.flagged
+                        ? "Hidden by Controlled Chats"
+                        : c.text}
+                    </p>
+                  </div>
+                  {isCommentOwner && (
+                    <button
+                      onClick={() =>
+                        setComments((prev) =>
+                          prev.filter((_, idx) => idx !== i),
+                        )
+                      }
+                      className="opacity-0 group-hover/comment:opacity-100 w-6 h-6 grid place-items-center rounded-full hover:bg-coral/10 text-ink/30 hover:text-coral transition mt-1 shrink-0"
+                      title="Delete comment"
+                    >
+                      <HiOutlineXMark className="text-xs" />
+                    </button>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0 rounded-xl bg-cream/60 dark:bg-white/5 px-3 py-2">
-                  <p className="text-[11px] font-jakarta font-semibold text-ink dark:text-cream">
-                    {c.user?.name || "Buyer"}
-                  </p>
-                  <p className={`text-[11px] mt-0.5 font-jakarta ${c.moderation?.flagged ? "text-coral italic" : "text-ink/70 dark:text-cream/70"}`}>
-                    {c.moderation?.flagged ? "Hidden by Controlled Chats" : c.text}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
         {/* comment input */}
         {user && (
-          <form onSubmit={submit} className="flex gap-2 pt-1 border-t border-ink/5 dark:border-white/8">
+          <form
+            onSubmit={submit}
+            className="flex gap-2 pt-1 border-t border-ink/5 dark:border-white/8"
+          >
             <Input
               placeholder="Add a comment..."
               value={text}
               onChange={(e) => setText(e.target.value)}
               className="flex-1"
             />
-            <Button type="submit" size="sm">Post</Button>
+            <Button type="submit" size="sm">
+              Post
+            </Button>
           </form>
         )}
       </div>
@@ -356,7 +497,12 @@ function ComposeModal({ open, onClose, onPosted }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Create post" eyebrow="Share with the gully">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Create post"
+      eyebrow="Share with the gully"
+    >
       <form onSubmit={submit} className="space-y-4">
         <MediaUploader
           label="Photos"
@@ -432,25 +578,6 @@ export default function Feed() {
   }, [hashtag]);
 
   useEffect(() => {
-    const postId = searchParams.get("post");
-    if (!postId) {
-      setOpenPost(null);
-      return;
-    }
-
-    if (openPost?._id === postId) return;
-
-    api
-      .get(`/posts/${postId}`)
-      .then(({ data }) => {
-        if (data?.post) setOpenPost(data.post);
-      })
-      .catch(() => {
-        setOpenPost(null);
-      });
-  }, [searchParams, openPost]);
-
-  useEffect(() => {
     const el = sentinel.current;
     if (!el) return;
     const obs = new IntersectionObserver(
@@ -469,7 +596,6 @@ export default function Feed() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
       {/* ── header ── */}
       <Reveal>
         <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
@@ -549,7 +675,13 @@ export default function Feed() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
-            <FeedGrid posts={posts} onOpen={setOpenPost} />
+            <FeedGrid
+              posts={posts}
+              onOpen={setOpenPost}
+              onDeleted={(id) =>
+                setPosts((prev) => prev.filter((p) => p._id !== id))
+              }
+            />
           </motion.div>
         )}
       </AnimatePresence>
