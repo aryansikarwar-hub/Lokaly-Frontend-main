@@ -63,39 +63,50 @@ const PINNED_MESSAGE = {
 function LiveCarouselCard({ stream, active, onClick }) {
   return (
     <button
-      type="button"
-      onClick={() => onClick(stream)}
-      className={`group shrink-0 min-w-[180px] rounded-3xl overflow-hidden border transition shadow-sm ${
-        active
-          ? "border-coral shadow-glow"
-          : "border-transparent hover:border-ink/10"
-      }`}
-    >
-      <div className="relative h-36 bg-slate-100 dark:bg-white/5 overflow-hidden">
-        <img
-          src={stream.coverImage}
-          alt={stream.title}
-          className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-        <div className="absolute left-3 top-3 flex items-center gap-1 bg-black/65 text-white text-[9px] font-semibold uppercase tracking-[0.18em] px-2 py-1 rounded-full">
-          <span className="w-1.5 h-1.5 rounded-full bg-coral animate-pulse" />
-          LIVE
-        </div>
-        <div className="absolute right-3 top-3 flex items-center gap-1 bg-white/15 text-white text-[9px] font-semibold px-2 py-1 rounded-full backdrop-blur-sm">
-          <HiOutlineUserGroup className="text-[10px]" />
-          {stream.stats?.peakViewers?.toLocaleString() || "0"}
-        </div>
+  type="button"
+  onClick={() => onClick(stream)}
+  className={`group shrink-0 min-w-[140px] max-w-[140px] rounded-lg overflow-hidden border transition shadow-sm ${
+    active
+      ? "border-coral shadow-glow"
+      : "border-transparent hover:border-ink/10"
+  }`}
+>
+  {/* IMAGE */}
+  <div className="relative h-20 bg-slate-100 dark:bg-white/5 overflow-hidden">
+
+    <img
+      src={stream.coverImage}
+      alt={stream.title}
+      className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
+    />
+
+    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+
+    {/* LIVE */}
+    <div className="absolute left-1.5 top-1.5 flex items-center gap-1 bg-black/60 text-white text-[6px] font-semibold uppercase tracking-[0.12em] px-1 py-[2px] rounded-full">
+      <span className="w-1 h-1 rounded-full bg-coral animate-pulse" />
+      LIVE
+    </div>
+
+    {/* VIEWERS */}
+    <div className="absolute right-1.5 top-1.5 flex items-center gap-1 bg-white/15 text-white text-[6px] font-semibold px-1 py-[2px] rounded-full backdrop-blur-sm">
+      <HiOutlineUserGroup className="text-[8px]" />
+      {stream.stats?.peakViewers?.toLocaleString() || "0"}
+    </div>
+
+    {/* TITLE OVERLAY */}
+    <div className="absolute bottom-1.5 left-1.5 right-1.5">
+      <div className="text-[7px] text-white/70 truncate">
+        {stream.host?.shopName || stream.host?.name}
       </div>
-      <div className="p-3 bg-white dark:bg-ink/80">
-        <div className="text-[10px] font-jakarta text-ink/70 dark:text-cream/60 line-clamp-1">
-          {stream.host?.shopName || stream.host?.name}
-        </div>
-        <div className="mt-1 text-sm font-fraunces text-ink dark:text-cream leading-tight line-clamp-2">
-          {stream.title}
-        </div>
+
+      <div className="text-[8px] font-semibold text-white leading-tight line-clamp-1">
+        {stream.title}
       </div>
-    </button>
+    </div>
+
+  </div>
+</button>
   );
 }
 
@@ -251,8 +262,8 @@ const isHostOfSession = (user, session) => {
 // ─── Stat Pill ────────────────────────────────────────────────────────────────
 function StatPill({ icon: Icon, value, label, accent }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/75 dark:bg-ink/70 border border-ink/5 dark:border-white/10">
-      <Icon className={`text-lg shrink-0 ${accent}`} />
+    <div className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-white/75 dark:bg-ink/70 border border-ink/5 dark:border-white/10">
+      <Icon className={`text-base shrink-0 ${accent}`} />
       <div>
         <div className="font-fraunces text-sm text-ink dark:text-cream leading-none">
           {value}
@@ -1372,80 +1383,86 @@ export default function LiveStream() {
   return (
     <div className="min-h-screen bg-cream/90 text-ink dark:bg-[#09050f] dark:text-cream transition-colors duration-300">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <section className="rounded-[2rem] border border-ink/5 bg-white/90 dark:bg-white/5 shadow-soft backdrop-blur-xl p-5 lg:p-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2 rounded-3xl bg-gradient-to-r from-coral to-tangerine px-4 py-2 shadow-glow text-white text-[11px] font-semibold tracking-[0.18em]">
-                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
-                  LIVE SHOPPING
-                </div>
-                {userIsHost && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/90 dark:bg-white/10 border border-ink/10 dark:border-white/10 px-3 py-2 text-[10px] font-semibold text-ink dark:text-cream">
-                    <HiOutlineVideoCamera className="text-sm text-coral" />
-                    Hosting Now
-                  </span>
-                )}
-                {userIsHost && isPublishing && (
-                  <button
-                    onClick={endLive}
-                    disabled={endingSession}
-                    className="inline-flex items-center gap-2 rounded-full bg-ink/95 text-white px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] hover:bg-ink transition disabled:opacity-60"
-                  >
-                    <HiOutlineStop className="text-sm" />
-                    Stop Live
-                  </button>
-                )}
-              </div>
+        <section className="rounded-[1.25rem] border border-ink/5 bg-white/90 dark:bg-white/5 shadow-soft backdrop-blur-xl p-3 lg:p-4">
+          {/* TOP ROW */}
+          <div className="flex items-center justify-between flex-wrap gap-4">
 
-              <div className="flex flex-wrap items-center gap-3 text-[11px] text-ink/65 dark:text-cream/65">
-                <span className="rounded-full border border-ink/10 bg-slate-50 dark:bg-white/10 px-3 py-2 font-semibold">
-                  Host: {hostName}
-                </span>
-                <span className="rounded-full border border-coral/15 bg-coral/10 px-3 py-2 font-semibold text-coral">
-                  Use code {promoCode || "LIVE10"}
-                </span>
-              </div>
+  {/* LEFT SIDE */}
+  <div className="flex items-center gap-3 flex-wrap">
 
-              <div className="max-w-2xl">
-                <h1 className="font-fraunces text-3xl sm:text-4xl tracking-tight leading-tight text-ink dark:text-cream">
-                  Premium live commerce for curated local drops.
-                </h1>
-                <p className="mt-3 text-sm sm:text-base text-ink/65 dark:text-cream/65 max-w-xl leading-7">
-                  Discover the ultimate livestream shopping stage with curated
-                  deals, interactive chat, and cinematic live commerce designed
-                  for modern buyers.
-                </p>
-              </div>
-            </div>
-          </div>
+    {/* LIVE BADGE */}
+    <div className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-coral to-tangerine px-3 py-1.5 shadow-glow text-white text-[10px] font-semibold tracking-[0.14em]">
+      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+      LIVE
+    </div>
+
+    {userIsHost && (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-white/10 border border-ink/10 dark:border-white/10 px-3 py-1.5 text-[10px] font-medium text-ink dark:text-cream">
+        <HiOutlineVideoCamera className="text-sm text-coral" />
+        Hosting
+      </span>
+    )}
+
+    {userIsHost && isPublishing && (
+      <button
+        onClick={endLive}
+        disabled={endingSession}
+        className="inline-flex items-center gap-1.5 rounded-full bg-ink/95 text-white px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.14em] hover:bg-ink transition disabled:opacity-60"
+      >
+        <HiOutlineStop className="text-sm" />
+        Stop
+      </button>
+    )}
+
+  </div>
+
+  {/* RIGHT SIDE */}
+  <div className="flex items-center gap-3 flex-wrap text-[10px]">
+
+    <span className="rounded-full border border-ink/10 bg-slate-50 dark:bg-white/10 px-3 py-1.5 font-medium text-ink/70 dark:text-cream/70">
+      Host: {hostName}
+    </span>
+
+    <span className="rounded-full border border-coral/15 bg-coral/10 px-3 py-1.5 font-medium text-coral">
+      Code: {promoCode || "LIVE10"}
+    </span>
+
+  </div>
+
+</div>
+          
         </section>
 
-        <section className="mt-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-            <div>
-              <div className="text-xs uppercase tracking-[0.24em] font-semibold text-ink/40 dark:text-cream/55">
-                Top streams
-              </div>
-              <h2 className="mt-2 text-2xl font-fraunces text-ink dark:text-cream">
-                Explore live drops now.
-              </h2>
-            </div>
-            <div className="text-[11px] text-ink/50 dark:text-cream/60">
-              Swipe through current streams
-            </div>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-3">
-            {sessions.map((s) => (
-              <LiveCarouselCard
-                key={s._id}
-                stream={s}
-                active={active?._id === s._id}
-                onClick={setActive}
-              />
-            ))}
-          </div>
-        </section>
+        <section className="mt-2">
+
+  {/* HEADER */}
+  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.22em] font-semibold text-ink/40 dark:text-cream/55">
+        Top streams
+      </div>
+    </div>
+
+    <div className="text-[10px] text-ink/50 dark:text-cream/60">
+      Swipe streams
+    </div>
+
+  </div>
+
+  {/* CAROUSEL */}
+  <div className="flex gap-2 overflow-x-auto pb-1.5">
+    {sessions.map((s) => (
+      <LiveCarouselCard
+        key={s._id}
+        stream={s}
+        active={active?._id === s._id}
+        onClick={setActive}
+      />
+    ))}
+  </div>
+
+</section>
 
         {/* Main grid */}
         <div className="grid lg:grid-cols-[1fr_340px] gap-4 items-start">
@@ -1548,24 +1565,144 @@ export default function LiveStream() {
                 <FloatingProductCard product={active.featuredProducts[0]} />
               )}
 
-              {/* Bottom: title + reaction */}
-              <div className="absolute bottom-3 inset-x-3 flex items-end justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-[8px] uppercase tracking-[0.2em] font-jakarta font-semibold text-white/55 mb-0.5">
-                    {active.category || "Live drop"}
-                  </div>
-                  <div className="font-fraunces text-lg sm:text-xl text-white tracking-tight line-clamp-1">
-                    {active.title}
-                  </div>
-                </div>
-                <button
-                  onClick={sendReaction}
-                  className="w-10 h-10 rounded-full bg-white/15 backdrop-blur border border-white/20 grid place-items-center text-white hover:bg-white/25 transition shrink-0"
-                >
-                  <HiOutlineHeart className="text-base" />
-                </button>
-              </div>
+              <div className="absolute bottom-3 inset-x-3 flex items-end justify-between gap-3">
+  
+  {/* Left Content */}
+  <div className="min-w-0">
+    <div className="text-[8px] uppercase tracking-[0.22em] font-jakarta font-semibold text-white/55 mb-1">
+      {active.category || "Live drop"}
+    </div>
 
+    <div className="font-fraunces text-lg sm:text-[22px] text-white tracking-tight line-clamp-1 drop-shadow-sm">
+      {active.title}
+    </div>
+  </div>
+
+  {/* Right Actions */}
+  <div className="flex items-center gap-2 shrink-0">
+
+    {/* Spin Wheel */}
+    <motion.div
+      className="relative group"
+      whileHover={{ y: -2 }}
+    >
+      <motion.button
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.94 }}
+        onClick={() => setShowSpin(true)}
+        className="
+          relative
+          w-11
+          h-11
+          rounded-full
+          flex
+          items-center
+          justify-center
+          overflow-hidden
+
+          bg-gradient-to-br
+          from-[#FFE7BA]
+          via-[#FFD66B]
+          to-[#FFB84D]
+
+          dark:from-[#2B2340]
+          dark:via-[#35294F]
+          dark:to-[#1E1830]
+
+          border
+          border-white/20
+
+          shadow-[0_8px_30px_rgba(0,0,0,0.28)]
+
+          backdrop-blur-xl
+        "
+      >
+        {/* Soft Glow */}
+        <div className="absolute inset-0 bg-white/10 dark:bg-white/[0.03]" />
+
+        {/* Animated Ring */}
+        <span className="absolute inset-0 rounded-full border border-white/25 animate-pulse opacity-60" />
+
+        {/* Icon */}
+        <span className="relative text-[18px] drop-shadow-sm">
+          🎡
+        </span>
+      </motion.button>
+
+      {/* Tooltip */}
+      <div
+        className="
+          absolute
+          right-[58px]
+          top-1/2
+          -translate-y-1/2
+
+          whitespace-nowrap
+          rounded-xl
+          px-3
+          py-2
+
+          text-[11px]
+          font-medium
+
+          opacity-0
+          translate-x-2
+          pointer-events-none
+
+          group-hover:opacity-100
+          group-hover:translate-x-0
+
+          transition-all
+          duration-200
+
+          bg-white/95
+          text-ink
+          shadow-xl
+
+          dark:bg-[#221C33]
+          dark:text-white
+          dark:border
+          dark:border-white/10
+        "
+      >
+        Spin & win rewards ✨
+      </div>
+    </motion.div>
+
+    {/* Heart Button */}
+    <motion.button
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      onClick={sendReaction}
+      className="
+        w-11
+        h-11
+        rounded-full
+
+        bg-black/25
+        hover:bg-black/35
+
+        dark:bg-white/10
+        dark:hover:bg-white/20
+
+        backdrop-blur-md
+
+        border
+        border-white/20
+
+        grid
+        place-items-center
+
+        text-white
+
+        shadow-lg
+        transition-all
+      "
+    >
+      <HiOutlineHeart className="text-[18px]" />
+    </motion.button>
+  </div>
+</div>
               {/* Reaction bursts */}
               {bursts.map((b) => {
                 const Icon = b.Icon;
@@ -1641,11 +1778,11 @@ export default function LiveStream() {
             </div>
 
             {/* Group buy */}
-            <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3.5">
+            <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
                   <HiOutlineUserGroup className="text-leaf text-sm" />
-                  <span className="text-xs font-jakarta font-semibold text-ink">
+                  <span className="text-[10px] font-jakarta font-semibold text-ink">
                     Group Buy
                   </span>
                   <span className="text-[9px] bg-mint/15 text-leaf font-bold px-1.5 py-0.5 rounded-full">
@@ -1656,7 +1793,7 @@ export default function LiveStream() {
                   {grpMax - grpCount} more needed!
                 </span>
               </div>
-              <div className="h-2 rounded-full bg-ink/8 overflow-hidden">
+              <div className="h-1.5 rounded-full bg-ink/8 overflow-hidden">
                 <motion.div
                   className="h-full bg-gradient-to-r from-leaf to-mint rounded-full"
                   initial={{ width: 0 }}
@@ -1671,7 +1808,7 @@ export default function LiveStream() {
                     .post(`/live/sessions/${active._id}/group-buy/join`)
                     .catch(() => {})
                 }
-                className="mt-2 w-full text-[10px] font-jakarta font-semibold text-white bg-leaf rounded-lg py-1.5 hover:bg-leaf/80 transition"
+                className="mt-2 w-full text-[10px] font-jakarta font-semibold text-white bg-leaf rounded-lg py-2 hover:bg-leaf/80 transition"
               >
                 Join Group Buy
               </button>
@@ -1698,9 +1835,9 @@ export default function LiveStream() {
               ].map((b) => (
                 <div
                   key={b.title}
-                  className="rounded-xl bg-white/60 dark:bg-ink/60 border border-ink/5 dark:border-white/10 px-3 py-2.5 flex items-start gap-2"
+                  className="rounded-xl bg-white/60 dark:bg-ink/60 border border-ink/5 dark:border-white/10 px-3 py-2 flex items-center gap-2"
                 >
-                  <span className="text-base leading-none mt-0.5">
+                  <span className="text-base leading-none">
                     {b.icon}
                   </span>
                   <div>
@@ -1714,6 +1851,51 @@ export default function LiveStream() {
                 </div>
               ))}
             </div>
+
+           
+
+{/* Popup Modal */}
+<AnimatePresence>
+  {showSpin && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={() => setShowSpin(false)}
+    >
+      {/* Modal Card */}
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        transition={{ duration: 0.25 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md rounded-[28px] bg-gradient-to-br from-[#fff8e7] via-[#fffbf0] to-[#fef6e0] border border-amber-100 shadow-2xl overflow-hidden"
+      >
+        {/* Close */}
+        <button
+          onClick={() => setShowSpin(false)}
+          className="absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-ink shadow-md flex items-center justify-center transition"
+        >
+          ✕
+        </button>
+
+        {/* Wheel */}
+        <div className="py-4 flex justify-center">
+          <div className="scale-[0.92]">
+            <SpinTheWheel onSpun={spin} />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="pb-5 text-center text-[10px] text-ink/50 font-jakarta">
+          Rewards can be used during the live only
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
             {/* Live Q&A Section */}
             <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3.5 flex flex-col gap-3">
@@ -2207,62 +2389,6 @@ export default function LiveStream() {
           </aside>
         </div>
 
-        <section className="mt-6 w-full">
-          <div className="w-full rounded-[2rem] bg-white/90 dark:bg-ink/80 border border-ink/10 dark:border-white/10 p-5 shadow-soft">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-11 h-11 rounded-3xl bg-mint/10 text-leaf grid place-items-center text-xl">
-                🎡
-              </div>
-
-              <div>
-                <div className="text-[11px] font-semibold text-ink dark:text-cream">
-                  Spin the Wheel
-                </div>
-
-                <div className="text-[9px] text-ink/50 dark:text-cream/60">
-                  Win coins & deals
-                </div>
-              </div>
-            </div>
-
-            <Button
-              onClick={() => setShowSpin((v) => !v)}
-              className="w-full py-3 text-sm"
-            >
-              {showSpin ? "Hide wheel" : "Try your luck"}
-            </Button>
-          </div>
-          <AnimatePresence>
-            {showSpin && (
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 16 }}
-                className="mt-4 rounded-[2rem] bg-white/90 dark:bg-ink/80 border border-ink/10 dark:border-white/10 p-5 shadow-soft"
-              >
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-3xl bg-mint/10 text-leaf grid place-items-center text-xl">
-                    🎡
-                  </div>
-
-                  <div>
-                    <div className="text-[11px] font-semibold text-ink dark:text-cream">
-                      Spin the Wheel
-                    </div>
-
-                    <div className="text-[9px] text-ink/50 dark:text-cream/60">
-                      One spin per session
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-center scale-[0.65] md:scale-75 lg:scale-90 origin-top">
-                  <SpinTheWheel onSpun={spin} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </section>
       </div>
 
       {/* Floating Go Live FAB for sellers (mobile + always-accessible CTA) */}

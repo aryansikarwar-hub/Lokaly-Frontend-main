@@ -47,6 +47,41 @@ function timeAgo(dateStr) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+function ShareButton({ postId, shares: initialShares }) {
+  const [shares, setShares] = useState(initialShares || 0);
+  const [shared, setShared] = useState(false);
+
+  async function handleShare() {
+    const url = `${window.location.origin}/feed?post=${postId}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ url, title: "Check this out on Lokaly!" });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard!");
+      }
+      const { data } = await api.post(`/posts/${postId}/share`);
+      setShares(data.shares);
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+    } catch (_) {}
+  }
+
+  return (
+    <button
+      onClick={handleShare}
+      className={`flex items-center gap-1.5 text-[11px] font-jakarta font-semibold transition ml-auto ${
+        shared
+          ? "text-coral"
+          : "text-ink/50 dark:text-cream/50 hover:text-ink dark:hover:text-cream"
+      }`}
+    >
+      <HiOutlinePaperAirplane className="text-sm" />
+      {shares > 0 && shares}
+    </button>
+  );
+}
+
 /* ══════════════════════════════════════════
    POST CARD
 ══════════════════════════════════════════ */
@@ -79,7 +114,24 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
       const { data } = await api.post(`/posts/${post._id}/like`);
       setLiked(data.liked);
       setLikeCount(data.likeCount);
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm("Delete this post?")) return;
+    try {
+      await api.delete(`/posts/${post._id}`);
+      onDeleted?.(post._id);
+      setDeleted(true);
+      toast.success("Post deleted");
+    } catch (err) {
+      console.error("Delete error:", err);
+      if (err.response?.status !== 200 && err.response?.status !== 204) {
+        toast.error(err.response?.data?.error || "Could not delete post");
+      }
+    }
   }
 
   function toggleSave() {
@@ -185,7 +237,9 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
             className="absolute bottom-2.5 left-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur text-ink text-[10px] font-jakarta font-semibold hover:bg-white transition shadow-soft"
           >
             <HiOutlineShoppingBag className="text-xs text-coral" />
-            <span className="truncate max-w-[130px]">{tagged[0].title?.slice(0, 26)}</span>
+            <span className="truncate max-w-[130px]">
+              {tagged[0].title?.slice(0, 26)}
+            </span>
           </Link>
         )}
       </div>
@@ -196,7 +250,9 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
           <Avatar src={post.author?.avatar} name={post.author?.name} size="xs" aura={post.author?.trustScore} />
           <div className="flex-1 min-w-0">
             <p className="font-jakarta font-semibold text-[11px] text-ink dark:text-cream flex items-center gap-1 truncate group-hover/author:text-coral transition-colors">
-              <span className="truncate">{post.author?.shopName || post.author?.name}</span>
+              <span className="truncate">
+                {post.author?.shopName || post.author?.name}
+              </span>
               {post.author?.isVerifiedSeller && (
                 <HiOutlineShieldCheck className="text-leaf shrink-0 text-xs" />
               )}
@@ -236,7 +292,10 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
 
           {/* Comment */}
           <button
-            onClick={() => onOpen?.(post)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen?.(post);
+            }}
             className="flex items-center gap-1.5 text-[11px] font-jakarta font-semibold text-ink/50 dark:text-cream/50 hover:text-ink dark:hover:text-cream transition"
           >
             <HiOutlineChatBubbleOvalLeft className="text-sm" />
@@ -453,6 +512,21 @@ function PostModal({ post, onClose }) {
   const [comments, setComments] = useState([]);
   const [saved, setSaved] = useState(false);
   const user = useAuthStore((s) => s.user);
+  const [liked, setLiked] = useState(post?.likes?.includes?.(user?._id));
+  const [likeCount, setLikeCount] = useState(post?.likes?.length || 0);
+
+  async function toggleLike() {
+    if (!user) return;
+    setLiked((v) => !v);
+    setLikeCount((c) => c + (liked ? -1 : 1));
+    try {
+      const { data } = await api.post(`/posts/${post._id}/like`);
+      setLiked(data.liked);
+      setLikeCount(data.likeCount);
+    } catch {}
+  }
+
+  const loadedPostId = useRef(null);
 
   useEffect(() => {
     if (!post) return;
@@ -529,8 +603,8 @@ function PostModal({ post, onClose }) {
                     {c.moderation?.flagged ? "Hidden by Controlled Chats" : c.text}
                   </p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -808,7 +882,6 @@ export default function Feed() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
       {/* ── header ── */}
       <Reveal>
         <div className="flex items-end justify-between gap-4 flex-wrap mb-6">

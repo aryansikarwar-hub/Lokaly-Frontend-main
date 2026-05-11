@@ -19,11 +19,70 @@ const REASON_LABELS = {
   live_spin: "Live wheel prize",
   live_game: "Live game reward",
   order_reward: "Order cashback",
-  referral_bonus: "Referral milestone",
+  referral_bonus: "Friend joined with your code",
+  referral_signup: "Welcome bonus (referral)",
   equity_cashback: "Equity cashback",
   order_redeem: "Redeemed at checkout",
   admin_adjust: "Admin adjustment",
+  coin_expiry: "Coins expired",
+  expiry: "Coins expired",
 };
+
+function describeEntry(it) {
+  const base = REASON_LABELS[it.reason] || it.reason;
+  const meta = it.meta || {};
+
+  // Referral inviter — show who signed up
+  if (it.reason === "referral_bonus" && meta.referredUserName) {
+    return {
+      title: `${meta.referredUserName} joined with your code`,
+      sub: meta.referredUserEmail || null,
+    };
+  }
+
+  // Referral signup — show who invited the new user
+  if (it.reason === "referral_signup" && meta.inviterName) {
+    return {
+      title: `Welcome bonus`,
+      sub: `Referred by ${meta.inviterName}`,
+    };
+  }
+
+  // Live spin — show which session and which prize
+  if (it.reason === "live_spin") {
+    return {
+      title: `Won "${meta.prizeLabel || "prize"}" from Spin the Wheel`,
+      sub: meta.sessionTitle || null,
+    };
+  }
+
+  // Order rewards / redemptions
+  if (it.reason === "order_reward" && meta.orderId) {
+    return {
+      title: "Order cashback",
+      sub: `Order #${String(meta.orderId).slice(-6).toUpperCase()}`,
+    };
+  }
+  if (it.reason === "order_redeem" && meta.orderId) {
+    return {
+      title: "Redeemed at checkout",
+      sub: `Order #${String(meta.orderId).slice(-6).toUpperCase()}`,
+    };
+  }
+
+  // Coin expiry
+  if (it.reason === "coin_expiry" || it.reason === "expiry") {
+    return {
+      title: "Coins expired",
+      sub: meta.expiredRowCount
+        ? `${meta.expiredRowCount} reward(s) older than ${meta.ageDays || 365} days`
+        : null,
+    };
+  }
+
+  // Default fallback
+  return { title: base, sub: null };
+}
 
 export default function Coins() {
   const user = useAuthStore((s) => s.user);
@@ -162,12 +221,24 @@ export default function Coins() {
                   )}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-jakarta font-semibold text-xs text-ink dark:text-cream truncate">
-                    {REASON_LABELS[it.reason] || it.reason}
-                  </div>
-                  <div className="text-[10px] text-ink/45 font-jakarta mt-0.5">
-                    {dayjs(it.createdAt).format("D MMM YYYY · h:mm A")}
-                  </div>
+                  {(() => {
+                    const desc = describeEntry(it);
+                    return (
+                      <>
+                        <div className="font-jakarta font-semibold text-xs text-ink dark:text-cream truncate">
+                          {desc.title}
+                        </div>
+                        {desc.sub && (
+                          <div className="text-[10px] text-ink/55 font-jakarta truncate mt-0.5">
+                            {desc.sub}
+                          </div>
+                        )}
+                        <div className="text-[10px] text-ink/40 font-jakarta mt-0.5">
+                          {dayjs(it.createdAt).format("D MMM YYYY · h:mm A")}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
                 <div
                   className={`font-fraunces text-base tracking-tight tabular-nums ${

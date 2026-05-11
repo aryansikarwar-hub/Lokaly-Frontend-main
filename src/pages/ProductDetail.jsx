@@ -24,6 +24,7 @@ import { Spinner } from "../components/ui/Spinner";
 import { Reveal } from "../components/animations/Reveal";
 import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
+import { isWishlisted, toggleWishlist } from "../store/wishlistStore";
 import SimilarProducts from "../components/SimilarProducts";
 import ReviewSection from "../components/ReviewSection";
 
@@ -39,10 +40,17 @@ export default function ProductDetail() {
   const addToCart = useCartStore((s) => s.add);
 
   useEffect(() => {
+    if (product?._id) setSaved(isWishlisted(product._id));
+  }, [product?._id]);
+
+  useEffect(() => {
     setLoading(true);
     api
       .get(`/products/${id}`)
-      .then(({ data }) => setProduct(data.product))
+      .then(({ data }) => {
+        setProduct(data.product);
+        setSaved(isWishlisted(id));
+      })
       .catch(() => setProduct(null))
       .finally(() => setLoading(false));
     api.post(`/hyperlocal/products/${id}/view`).catch(() => {});
@@ -86,8 +94,16 @@ export default function ProductDetail() {
     nav("/cart");
   }
 
-  function prevImg() { setActiveImg((i) => (i === 0 ? images.length - 1 : i - 1)); }
-  function nextImg() { setActiveImg((i) => (i === images.length - 1 ? 0 : i + 1)); }
+  function handleSave() {
+    if (!user) {
+      toast("Please log in to save products");
+      nav("/login");
+      return;
+    }
+    const added = toggleWishlist(product._id);
+    setSaved(added);
+    toast.success(added ? "Saved to wishlist ❤️" : "Removed from wishlist");
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 md:py-10">
@@ -266,24 +282,19 @@ export default function ProductDetail() {
                     </div>
                   </div>
                 </Link>
-
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <Link
-                    to={`/messages?to=${seller._id}`}
-                    className="rounded-full bg-peach/60 hover:bg-peach text-ink text-[11px] font-jakarta font-semibold py-2 text-center inline-flex items-center justify-center gap-1.5 transition"
-                  >
-                    <HiOutlineChatBubbleLeftRight className="text-sm" /> Message
-                  </Link>
-                  <button
-                    onClick={() => setSaved((v) => !v)}
-                    className={`rounded-full text-[11px] font-jakarta font-semibold py-2 inline-flex items-center justify-center gap-1.5 transition ${
-                      saved ? "bg-coral/10 text-coral" : "bg-lavender/40 hover:bg-lavender/70 text-ink"
-                    }`}
-                  >
-                    {saved ? <HiHeart className="text-coral text-sm" /> : <HiOutlineHeart className="text-sm" />}
-                    {saved ? "Saved" : "Save"}
-                  </button>
-                </div>
+                <button
+                  onClick={handleSave}
+                  className={`rounded-full text-[11px] font-jakarta font-semibold py-1.5 hover:opacity-90 inline-flex items-center justify-center gap-1 transition ${
+                    saved
+                      ? "bg-coral text-white"
+                      : "bg-lavender text-ink hover:bg-lavender/80"
+                  }`}
+                >
+                  <HiOutlineHeart
+                    className={`text-sm ${saved ? "fill-white" : ""}`}
+                  />
+                  {saved ? "Saved ❤️" : "Save"}
+                </button>
               </div>
             </div>
 
