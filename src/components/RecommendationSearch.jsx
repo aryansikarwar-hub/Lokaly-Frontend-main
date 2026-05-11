@@ -15,7 +15,14 @@ function RecommendationSearch({ defaultCity = 'Indore' }) {
     
     try {
       const data = await searchRecommendations(query.trim(), defaultCity);
-      setResults(data.results || []);
+      
+      // ✅ FIX: Backend `image: ''` ko ProductCard ke liye `images: [{url}]` mein convert karo
+      const mapped = (data.results || []).map((r) => ({
+        ...r,
+        images: [{ url: r.image || r.imageUrl || r.image_url || '' }],
+      }));
+
+      setResults(mapped);
     } catch {
       setResults([]);
     } finally {

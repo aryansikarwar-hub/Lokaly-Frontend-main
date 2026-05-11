@@ -11,6 +11,7 @@ const BuyerDashboard = lazy(() => import('./pages/BuyerDashboard.jsx'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail.jsx'));
 import { Spinner } from './components/ui/Spinner';
 import AIShopperPanel from './features/aiShopper/AIShopperPanel';
+import ChatbotWidget from './components/ChatbotWidget';
 import api from './services/api';
 import { useAuthStore } from './store/authStore';
 import { ThemeProvider } from './context/ThemeContext';
@@ -36,20 +37,16 @@ export default function App() {
 
   useEffect(() => {
     if (!token) {
-      // eslint-disable-next-line no-console
       console.log('[auth] no token in store, skipping /auth/me');
       return;
     }
-    // eslint-disable-next-line no-console
     console.log('[auth] have token, fetching /auth/me ...');
     api.get('/auth/me')
       .then(({ data }) => {
-        // eslint-disable-next-line no-console
         console.log('[auth] /auth/me OK, hydrating user:', data.user);
         hydrate(token, data.user);
       })
       .catch((e) => {
-        // eslint-disable-next-line no-console
         console.error('[auth] /auth/me FAILED', {
           status: e.response?.status,
           data: e.response?.data,
@@ -68,6 +65,7 @@ export default function App() {
         }}
       />
       <AIShopperPanel />
+      <ChatbotWidget />
       <Suspense fallback={<Booting />}>
         <Routes>
           <Route element={<MainLayout />}>
@@ -102,23 +100,4 @@ export default function App() {
       </Suspense>
     </ThemeProvider>
   );
-
-  // ignore this 
-  
-//   return (
-//   <>
-//     <Toaster
-//       position="top-center"
-//       toastOptions={{
-//         style: { background: '#2B2438', color: '#FFF8F0', borderRadius: '9999px', padding: '10px 18px' },
-//       }}
-//     />
-//     <AIShopperPanel />
-//     <Suspense fallback={<Booting />}>
-//       <Routes>
-//         ...
-//       </Routes>
-//     </Suspense>
-//   </>
-// );
 }

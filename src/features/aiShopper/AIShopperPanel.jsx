@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { TbWand } from "react-icons/tb";
+import { TbWand, TbSortDescending } from "react-icons/tb";
 import {
   HiXMark,
   HiOutlinePaperAirplane,
   HiOutlineSparkles,
+  HiOutlineAdjustmentsHorizontal,
 } from "react-icons/hi2";
 import api from "../../services/api";
 import { CardStack } from "../../components/animations/CardStack";
@@ -17,7 +18,13 @@ const SUGGESTIONS = [
   "festive diya set diwali",
   "pottery for new home",
 ];
- 
+
+const SORT_OPTIONS = [
+  { key: "best_buy", label: "Best buy" },
+  { key: "match", label: "Best match" },
+  { key: "price_asc", label: "Price ↑" },
+  { key: "price_desc", label: "Price ↓" },
+];
 
 export default function AIShopperPanel() {
   const open = useAIShopperStore((s) => s.open);
@@ -26,6 +33,65 @@ export default function AIShopperPanel() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
   const [history, setHistory] = useState([]);
+  const [sort, setSort] = useState("best_buy");
+  const [filters, setFilters] = useState({ city: "", category: "", maxPrice: 0 });
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Drag state
+  const [btnPos, setBtnPos] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lokaly_ai_btn_pos');
+      return saved ? JSON.parse(saved) : { x: 0, y: 0 };
+    } catch { return { x: 0, y: 0 }; }
+  });
+  const isDraggingRef = useRef(false);
+
+  // Derive filter option lists from current results
+  const cities = useMemo(
+    () => Array.from(new Set(results.map((h) => h.product.city_name).filter(Boolean))).sort(),
+    [results],
+  );
+  const categories = useMemo(
+    () => Array.from(new Set(results.map((h) => h.product.category).filter(Boolean))).sort(),
+    [results],
+  );
+  const priceCeiling = useMemo(
+    () => results.reduce((m, h) => Math.max(m, Number(h.product.price) || 0), 0),
+    [results],
+  );
+
+  // Compute composite "best buy" score on the client too (mirrors backend logic)
+  const scored = useMemo(() => {
+    if (results.length === 0) return [];
+    const prices = results.map((h) => Number(h.product.price) || 0);
+    const minP = Math.min(...prices);
+    const maxP = Math.max(...prices);
+    const span = maxP - minP || 1;
+    return results.map((h) => {
+      const priceQuality = 1 - ((Number(h.product.price) || maxP) - minP) / span;
+      // 0.65 match · 0.35 price-quality (cheaper is better)
+      const composite = 0.65 * (h.score || 0) + 0.35 * priceQuality;
+      return { ...h, _composite: composite, _priceQuality: priceQuality };
+    });
+  }, [results]);
+
+  // Apply filters + sort
+  const visibleResults = useMemo(() => {
+    let list = scored.filter((h) => {
+      if (filters.city && h.product.city_name !== filters.city) return false;
+      if (filters.category && h.product.category !== filters.category) return false;
+      if (filters.maxPrice && Number(h.product.price) > filters.maxPrice) return false;
+      return true;
+    });
+    if (sort === "best_buy") list = [...list].sort((a, b) => b._composite - a._composite);
+    if (sort === "match") list = [...list].sort((a, b) => (b.score || 0) - (a.score || 0));
+    if (sort === "price_asc")
+      list = [...list].sort((a, b) => (a.product.price || 0) - (b.product.price || 0));
+    if (sort === "price_desc")
+      list = [...list].sort((a, b) => (b.product.price || 0) - (a.product.price || 0));
+    if (list.length > 0) list[0] = { ...list[0], _bestBuy: true };
+    return list;
+  }, [scored, filters, sort]);
 
   async function ask(q) {
     const body = (q || query).trim();
@@ -33,14 +99,30 @@ export default function AIShopperPanel() {
     setHistory((h) => [...h, { role: "user", text: body }]);
     setQuery("");
     setLoading(true);
+    setFilters({ city: "", category: "", maxPrice: 0 });
     try {
-      const { data } = await api.post("/ml/search", { query: body, topK: 6 });
-      setResults(data.hits || []);
+      const { data } = await api.post("/recommendations/search", { query: body });
+      const list = Array.isArray(data?.results) ? data.results : [];
+      const hits = list.map((p) => ({
+        score: typeof p.match_score === "number" ? p.match_score / 100 : 0,
+        product: {
+          _id: p._id || p.id || "",
+          title: p.title || "",
+          price: p.price,
+          images: p.image ? [{ url: p.image }] : [],
+          city_name: p.city_name || "",
+          category: p.category || "",
+          shop_name: p.shop_name || "",
+        },
+      }));
+      setResults(hits);
       setHistory((h) => [
         ...h,
         {
           role: "bot",
-          text: `Found ${data.hits?.length || 0} matches — swipe through them`,
+          text: hits.length
+            ? `Found ${hits.length} matches — swipe through them`
+            : "Koi match nahi mila — try a product name like 'saree' or 'pottery'.",
         },
       ]);
     } catch {
@@ -60,14 +142,34 @@ export default function AIShopperPanel() {
     <>
       <motion.button
         type="button"
-        onClick={() => setOpen(true)}
-        initial={{ scale: 0 }}
+        drag
+        dragMomentum={false}
+        dragElastic={0.1}
+        dragConstraints={{
+          top: -(window.innerHeight - 100),
+          left: -(window.innerWidth - 80),
+          right: window.innerWidth - 80,
+          bottom: window.innerHeight - 100,
+        }}
+        initial={{ x: btnPos.x, y: btnPos.y, scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ type: "spring", stiffness: 200, damping: 14, delay: 0.4 }}
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.94 }}
-        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-coral-gradient shadow-pop text-white grid place-items-center"
+        onDragStart={() => { isDraggingRef.current = false; }}
+        onDrag={() => { isDraggingRef.current = true; }}
+        onDragEnd={(_, info) => {
+          const newPos = { x: btnPos.x + info.offset.x, y: btnPos.y + info.offset.y };
+          setBtnPos(newPos);
+          try { localStorage.setItem('lokaly_ai_btn_pos', JSON.stringify(newPos)); } catch {}
+        }}
+        onClick={() => {
+          if (!isDraggingRef.current) setOpen(true);
+          isDraggingRef.current = false;
+        }}
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-coral-gradient shadow-pop text-white grid place-items-center cursor-grab active:cursor-grabbing"
         aria-label="Open AI shopper"
+        style={{ touchAction: 'none' }}
       >
         <TbWand className="text-2xl" />
       </motion.button>
@@ -168,46 +270,169 @@ export default function AIShopperPanel() {
                   )}
                 </div>
 
-                <div className="p-5 bg-gradient-to-b from-lavender/40 to-peach/40 dark:from-white/5 dark:to-white/5 overflow-hidden border-l border-white/60 dark:border-white/10">
-                  <div className="text-xs font-jakarta text-ink/70 dark:text-cream/70 mb-2 flex items-center gap-1">
-                    <HiOutlineSparkles /> swipe results
-                  </div>
-                  {results.length > 0 ? (
-                    <CardStack
-                      items={results}
-                      render={(r) => (
-                        <Link
-                          to={`/product/${r.product._id}`}
-                          className="block h-full"
+                <div className="p-5 bg-gradient-to-b from-lavender/40 to-peach/40 dark:from-white/5 dark:to-white/5 overflow-hidden border-l border-white/60 dark:border-white/10 flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-jakarta text-ink/70 dark:text-cream/70 flex items-center gap-1">
+                      <HiOutlineSparkles /> {visibleResults.length} of {results.length}
+                    </div>
+                    {results.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setFiltersOpen((v) => !v)}
+                          className="px-2 py-1 rounded-full bg-white/70 dark:bg-white/10 border border-white dark:border-white/10 text-[11px] font-jakarta text-ink dark:text-cream flex items-center gap-1 hover:bg-white"
+                          aria-expanded={filtersOpen}
+                          aria-label="filters"
                         >
-                          <div className="h-full w-full relative">
-                            <img
-                              src={r.product.images?.[0]?.url}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent" />
-                            <div className="absolute bottom-4 left-4 right-4 text-white">
-                              <div className="text-[10px] opacity-70">
-                                {Math.round(r.score * 100)}% match
-                              </div>
-                              <div className="font-jakarta font-semibold line-clamp-2">
-                                {r.product.title}
-                              </div>
-                              <div className="font-fraunces text-2xl">
-                                &#8377;
-                                {r.product.price?.toLocaleString("en-IN")}
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
+                          <HiOutlineAdjustmentsHorizontal /> filter
+                        </button>
+                        <select
+                          value={sort}
+                          onChange={(e) => setSort(e.target.value)}
+                          className="px-2 py-1 rounded-full bg-white/70 dark:bg-white/10 border border-white dark:border-white/10 text-[11px] font-jakarta text-ink dark:text-cream outline-none"
+                          aria-label="sort"
+                        >
+                          {SORT_OPTIONS.map((o) => (
+                            <option key={o.key} value={o.key}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {filtersOpen && results.length > 0 && (
+                    <div className="mb-3 p-3 rounded-2xl bg-white/70 dark:bg-white/10 border border-white dark:border-white/10 space-y-2">
+                      {cities.length > 1 && (
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] uppercase tracking-wider text-ink/50 dark:text-cream/50 font-jakarta w-14">
+                            City
+                          </label>
+                          <select
+                            value={filters.city}
+                            onChange={(e) => setFilters((f) => ({ ...f, city: e.target.value }))}
+                            className="flex-1 text-xs px-2 py-1 rounded-md bg-white dark:bg-white/10 border border-ink/5 dark:border-white/10 outline-none"
+                          >
+                            <option value="">All</option>
+                            {cities.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       )}
-                    />
-                  ) : (
-                    <div className="h-full grid place-items-center text-mauve text-sm font-caveat">
-                      results appear here as a swipable stack
+                      {categories.length > 1 && (
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] uppercase tracking-wider text-ink/50 dark:text-cream/50 font-jakarta w-14">
+                            Type
+                          </label>
+                          <select
+                            value={filters.category}
+                            onChange={(e) =>
+                              setFilters((f) => ({ ...f, category: e.target.value }))
+                            }
+                            className="flex-1 text-xs px-2 py-1 rounded-md bg-white dark:bg-white/10 border border-ink/5 dark:border-white/10 outline-none"
+                          >
+                            <option value="">All</option>
+                            {categories.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {priceCeiling > 0 && (
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] uppercase tracking-wider text-ink/50 dark:text-cream/50 font-jakarta w-14">
+                            Max ₹
+                          </label>
+                          <input
+                            type="range"
+                            min={0}
+                            max={priceCeiling}
+                            step={Math.max(50, Math.round(priceCeiling / 100))}
+                            value={filters.maxPrice || priceCeiling}
+                            onChange={(e) =>
+                              setFilters((f) => ({ ...f, maxPrice: Number(e.target.value) }))
+                            }
+                            className="flex-1 accent-coral"
+                          />
+                          <div className="text-[11px] font-jakarta text-ink dark:text-cream tabular-nums w-20 text-right">
+                            ≤ ₹{(filters.maxPrice || priceCeiling).toLocaleString("en-IN")}
+                          </div>
+                        </div>
+                      )}
+                      {(filters.city || filters.category || filters.maxPrice) && (
+                        <button
+                          type="button"
+                          onClick={() => setFilters({ city: "", category: "", maxPrice: 0 })}
+                          className="text-[11px] font-jakarta text-coral hover:underline"
+                        >
+                          reset filters
+                        </button>
+                      )}
                     </div>
                   )}
+
+                  <div className="flex-1 min-h-0">
+                    {visibleResults.length > 0 ? (
+                      <CardStack
+                        items={visibleResults}
+                        render={(r) => (
+                          <Link
+                            to={`/product/${r.product._id}`}
+                            className="block h-full"
+                          >
+                            <div className="h-full w-full relative">
+                              <img
+                                src={r.product.images?.[0]?.url}
+                                alt=""
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none";
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent" />
+                              {r._bestBuy && (
+                                <div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-butter text-tangerine text-[10px] font-jakarta font-bold uppercase tracking-wider shadow-pop flex items-center gap-1">
+                                  <TbSortDescending className="text-xs" /> Best buy
+                                </div>
+                              )}
+                              <div className="absolute bottom-4 left-4 right-4 text-white">
+                                <div className="text-[10px] opacity-70">
+                                  {Math.round(r.score * 100)}% match
+                                  {r.product.city_name ? ` · ${r.product.city_name}` : ""}
+                                </div>
+                                <div className="font-jakarta font-semibold line-clamp-2">
+                                  {r.product.title}
+                                </div>
+                                <div className="font-fraunces text-2xl">
+                                  &#8377;
+                                  {r.product.price?.toLocaleString("en-IN")}
+                                </div>
+                                {r._bestBuy && (
+                                  <div className="text-[10px] opacity-80 font-caveat mt-0.5">
+                                    cheapest of the strong matches
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </Link>
+                        )}
+                      />
+                    ) : results.length > 0 ? (
+                      <div className="h-full grid place-items-center text-mauve text-sm font-caveat text-center px-4">
+                        no matches with these filters — try resetting
+                      </div>
+                    ) : (
+                      <div className="h-full grid place-items-center text-mauve text-sm font-caveat">
+                        results appear here as a swipable stack
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

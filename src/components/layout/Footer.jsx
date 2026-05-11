@@ -24,14 +24,16 @@ export default function Footer() {
           </p>
           <div className="flex gap-1.5 mt-4">
             {[
-              { Icon: FiGithub, label: "GitHub" },
-              { Icon: FiInstagram, label: "Instagram" },
-              { Icon: FiYoutube, label: "YouTube" },
-              { Icon: FiTwitter, label: "Twitter" },
-            ].map(({ Icon, label }, i) => (
+              { Icon: FiGithub,    label: "GitHub",    href: "https://github.com/Lokaly-git" },
+              { Icon: FiInstagram, label: "Instagram",  href: "https://www.instagram.com/lokaly_insta?igsh=NWF1YjdydzcxZ3Qy" },
+              { Icon: FiYoutube,   label: "YouTube",    href: "https://youtube.com/@lokalyconnect?si=WAhkUW7aFVhZRIZe" },
+              { Icon: FiTwitter,   label: "Twitter",    href: "https://x.com/LokalyConnect" },
+            ].map(({ Icon, label, href }) => (
               <a
-                key={i}
-                href="#"
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label={label}
                 className="w-8 h-8 rounded-full grid place-items-center bg-cream/10 hover:bg-coral text-cream transition"
               >
