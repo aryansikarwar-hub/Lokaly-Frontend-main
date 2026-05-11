@@ -91,10 +91,10 @@ export default function BuyerDashboard() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-56px)] w-full overflow-x-hidden">
+    <div className="flex flex-col md:flex-row min-h-[calc(100vh-56px)] w-full overflow-x-hidden">
       <Sidebar role="buyer" active={tab} />
 
-      <main className="flex-1 min-w-0 w-0 px-3 sm:px-5 md:px-8 py-4 md:py-8 overflow-x-hidden">
+      <main className="flex-1 min-w-0 px-3 sm:px-5 md:px-8 py-4 md:py-8 overflow-x-hidden w-full">
         <Reveal>
           <div className="text-[10px] uppercase tracking-[0.25em] font-jakarta font-semibold text-coral mb-2">
             Welcome back, {user.name?.split(" ")[0] || "friend"}
