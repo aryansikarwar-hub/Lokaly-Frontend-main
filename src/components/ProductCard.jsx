@@ -2,6 +2,10 @@ import { Link } from "react-router-dom";
 import { HiStar, HiOutlineBolt, HiOutlineShieldCheck } from "react-icons/hi2";
 import { Tilt } from "./animations/Tilt";
 import DeliveryBadge from "./DeliveryBadge";
+import { HiOutlineHeart, HiHeart } from "react-icons/hi2";
+import { useAuthStore } from "../store/authStore";
+import api from "../services/api";
+import { useState } from "react";
 
 const API_ORIGIN = (() => {
   const raw = import.meta.env.VITE_API_URL;
