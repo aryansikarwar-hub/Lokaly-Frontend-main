@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* =========================================================
    GLOBAL RESET
 ========================================================= */
@@ -467,4 +477,3 @@ html.dark .a11y-widget {
   box-shadow: none !important;
   background: transparent !important;
 }
-
