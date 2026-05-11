@@ -15,8 +15,6 @@ import Input from "../components/ui/Input";
 const SAMPLE_PEERS = [
   { name: "Aanya", city: "Bengaluru", color: "#FF6B6B" },
   { name: "Kavya", city: "Chennai", color: "#FFA94D" },
-  { name: "Priya", city: "Jaipur", color: "#51CF66" },
-  { name: "Rohan", city: "Kochi", color: "#E4D4F4" },
 ];
 
 export default function CollabRoom() {
@@ -24,7 +22,7 @@ export default function CollabRoom() {
   const [msgs, setMsgs] = useState([
     { from: "Aanya", text: "this saree is gorgeous" },
     { from: "Priya", text: "if you pick the lehenga, I will grab the dupatta" },
-    { from: "Kavya", text: "group buy unlocks at 10 — lets go" },
+    { from: "Kavya", text: "group buy unlocks at 2 — lets go" },
   ]);
   const [text, setText] = useState("");
   const [cart] = useState([
@@ -227,7 +225,7 @@ function pickBackground() {
     "the mango achaar here is legit",
     "pincode 400058 gets same-day delivery",
     "that chikankari is giving wedding vibes",
-    "we are 6 short of the group buy unlock",
+    "we are 1 short of the group buy unlock",
   ];
   return pool[Math.floor(Math.random() * pool.length)];
 }

@@ -218,7 +218,7 @@ const MOCK_SESSION = {
       ],
     },
   ],
-  groupBuy: { participants: Array(7).fill(null), threshold: 10 },
+  groupBuy: { participants: Array(1).fill(null), threshold: 2 },
   stats: {
     peakViewers: 2928,
     heartsSent: 12400,
@@ -1090,11 +1090,14 @@ export default function LiveStream() {
     if (!videoRef.current) return;
 
     let mounted = true;
-    const localClient = createClient();
-    clientRef.current = localClient;
+    let localClient = null;
 
     const init = async () => {
       try {
+        localClient = await createClient();
+        if (!mounted) return;
+        clientRef.current = localClient;
+
         const isHost = isHostOfSession(user, active);
         // ✅ Agora SDK valid roles: "host" | "audience"
         const agoraRole = isHost ? "host" : "audience";
@@ -1373,7 +1376,7 @@ export default function LiveStream() {
 
   const stats = active.stats || {};
   const grpCount = active.groupBuy?.participants?.length || 0;
-  const grpMax = active.groupBuy?.threshold || 10;
+  const grpMax = active.groupBuy?.threshold || 2;
   const grpPct = Math.round((grpCount / grpMax) * 100);
 
   // Should we show the floating "Go Live" button for sellers?
