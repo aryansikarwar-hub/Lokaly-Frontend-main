@@ -1,0 +1,2332 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Link, useParams } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+
+import {
+  HiOutlineBolt,
+  HiOutlineUserGroup,
+  HiOutlineSparkles,
+  HiOutlineGlobeAlt,
+  HiOutlineMagnifyingGlass,
+  HiOutlineHeart,
+  HiOutlineFire,
+  HiOutlineShoppingBag,
+  HiOutlinePaperAirplane,
+  HiOutlineClock,
+  HiOutlineTag,
+  HiOutlineChartBar,
+  HiOutlineChatBubbleLeftRight,
+  HiOutlineShoppingCart,
+  HiOutlineQuestionMarkCircle,
+  HiOutlineChevronRight,
+  HiOutlineGift,
+  HiOutlineVideoCamera,
+  HiOutlineMicrophone,
+  HiOutlineStop,
+  HiOutlineShare,
+  HiOutlinePlus,
+  HiOutlineXMark,
+} from "react-icons/hi2";
+import { TbFlame, TbHeartFilled, TbStar, TbCoin } from "react-icons/tb";
+import api from "../services/api";
+import { getSocket } from "../services/socket";
+import { useAuthStore } from "../store/authStore";
+import Button from "../components/ui/Button";
+import Input from "../components/ui/Input";
+import { Spinner } from "../components/ui/Spinner";
+import SpinTheWheel from "../components/SpinTheWheel";
+import { createClient, createTracks, APP_ID } from "../services/agora";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const REACTION_ICONS = [TbHeartFilled, TbFlame, TbStar, HiOutlineHeart];
+const EMOJIS = ["❤️", "🔥", "😍", "🌸", "✨", "🙏", "😮", "👏"];
+const CHAT_TABS = [
+  { id: "chat", label: "Chat", icon: HiOutlineChatBubbleLeftRight },
+  { id: "shop", label: "Shop", icon: HiOutlineShoppingCart, count: 4 },
+  { id: "qa", label: "Q&A", icon: HiOutlineQuestionMarkCircle, count: 2 },
+  { id: "poll", label: "Poll", icon: HiOutlineChartBar },
+];
+
+const LIVE_NAV_LINKS = [
+  { label: "Feed", href: "/feed" },
+  { label: "Shop", href: "/products" },
+  { label: "Live", href: "/live" },
+  { label: "Leaderboard", href: "/leaderboard" },
+];
+
+const PINNED_MESSAGE = {
+  tag: "Pinned",
+  user: "Sarah (Host)",
+  text: "Use code SARAH10 for 10% OFF all items — only while live!",
+};
+
+// Gradient palettes for carousel cards
+const CARD_GRADIENTS = [
+  "from-[#3d1a0e] via-[#7a2e10] to-[#c0440f]",
+  "from-[#1a1040] via-[#3d1f7a] to-[#7c3aed]",
+  "from-[#0e2a1a] via-[#1a5c34] to-[#2d8c50]",
+  "from-[#2a1a0e] via-[#7a4a10] to-[#c0820f]",
+  "from-[#1a0e2a] via-[#4a1a7a] to-[#8c2dc0]",
+];
+
+function LiveCarouselCard({ stream, active, onClick, gradientIdx = 0 }) {
+  const grad = CARD_GRADIENTS[gradientIdx % CARD_GRADIENTS.length];
+  const handle = "@" + (stream.host?.shopName || stream.host?.name || "seller")
+    .replace(/\s+/g, "").toLowerCase().slice(0, 12);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(stream)}
+      className={`group shrink-0 w-[200px] rounded-2xl overflow-hidden border-2 transition shadow-md ${
+        active ? "border-coral" : "border-transparent hover:border-white/20"
+      }`}
+    >
+      <div className={`relative h-44 bg-gradient-to-br ${grad} overflow-hidden`}>
+        {stream.coverImage && (
+          <img
+            src={stream.coverImage}
+            alt={stream.title}
+            className="w-full h-full object-cover opacity-25 transition duration-500 group-hover:scale-105 mix-blend-luminosity"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+        {/* Top row */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+          <span className="flex items-center gap-1 bg-coral text-white text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            LIVE
+          </span>
+          <span className="flex items-center gap-1 bg-black/40 text-white text-[9px] font-semibold px-2 py-1 rounded-full backdrop-blur-sm">
+            <HiOutlineUserGroup className="text-[10px]" />
+            {stream.stats?.peakViewers?.toLocaleString() || "0"}
+          </span>
+        </div>
+        {/* Bottom info */}
+        <div className="absolute bottom-3 left-3 right-3">
+          <div className="text-[10px] font-jakarta text-white/60 mb-0.5">{handle}</div>
+          <div className="text-sm font-fraunces text-white leading-tight line-clamp-2 font-semibold">
+            {stream.title}
+          </div>
+          <div className="mt-1.5 flex items-center gap-1 text-[9px] text-white/50 font-jakarta">
+            <HiOutlineFire className="text-coral text-xs" />
+            Trending in your city
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function FloatingProductCard({ product }) {
+  const pct = pctOff(product.price, product.originalPrice);
+  return (
+    <div className="absolute right-4 top-24 w-72 rounded-[2rem] bg-white/90 dark:bg-ink/85 border border-white/20 dark:border-white/10 shadow-2xl p-4 backdrop-blur-xl z-20">
+      <div className="flex items-start gap-3">
+        <div className="relative w-20 h-20 rounded-3xl overflow-hidden bg-slate-100 dark:bg-white/5 shadow-soft">
+          <img
+            src={product.images?.[0]?.url}
+            alt={product.title}
+            className="w-full h-full object-cover"
+          />
+          {pct > 0 && (
+            <span className="absolute top-2 left-2 bg-coral text-white text-[9px] font-semibold px-2 py-1 rounded-full">
+              {pct}% OFF
+            </span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.22em] font-jakarta text-ink/40 dark:text-cream/50 mb-1">
+            Hot Deal
+          </div>
+          <div className="text-sm font-fraunces text-ink dark:text-cream leading-tight line-clamp-2">
+            {product.title}
+          </div>
+          <div className="mt-2 flex items-end gap-2">
+            <span className="text-lg font-fraunces text-ink dark:text-cream">
+              ₹{product.price?.toLocaleString("en-IN")}
+            </span>
+            {product.originalPrice > product.price && (
+              <span className="text-[10px] text-ink/35 dark:text-cream/50 line-through">
+                ₹{product.originalPrice?.toLocaleString("en-IN")}
+              </span>
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="flex-1 text-[10px] rounded-2xl bg-coral text-white py-2 font-semibold hover:bg-coral/90 transition">
+              Buy now
+            </button>
+            <button className="flex items-center justify-center gap-1 px-3 py-2 rounded-2xl bg-ink/5 dark:bg-white/10 text-[10px] text-ink dark:text-cream font-semibold hover:bg-ink/10 transition">
+              <HiOutlineShare className="text-sm" /> Share
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Mock data ────────────────────────────────────────────────────────────────
+const MOCK_SESSION = {
+  _id: "mock-1",
+  roomId: "mock-room-1",
+  title: "Kanchipuram Silk Sarees – Live Drop",
+  category: "Handloom & Textiles",
+  status: "live",
+  coverImage:
+    "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=1200&q=80",
+  host: { name: "Lakshmi Weaves", shopName: "Lakshmi Weaves", avatar: null },
+  featuredProducts: [
+    {
+      _id: "p1",
+      title: "Magenta Kanjivaram",
+      price: 4200,
+      originalPrice: 6800,
+      stock: 3,
+      images: [
+        {
+          url: "https://images.unsplash.com/photo-1583391733956-6c78276477e2?w=200&q=80",
+        },
+      ],
+    },
+    {
+      _id: "p2",
+      title: "Silver Jhumkas",
+      price: 890,
+      originalPrice: 1250,
+      stock: 12,
+      images: [
+        {
+          url: "https://images.unsplash.com/photo-1630019852942-f89202989a59?w=200&q=80",
+        },
+      ],
+    },
+    {
+      _id: "p3",
+      title: "Pure Silk Dupatta",
+      price: 1450,
+      originalPrice: 1450,
+      stock: 7,
+      images: [
+        {
+          url: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=200&q=80",
+        },
+      ],
+    },
+    {
+      _id: "p4",
+      title: "Mango Achaar 500g",
+      price: 320,
+      originalPrice: 320,
+      stock: 20,
+      images: [
+        {
+          url: "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=200&q=80",
+        },
+      ],
+    },
+  ],
+  groupBuy: { participants: Array(7).fill(null), threshold: 10 },
+  stats: {
+    peakViewers: 2928,
+    heartsSent: 12400,
+    itemsSold: 47,
+    coinsEarned: 280,
+  },
+  isMock: true,
+};
+
+const MOCK_CHAT = [
+  { user: "Aditi", text: "Add to cart NOW!", bought: true },
+  { user: "Sanjay", text: "From which loom?" },
+  { user: "Rohan", text: "Beautiful work 🙏" },
+  { user: "Nisha", text: "Cash on delivery? 💚" },
+  { user: "Priya", text: "Is it pure silk?" },
+  { user: "Deepak", text: "Can you show the border more?" },
+  { user: "Meera", text: "Shipping to Pune?" },
+  { user: "Raj", text: "Price is very reasonable 👍" },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fmtTime = (s) =>
+  `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+const avatarBg = (name = "V") =>
+  `hsl(${(name.charCodeAt(0) * 5) % 360},55%,82%)`;
+const pctOff = (p, o) => (o > p ? Math.round((1 - p / o) * 100) : 0);
+
+// Check if user is a seller (has shopName or role === 'seller')
+const isUserSeller = (user) => {
+  if (!user) return false;
+  return user.role === "seller" || user.isSeller || !!user.shopName;
+};
+
+// Check if current user is the host of this session
+const isHostOfSession = (user, session) => {
+  if (!user || !session?.host) return false;
+  const hostId = session.host._id || session.host;
+  return String(user._id) === String(hostId);
+};
+
+// ─── Stat Pill ────────────────────────────────────────────────────────────────
+function StatPill({ icon: Icon, value, label, accent }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/75 dark:bg-ink/70 border border-ink/5 dark:border-white/10">
+      <Icon className={`text-lg shrink-0 ${accent}`} />
+      <div>
+        <div className="font-fraunces text-sm text-ink dark:text-cream leading-none">
+          {value}
+        </div>
+        <div className="text-[9px] font-jakarta text-ink/40 dark:text-cream/50 uppercase tracking-wider">
+          {label}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Product Cards ─────────────────────────────────────────────────────────────
+function ProductCard({ p, compact }) {
+  const pct = pctOff(p.price, p.originalPrice);
+  if (compact)
+    return (
+      <Link
+        to={`/product/${p._id}`}
+        className="shrink-0 w-36 rounded-xl bg-white/80 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-2 flex flex-col gap-1.5 hover:shadow-md hover:border-coral/20 transition group"
+      >
+        <div className="relative w-full h-24 rounded-lg overflow-hidden bg-peach/20">
+          <img
+            src={p.images?.[0]?.url}
+            alt={p.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+          />
+          {pct > 0 && (
+            <span className="absolute top-1 right-1 bg-coral text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
+              {pct}%
+            </span>
+          )}
+          {p.stock <= 5 && (
+            <span className="absolute bottom-1 left-1 bg-black/55 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
+              {p.stock} left
+            </span>
+          )}
+        </div>
+        <div className="text-[10px] font-jakarta font-semibold text-ink line-clamp-1">
+          {p.title}
+        </div>
+        <div className="flex items-center justify-between gap-1">
+          <span className="font-fraunces text-xs text-ink">
+            ₹{p.price?.toLocaleString("en-IN")}
+          </span>
+          <button className="text-[8px] bg-coral text-white font-bold px-1.5 py-0.5 rounded-full hover:bg-coral/80 transition">
+            Buy
+          </button>
+        </div>
+      </Link>
+    );
+  return (
+    <Link
+      to={`/product/${p._id}`}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-peach/25 border border-transparent hover:border-coral/10 transition group"
+    >
+      <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0">
+        <img
+          src={p.images?.[0]?.url}
+          alt={p.title}
+          className="w-full h-full object-cover group-hover:scale-110 transition duration-500"
+        />
+        {pct > 0 && (
+          <span className="absolute top-0.5 right-0.5 bg-coral text-white text-[7px] font-bold px-1 rounded-full">
+            {pct}%
+          </span>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-jakarta font-semibold text-ink line-clamp-1">
+          {p.title}
+        </div>
+        <div className="flex items-baseline gap-1.5 mt-0.5">
+          <span className="font-fraunces text-sm text-ink">
+            ₹{p.price?.toLocaleString("en-IN")}
+          </span>
+          {p.originalPrice > p.price && (
+            <span className="text-[9px] text-ink/30 line-through">
+              ₹{p.originalPrice?.toLocaleString("en-IN")}
+            </span>
+          )}
+        </div>
+        {p.stock <= 5 && (
+          <div className="text-[9px] text-coral font-semibold">
+            Only {p.stock} left!
+          </div>
+        )}
+      </div>
+      <button className="bg-coral text-white text-[9px] font-bold px-2.5 py-1.5 rounded-lg hover:bg-coral/80 transition shrink-0">
+        Buy
+      </button>
+    </Link>
+  );
+}
+
+// ─── Go Live Modal Component ──────────────────────────────────────────────────
+function GoLiveModal({ open, onClose, onCreated }) {
+  const [step, setStep] = useState("form"); // form | permissions | done
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [permError, setPermError] = useState("");
+  const [previewStream, setPreviewStream] = useState(null);
+  const previewRef = useRef(null);
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!open) {
+      setStep("form");
+      setTitle("");
+      setCategory("");
+      setLoading(false);
+      setPermError("");
+      if (previewStream) {
+        previewStream.getTracks().forEach((t) => t.stop());
+        setPreviewStream(null);
+      }
+    }
+  }, [open]);
+
+  // Attach preview stream to video element
+  useEffect(() => {
+    if (previewStream && previewRef.current) {
+      previewRef.current.srcObject = previewStream;
+    }
+  }, [previewStream]);
+
+  // Cleanup preview stream on unmount
+  useEffect(() => {
+    return () => {
+      if (previewStream) {
+        previewStream.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, [previewStream]);
+
+  async function requestPermissions(audioOnly = false) {
+    setPermError("");
+    setLoading(true);
+    try {
+      // 1) Browser feature check
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw Object.assign(
+          new Error(
+            "Your browser does not support camera/mic access. Try Chrome, Edge or Firefox.",
+          ),
+          { name: "UnsupportedError" },
+        );
+      }
+
+      // 2) HTTPS check (getUserMedia requires secure context except on localhost)
+      if (!window.isSecureContext) {
+        throw Object.assign(
+          new Error(
+            "Camera/Mic requires HTTPS. Please use the secure (https://) version of the site.",
+          ),
+          { name: "InsecureContextError" },
+        );
+      }
+
+      // 3) Enumerate devices to give precise error messages
+      // Note: device labels are empty until permission is granted once,
+      // but kind/deviceId are visible — enough to know if hardware exists.
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter((d) => d.kind === "videoinput");
+      const mics = devices.filter((d) => d.kind === "audioinput");
+      console.log("[GoLive] Devices found →", {
+        cameras: cams.length,
+        microphones: mics.length,
+        devices: devices.map((d) => ({
+          kind: d.kind,
+          label: d.label || "(label hidden)",
+        })),
+      });
+
+      const wantVideo = !audioOnly && cams.length > 0;
+      const wantAudio = mics.length > 0;
+
+      if (!wantVideo && !wantAudio) {
+        throw Object.assign(
+          new Error(
+            "No camera or microphone detected on this device.\n\n" +
+              "Fixes to try:\n" +
+              "1. Close apps that may be using the camera (Teams, WhatsApp, Skype, Zoom).\n" +
+              "2. Windows → Settings → Privacy & security → Camera → turn ON 'Camera access' AND 'Let desktop apps access your camera'.\n" +
+              "3. Same for Microphone.\n" +
+              "4. Test hardware at https://webcamtests.com — if it fails there too, the hardware/driver is the issue.",
+          ),
+          { name: "NotFoundError" },
+        );
+      }
+
+      // 4) Request the stream
+      const constraints = {
+        video: wantVideo
+          ? { width: { ideal: 1280 }, height: { ideal: 720 } }
+          : false,
+        audio: wantAudio,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setPreviewStream(stream);
+      setStep("permissions");
+
+      // Non-fatal warning when running audio-only
+      if (!wantVideo) {
+        setPermError(
+          "⚠️ Running in audio-only mode (no camera available). Viewers will hear you but won't see video.",
+        );
+      }
+    } catch (err) {
+      console.error("❌ Permission error:", err.name, err.message, err);
+
+      let msg = "";
+      switch (err.name) {
+        case "NotAllowedError":
+        case "PermissionDeniedError":
+          msg =
+            "Camera/Microphone access was blocked. Click the 🔒 lock icon in your browser address bar → set Camera & Microphone to 'Allow' → reload the page.";
+          break;
+        case "NotFoundError":
+        case "DevicesNotFoundError":
+          msg = err.message;
+          break;
+        case "NotReadableError":
+        case "TrackStartError":
+          msg =
+            "Camera/Mic is locked by another app. Close Teams, WhatsApp, Skype, Zoom, OBS, or any video-call app and try again.";
+          break;
+        case "OverconstrainedError":
+          msg =
+            "Your camera doesn't support the requested resolution. Try the 'Audio Only' option as a workaround.";
+          break;
+        case "SecurityError":
+          msg =
+            "Browser blocked the request for security reasons. Make sure you're on https:// and the site has permission.";
+          break;
+        case "AbortError":
+          msg = "Camera/Mic request was interrupted. Please try again.";
+          break;
+        case "TypeError":
+          msg =
+            "Invalid camera/mic configuration. Please refresh the page and try again.";
+          break;
+        case "InsecureContextError":
+        case "UnsupportedError":
+          msg = err.message;
+          break;
+        default:
+          msg =
+            "Could not access camera/microphone: " +
+            (err.message || err.name || "Unknown error");
+      }
+      setPermError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function startSession() {
+    if (!title.trim()) return;
+    setLoading(true);
+    setPermError("");
+    try {
+      console.log("🔴 Step 1: Creating session...");
+      const { data } = await api.post("/live/sessions", { title, category });
+      console.log("🔴 Step 2: Session created:", data.session);
+
+      console.log("🔴 Step 3: Starting session...");
+      await api.post(`/live/sessions/${data.session._id}/start`);
+      console.log("🔴 Step 4: Session started");
+
+      // Stop preview stream — Agora will create its own tracks
+      if (previewStream) {
+        previewStream.getTracks().forEach((t) => t.stop());
+        setPreviewStream(null);
+      }
+
+      onCreated(data.session);
+    } catch (err) {
+      console.error("❌ GoLive error:", err);
+      const msg =
+        err.response?.data?.error || err.message || "Failed to start session";
+      setPermError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 grid place-items-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-ink/5">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-coral/10 grid place-items-center">
+              <HiOutlineVideoCamera className="text-coral text-base" />
+            </div>
+            <h2 className="font-fraunces text-lg text-ink">
+              {step === "form" ? "Start a Live Session" : "Camera Preview"}
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="text-ink/30 hover:text-ink text-xl w-8 h-8 grid place-items-center rounded-full hover:bg-ink/5 transition disabled:opacity-40"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 flex flex-col gap-4">
+          {step === "form" && (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-jakarta font-bold uppercase tracking-wider text-ink/50">
+                  Session Title *
+                </label>
+                <Input
+                  placeholder="e.g. Fresh sarees just in!"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  disabled={loading}
+                  autoFocus
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-jakarta font-bold uppercase tracking-wider text-ink/50">
+                  Category
+                </label>
+                <Input
+                  placeholder="e.g. Handloom & Textiles"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Permission notice */}
+              <div className="rounded-xl bg-peach/30 border border-coral/15 p-3 flex gap-2.5">
+                <div className="flex flex-col gap-1 shrink-0 pt-0.5">
+                  <HiOutlineVideoCamera className="text-coral text-sm" />
+                  <HiOutlineMicrophone className="text-coral text-sm" />
+                </div>
+                <div className="text-[10px] font-jakarta text-ink/70 leading-relaxed">
+                  We'll need access to your <strong>camera</strong> and{" "}
+                  <strong>microphone</strong> to start streaming. Your browser
+                  will ask for permission in the next step.
+                </div>
+              </div>
+
+              {permError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-[11px] font-jakarta text-red-700 whitespace-pre-line leading-relaxed">
+                  {permError}
+                </div>
+              )}
+
+              <Button
+                onClick={() => requestPermissions(false)}
+                disabled={loading || !title.trim()}
+                className="w-full"
+              >
+                {loading ? (
+                  <Spinner />
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <HiOutlineVideoCamera className="text-base" />
+                    Allow Camera & Mic
+                  </span>
+                )}
+              </Button>
+
+              {/* Fallback: audio-only (useful when no webcam is available) */}
+              {permError && (
+                <button
+                  onClick={() => requestPermissions(true)}
+                  disabled={loading || !title.trim()}
+                  className="w-full text-[11px] font-jakarta font-semibold text-ink/60 underline decoration-dotted underline-offset-2 hover:text-coral transition disabled:opacity-40"
+                >
+                  <HiOutlineMicrophone className="inline text-sm mr-1" />
+                  Try Audio Only (no camera)
+                </button>
+              )}
+            </>
+          )}
+
+          {step === "permissions" && (
+            <>
+              {/* Live preview */}
+              <div className="relative aspect-video rounded-xl overflow-hidden bg-ink">
+                <video
+                  ref={previewRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/40 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-mint animate-pulse" />
+                  PREVIEW
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-mint/10 border border-mint/30 p-3 flex items-center gap-2">
+                <span className="text-base">✅</span>
+                <div className="text-[11px] font-jakarta text-leaf">
+                  Camera and microphone are working. Ready to go live!
+                </div>
+              </div>
+
+              {permError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-[11px] font-jakarta text-red-700">
+                  {permError}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (previewStream) {
+                      previewStream.getTracks().forEach((t) => t.stop());
+                      setPreviewStream(null);
+                    }
+                    setStep("form");
+                  }}
+                  disabled={loading}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-ink/10 text-xs font-jakarta font-semibold text-ink/60 hover:border-ink/30 hover:text-ink transition disabled:opacity-40"
+                >
+                  Back
+                </button>
+                <Button
+                  onClick={startSession}
+                  disabled={loading}
+                  className="flex-1"
+                >
+                  {loading ? (
+                    <Spinner />
+                  ) : (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                      Go Live Now
+                    </span>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+// ─── Create Poll Modal (Seller only) ──────────────────────────────────────────
+function CreatePollModal({ open, onClose, sessionId }) {
+  const [question, setQuestion] = useState("");
+  const [options, setOptions] = useState(["", "", "", ""]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Reset when closed
+  useEffect(() => {
+    if (!open) {
+      setQuestion("");
+      setOptions(["", "", "", ""]);
+      setError("");
+      setLoading(false);
+    }
+  }, [open]);
+
+  function setOption(idx, value) {
+    setOptions((opts) => opts.map((o, i) => (i === idx ? value : o)));
+  }
+
+  async function launchPoll() {
+    setError("");
+    const cleanQuestion = question.trim();
+    const cleanOptions = options.map((o) => o.trim()).filter(Boolean);
+
+    if (!cleanQuestion) {
+      setError("Question is required");
+      return;
+    }
+    if (cleanOptions.length < 2) {
+      setError("Add at least 2 options");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await api.post(`/live/sessions/${sessionId}/poll`, {
+        question: cleanQuestion,
+        options: cleanOptions,
+      });
+      onClose();
+    } catch (err) {
+      setError(
+        err.response?.data?.error || err.message || "Failed to launch poll",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 grid place-items-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-ink/5">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-coral/10 grid place-items-center">
+              <HiOutlineChartBar className="text-coral text-base" />
+            </div>
+            <h2 className="font-fraunces text-lg text-ink">Create Live Poll</h2>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="text-ink/30 hover:text-ink text-xl w-8 h-8 grid place-items-center rounded-full hover:bg-ink/5 transition disabled:opacity-40"
+          >
+            <HiOutlineXMark />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-jakarta font-bold uppercase tracking-wider text-ink/50">
+              Question *
+            </label>
+            <Input
+              placeholder="e.g. Which color saree do you like best?"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              disabled={loading}
+              autoFocus
+              maxLength={200}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-jakarta font-bold uppercase tracking-wider text-ink/50">
+              Options (need at least 2)
+            </label>
+            {options.map((opt, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-full bg-coral/10 text-coral text-xs font-bold grid place-items-center shrink-0">
+                  {i + 1}
+                </span>
+                <Input
+                  placeholder={`Option ${i + 1}`}
+                  value={opt}
+                  onChange={(e) => setOption(i, e.target.value)}
+                  disabled={loading}
+                  maxLength={80}
+                  className="flex-1"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-xl bg-peach/30 border border-coral/15 p-3 text-[10px] font-jakarta text-ink/70 leading-relaxed">
+            💡 The poll will appear instantly to all viewers. They can vote
+            once, and results update live.
+          </div>
+
+          {error && (
+            <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-[11px] font-jakarta text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 px-4 py-2.5 rounded-xl border border-ink/10 text-xs font-jakarta font-semibold text-ink/60 hover:border-ink/30 hover:text-ink transition disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            <Button onClick={launchPoll} disabled={loading} className="flex-1">
+              {loading ? <Spinner /> : "Launch Poll"}
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+export default function LiveStream() {
+  const { id } = useParams();
+  const user = useAuthStore((s) => s.user);
+  const videoRef = useRef(null);
+  const clientRef = useRef(null);
+  const tracksRef = useRef(null);
+  const chatEndRef = useRef(null);
+
+  const [sessions, setSessions] = useState([]);
+  const [active, setActive] = useState(null);
+  const [viewers, setViewers] = useState(0);
+  const [chat, setChat] = useState([]);
+  const [text, setText] = useState("");
+  const [bursts, setBursts] = useState([]);
+  const [flashDeal, setFlashDeal] = useState(null);
+  const [countdown, setCountdown] = useState(null);
+  const [isMock, setIsMock] = useState(false);
+  const [chatTab, setChatTab] = useState("chat");
+  const [liveTime, setLiveTime] = useState(2972);
+  const [showSpin, setShowSpin] = useState(false);
+  const [activePoll, setActivePoll] = useState(null);
+  const [myVote, setMyVote] = useState(null);
+  const [showCreatePoll, setShowCreatePoll] = useState(false);
+  const [showGoLive, setShowGoLive] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [endingSession, setEndingSession] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [qaList, setQaList] = useState([]);
+  const [qaAnswers, setQaAnswers] = useState({});
+  const [qaQuestion, setQaQuestion] = useState("");
+
+  // Derived: is current user the host of the active session?
+  const userIsSeller = isUserSeller(user);
+  const userIsHost = active && !isMock && isHostOfSession(user, active);
+  const hostName = active
+    ? typeof active.host === "string"
+      ? active.host
+      : active.host?.shopName ||
+        active.host?.name ||
+        active.host?.username ||
+        active.host?.userName ||
+        "Host"
+    : "Host";
+
+  async function goLive(session) {
+    // Refresh sessions list and switch to the new session
+    try {
+      const { data } = await api.get("/live/sessions");
+      const all = data.sessions || [];
+      setSessions(all);
+    } catch (e) {
+      console.error("Failed to reload sessions", e);
+    }
+    setActive(session);
+    setIsMock(false);
+    setShowGoLive(false);
+  }
+
+  async function endLive() {
+    if (!active || !userIsHost) return;
+    if (!window.confirm("End this live session?")) return;
+    setEndingSession(true);
+    try {
+      await api.post(`/live/sessions/${active._id}/end`);
+      // Cleanup local Agora state
+      if (tracksRef.current) {
+        tracksRef.current.forEach((t) => {
+          try {
+            t.stop();
+            t.close();
+          } catch {}
+        });
+        tracksRef.current = null;
+      }
+      if (clientRef.current) {
+        try {
+          await clientRef.current.leave();
+        } catch {}
+      }
+      // Reset UI to mock state
+      setSessions([MOCK_SESSION]);
+      setActive(MOCK_SESSION);
+      setIsMock(true);
+      setIsPublishing(false);
+    } catch (err) {
+      console.error("Failed to end session", err);
+      alert(
+        "Failed to end session: " + (err.response?.data?.error || err.message),
+      );
+    } finally {
+      setEndingSession(false);
+    }
+  }
+
+  // ─── Timer ──────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const h = setInterval(() => setLiveTime((t) => t + 1), 1000);
+    return () => clearInterval(h);
+  }, []);
+
+  // ─── Auto-scroll chat ───────────────────────────────────────────────────────
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chat]);
+
+  // ─── Mock chat injection ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isMock) return;
+    setViewers(2928);
+    let i = 0;
+    const inject = () => {
+      if (i < MOCK_CHAT.length) {
+        setChat((c) => [...c.slice(-49), MOCK_CHAT[i++]]);
+        setTimeout(inject, 1400 + Math.random() * 2200);
+      }
+    };
+    const t = setTimeout(inject, 700);
+    return () => clearTimeout(t);
+  }, [isMock]);
+
+  useEffect(() => {
+    if (!active) return;
+    const base = String(hostName || "LIVE")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .slice(0, 6)
+      .toUpperCase();
+    const digits = Math.floor(100 + Math.random() * 900);
+    setPromoCode(`${base}${digits}`);
+  }, [active?._id, hostName]);
+
+  // ─── Load sessions ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    api
+      .get("/live/sessions")
+      .then(({ data }) => {
+        const all = data.sessions || [];
+        const live = all.filter((s) => s.status === "live");
+        const target = id ? all.find((s) => s._id === id) : live[0];
+        if (target) {
+          setSessions(all);
+          setActive(target);
+          setIsMock(false);
+        } else {
+          setSessions([MOCK_SESSION]);
+          setActive(MOCK_SESSION);
+          setIsMock(true);
+        }
+      })
+      .catch(() => {
+        setSessions([MOCK_SESSION]);
+        setActive(MOCK_SESSION);
+        setIsMock(true);
+      });
+  }, [id]);
+
+  // ─── Socket listeners ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!active || isMock) return;
+    const s = getSocket();
+    s.emit("live:join", { roomId: active.roomId });
+    const onViewer = ({ count }) => setViewers(count);
+    const onChat = (msg) => setChat((c) => [...c.slice(-49), msg]);
+    const onReact = () => fireReaction();
+    const onFlash = (deal) => {
+      setFlashDeal(deal);
+      const end = new Date(deal.endsAt).getTime();
+      const tick = () => {
+        const l = Math.max(0, Math.round((end - Date.now()) / 1000));
+        setCountdown(l);
+        if (l <= 0) setFlashDeal(null);
+      };
+      tick();
+      const h = setInterval(tick, 1000);
+      return () => clearInterval(h);
+    };
+    // ─── NEW: poll handlers ───────────────────────────────────────────
+    const onPoll = (poll) => {
+      setActivePoll(poll);
+      setMyVote(null);
+      setChatTab("poll");
+    };
+    const onPollUpdate = (poll) => setActivePoll(poll);
+    const onQaNew = (qa) => setQaList((prev) => [qa, ...prev]);
+    const onQaAnswered = ({ questionId, answer, answeredBy, at }) => {
+      setQaList((prev) =>
+        prev.map((q) =>
+          q.id === questionId
+            ? { ...q, answer, answeredBy, answeredAt: at }
+            : q,
+        ),
+      );
+    };
+    // ──────────────────────────────────────────────────────────────────
+    s.on("live:viewerCount", onViewer);
+    s.on("live:chat", onChat);
+    s.on("live:reaction", onReact);
+    s.on("live:flashDeal", onFlash);
+    s.on("live:poll", onPoll);
+    s.on("live:pollUpdate", onPollUpdate);
+    s.on("live:qa:new", onQaNew);
+    s.on("live:qa:answered", onQaAnswered);
+
+    return () => {
+      s.emit("live:leave", { roomId: active.roomId });
+      s.off("live:viewerCount", onViewer);
+      s.off("live:chat", onChat);
+      s.off("live:reaction", onReact);
+      s.off("live:flashDeal", onFlash);
+      s.off("live:poll", onPoll);
+      s.off("live:pollUpdate", onPollUpdate);
+      s.off("live:qa:new", onQaNew);
+      s.off("live:qa:answered", onQaAnswered);
+    };
+  }, [active, isMock]);
+
+  // ─── Agora live stream ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!active || isMock) return;
+    if (!videoRef.current) return;
+
+    let mounted = true;
+    const localClient = createClient();
+    clientRef.current = localClient;
+
+    const init = async () => {
+      try {
+        const isHost = isHostOfSession(user, active);
+        // ✅ Agora SDK valid roles: "host" | "audience"
+        const agoraRole = isHost ? "host" : "audience";
+        // Backend may still expect publisher/subscriber semantics — send both to be safe
+        const backendRole = isHost ? "publisher" : "subscriber";
+
+        console.log(
+          `[live] Joining as ${agoraRole}, isHost=${isHost}, user=${user?._id}`,
+        );
+        await localClient.setClientRole(agoraRole);
+
+        // 🔑 Get token + appID from backend
+        // Backend returns { token, uid, appID } — we prefer appID from backend
+        // because it's always in sync with the token. Env var is a fallback only.
+        const { data } = await api.post("/agora/token", {
+          channelName: active.roomId,
+          role: backendRole,
+        });
+
+        if (!mounted) return;
+
+        // 🛡️ Resolve which APP_ID to use:
+        //   1. Prefer the appID returned by the backend (most reliable)
+        //   2. Fall back to VITE_AGORA_APP_ID env var
+        //   3. If neither exists, abort with a clear error
+        const resolvedAppId = data.appID || data.appId || APP_ID;
+
+        if (!resolvedAppId) {
+          console.error(
+            "❌ Agora APP_ID could not be resolved.\n" +
+              "Backend did not return appID in /agora/token response, " +
+              "and VITE_AGORA_APP_ID is not set in env. " +
+              "Add VITE_AGORA_APP_ID to .env / Vercel → Environment Variables, then redeploy.",
+          );
+          if (isHost) {
+            alert(
+              "⚠️ Live streaming is not configured. Agora App ID is missing.",
+            );
+          }
+          return;
+        }
+
+        console.log(`[live] Using Agora APP_ID: ${resolvedAppId.slice(0, 8)}…`);
+
+        await localClient.join(
+          resolvedAppId,
+          active.roomId,
+          data.token,
+          data.uid || null,
+        );
+        console.log(`[live] Joined channel: ${active.roomId}`);
+
+        if (agoraRole === "host") {
+          try {
+            const tracks = await createTracks();
+            if (!mounted) {
+              tracks.forEach((t) => {
+                t.stop();
+                t.close();
+              });
+              return;
+            }
+            tracksRef.current = tracks;
+            await localClient.publish(tracks);
+            setIsPublishing(true);
+            console.log("[live] Publishing local tracks");
+            if (videoRef.current) {
+              tracks[1].play(videoRef.current);
+            }
+          } catch (trackErr) {
+            console.error("[live] Track creation error:", trackErr);
+            if (
+              trackErr.code === "PERMISSION_DENIED" ||
+              trackErr.message?.includes("Permission")
+            ) {
+              alert(
+                "Camera/Microphone permission denied. Please allow access and refresh the page.",
+              );
+            } else if (
+              trackErr.code === "DEVICE_NOT_FOUND" ||
+              trackErr.name === "NotFoundError"
+            ) {
+              alert(
+                "No camera/microphone found. Check Windows privacy settings and that no other app (Teams, WhatsApp, Skype) is using the camera.",
+              );
+            } else {
+              alert(
+                "Failed to access camera/mic: " +
+                  (trackErr.message || trackErr.code || "Unknown error"),
+              );
+            }
+          }
+        }
+
+        localClient.on("user-published", async (remoteUser, mediaType) => {
+          try {
+            await localClient.subscribe(remoteUser, mediaType);
+            console.log(
+              `[live] Subscribed to ${remoteUser.uid} (${mediaType})`,
+            );
+            if (mediaType === "video" && videoRef.current && mounted) {
+              const existingPlayer = document.getElementById(
+                `remote-${remoteUser.uid}`,
+              );
+              if (existingPlayer) existingPlayer.remove();
+              const player = document.createElement("div");
+              player.id = `remote-${remoteUser.uid}`;
+              player.style.width = "100%";
+              player.style.height = "100%";
+              player.style.position = "absolute";
+              player.style.top = "0";
+              player.style.left = "0";
+              videoRef.current.appendChild(player);
+              remoteUser.videoTrack.play(player);
+            }
+            if (mediaType === "audio") {
+              remoteUser.audioTrack.play();
+            }
+          } catch (err) {
+            console.error("[live] Subscribe error:", err);
+          }
+        });
+
+        localClient.on("user-unpublished", (remoteUser, mediaType) => {
+          if (mediaType === "video") {
+            const player = document.getElementById(`remote-${remoteUser.uid}`);
+            if (player) player.remove();
+            console.log(`[live] Removed player for ${remoteUser.uid}`);
+          }
+        });
+
+        localClient.on("user-left", (remoteUser) => {
+          const player = document.getElementById(`remote-${remoteUser.uid}`);
+          if (player) player.remove();
+        });
+      } catch (err) {
+        console.error("[live] Agora init error:", err);
+      }
+    };
+
+    init();
+
+    return () => {
+      mounted = false;
+      console.log("[live] Cleaning up Agora resources");
+      setIsPublishing(false);
+      if (tracksRef.current) {
+        tracksRef.current.forEach((track) => {
+          try {
+            track.stop();
+            track.close();
+          } catch (e) {
+            /* ignore */
+          }
+        });
+        tracksRef.current = null;
+      }
+      if (localClient) {
+        localClient.leave().catch(() => {});
+        localClient.removeAllListeners();
+      }
+      if (videoRef.current) {
+        const remotePlayers =
+          videoRef.current.querySelectorAll('[id^="remote-"]');
+        remotePlayers.forEach((p) => p.remove());
+      }
+    };
+  }, [active?._id, user?._id, isMock]);
+
+  const fireReaction = useCallback(() => {
+    const bid = Math.random();
+    const Icon =
+      REACTION_ICONS[Math.floor(Math.random() * REACTION_ICONS.length)];
+    setBursts((b) => [...b, { id: bid, Icon, left: 15 + Math.random() * 70 }]);
+    setTimeout(() => setBursts((b) => b.filter((x) => x.id !== bid)), 1800);
+  }, []);
+
+  function sendChat(e) {
+    e?.preventDefault?.();
+    if (!text.trim() || !active) return;
+    if (isMock) {
+      setChat((c) => [
+        ...c.slice(-49),
+        { user: user?.name || "You", text: text.trim(), isMe: true },
+      ]);
+    } else {
+      getSocket().emit("live:chat", {
+        roomId: active.roomId,
+        text: text.trim(),
+      });
+    }
+    setText("");
+  }
+
+  function sendReaction() {
+    fireReaction();
+    if (!active || isMock) return;
+    getSocket().emit("live:reaction", {
+      roomId: active.roomId,
+      emoji: "heart",
+    });
+  }
+
+  async function spin() {
+    // Guard: no active session
+    if (!active) {
+      return {
+        ok: false,
+        title: "No active stream",
+        message: "There is no live session to spin in right now.",
+      };
+    }
+
+    // Guard: mock/demo mode
+    if (isMock) {
+      return {
+        ok: false,
+        title: "Demo mode",
+        message: "Spin only works on a real live stream.",
+      };
+    }
+
+    // Guard: stream not live
+    if (active.status && active.status !== "live") {
+      return {
+        ok: false,
+        title: "Stream is offline",
+        message: "You can only spin the wheel while the stream is live.",
+      };
+    }
+
+    // Guard: not signed in
+    if (!user) {
+      return {
+        ok: false,
+        title: "Sign in required",
+        message: "Please log in to spin the wheel.",
+      };
+    }
+
+    try {
+      const { data } = await api.post(`/live/sessions/${active._id}/spin`);
+      return { ok: true, prize: data.prize };
+    } catch (err) {
+      const status = err.response?.status;
+      const serverMsg =
+        err.response?.data?.message || err.response?.data?.error || "";
+
+      let title = "Spin unavailable";
+      let message = serverMsg || "Something went wrong. Please try again.";
+
+      if (/only during live/i.test(serverMsg)) {
+        title = "Stream is offline";
+        message = "Spin is only available while the stream is live.";
+      } else if (/already spun/i.test(serverMsg)) {
+        title = "Already spun";
+        message = "You've already used your spin in this session.";
+      } else if (/wait before spinning/i.test(serverMsg)) {
+        title = "Slow down!";
+        message = "Please wait a few seconds before spinning again.";
+      } else if (status === 401) {
+        title = "Sign in required";
+        message = "Please log in to spin the wheel.";
+      }
+
+      return { ok: false, title, message };
+    }
+  }
+
+  if (!active)
+    return (
+      <div className="min-h-[60vh] grid place-items-center">
+        <Spinner />
+      </div>
+    );
+
+  const stats = active.stats || {};
+  const grpCount = active.groupBuy?.participants?.length || 0;
+  const grpMax = active.groupBuy?.threshold || 10;
+  const grpPct = Math.round((grpCount / grpMax) * 100);
+
+  // Should we show the floating "Go Live" button for sellers?
+  // Show it when: user is a seller, AND they're not currently hosting a live session
+  const showGoLiveFAB = user && userIsSeller && !userIsHost;
+
+  return (
+    <div className="min-h-screen bg-cream/90 text-ink dark:bg-[#09050f] dark:text-cream transition-colors duration-300">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <section className="rounded-[2rem] border border-ink/5 bg-white/90 dark:bg-white/5 shadow-soft backdrop-blur-xl p-5 lg:p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 rounded-3xl bg-gradient-to-r from-coral to-tangerine px-4 py-2 shadow-glow text-white text-[11px] font-semibold tracking-[0.18em]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                  LIVE SHOPPING
+                </div>
+                {userIsHost && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/90 dark:bg-white/10 border border-ink/10 dark:border-white/10 px-3 py-2 text-[10px] font-semibold text-ink dark:text-cream">
+                    <HiOutlineVideoCamera className="text-sm text-coral" />
+                    Hosting Now
+                  </span>
+                )}
+                {userIsHost && isPublishing && (
+                  <button
+                    onClick={endLive}
+                    disabled={endingSession}
+                    className="inline-flex items-center gap-2 rounded-full bg-ink/95 text-white px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] hover:bg-ink transition disabled:opacity-60"
+                  >
+                    <HiOutlineStop className="text-sm" />
+                    Stop Live
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 text-[11px] text-ink/65 dark:text-cream/65">
+                <span className="rounded-full border border-ink/10 bg-slate-50 dark:bg-white/10 px-3 py-2 font-semibold">
+                  Host: {hostName}
+                </span>
+                <span className="rounded-full border border-coral/15 bg-coral/10 px-3 py-2 font-semibold text-coral">
+                  Use code {promoCode || "LIVE10"}
+                </span>
+              </div>
+
+              <div className="max-w-2xl">
+                <h1 className="font-fraunces text-3xl sm:text-4xl tracking-tight leading-tight text-ink dark:text-cream">
+                  Live{" "}
+                  <span className="text-coral italic">drops,</span>{" "}
+                  locally curated.
+                </h1>
+                <p className="mt-3 text-sm sm:text-base text-ink/65 dark:text-cream/65 max-w-xl leading-7">
+                  Watch, chat, shop — in real time.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div>
+              <div className="text-xs uppercase tracking-[0.24em] font-semibold text-ink/40 dark:text-cream/55">
+                Top streams
+              </div>
+              <h2 className="mt-2 text-2xl font-fraunces text-ink dark:text-cream">
+                Explore live drops now.
+              </h2>
+            </div>
+            <div className="text-[11px] text-ink/50 dark:text-cream/60">
+              Swipe through current streams
+            </div>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-3">
+            {sessions.map((s, idx) => (
+              <LiveCarouselCard
+                key={s._id}
+                stream={s}
+                active={active?._id === s._id}
+                onClick={setActive}
+                gradientIdx={idx}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Main grid */}
+        <div className="grid lg:grid-cols-[1fr_340px] gap-4 items-start">
+          {/* ── LEFT ─────────────────────────────────────── */}
+          <div className="flex flex-col gap-3 min-w-0">
+            {/* Video */}
+            <div className="relative aspect-video rounded-2xl overflow-hidden bg-ink shadow-xl border border-ink/5">
+              <div ref={videoRef} className="absolute inset-0 w-full h-full" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/40 pointer-events-none" />
+
+              {/* Top-left LIVE badge */}
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
+                <span className="inline-flex items-center gap-1 bg-coral text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                  LIVE
+                </span>
+                {userIsHost && isPublishing && (
+                  <span className="inline-flex items-center gap-1 bg-mint/90 text-white text-[9px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm">
+                    <HiOutlineVideoCamera className="text-xs" />
+                    ON AIR
+                  </span>
+                )}
+              </div>
+
+              {/* Top-right stats */}
+              <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                <span className="flex items-center gap-1 text-[10px] font-jakarta font-semibold text-white bg-black/35 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                  <HiOutlineFire className="text-coral text-xs" />
+                  {(viewers || stats.peakViewers || 0).toLocaleString()}
+                </span>
+                <span className="flex items-center gap-1 text-[10px] font-jakarta font-semibold text-white bg-black/35 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                  <HiOutlineUserGroup className="text-mint text-xs" />
+                  {grpCount}/{grpMax}
+                </span>
+              </div>
+
+              {/* Host info */}
+              <div className="absolute top-10 left-3 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full grid place-items-center font-fraunces font-bold text-sm border-2 border-white/40 bg-coral text-white">
+                  {hostName[0]?.toUpperCase()}
+                </div>
+                <div>
+                  <div className="font-jakarta font-bold text-[11px] text-white leading-none">
+                    {hostName}
+                  </div>
+                  <div className="text-[9px] text-white/55 font-jakarta">
+                    4.9★ · 2.1k followers
+                  </div>
+                </div>
+                {!userIsHost && (
+                  <button className="text-[9px] bg-white text-ink font-bold px-2 py-0.5 rounded-full hover:bg-peach transition ml-1">
+                    + Follow
+                  </button>
+                )}
+              </div>
+
+              {/* Empty state for non-host before any publisher joins */}
+              {!userIsHost && !isMock && (
+                <div className="absolute inset-0 grid place-items-center pointer-events-none">
+                  <div className="text-center text-white/60">
+                    <div className="text-3xl mb-2 opacity-50">📡</div>
+                    <div className="text-xs font-jakarta">
+                      Waiting for host to start streaming…
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Flash deal banner */}
+              <AnimatePresence>
+                {(flashDeal || isMock) && (
+                  <motion.div
+                    initial={{ y: -20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -20, opacity: 0 }}
+                    className="absolute top-[68px] left-3 right-3 flex items-center gap-2 bg-coral/90 backdrop-blur text-white px-3 py-1.5 rounded-xl text-[10px] font-jakarta font-bold shadow-lg"
+                  >
+                    <motion.span
+                      animate={{ scale: [1, 1.3, 1] }}
+                      transition={{ repeat: Infinity, duration: 0.9 }}
+                    >
+                      <HiOutlineBolt className="text-sm" />
+                    </motion.span>
+                    {flashDeal
+                      ? `FLASH DEAL · ${countdown}s LEFT`
+                      : "FLASH DEAL · 8 MIN LEFT"}
+                    <span className="ml-auto font-normal text-white/80">
+                      {flashDeal
+                        ? `${flashDeal.discountPct}% off`
+                        : "10% off · code "}
+                      {!flashDeal && (
+                        <span className="font-bold text-white">LIVE10</span>
+                      )}
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {active.featuredProducts?.[0] && (
+                <FloatingProductCard product={active.featuredProducts[0]} />
+              )}
+
+              {/* Bottom: product name + promo + controls */}
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 to-transparent px-4 pb-4 pt-8">
+                <div className="flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    {active.featuredProducts?.[0] && (
+                      <div className="font-fraunces text-base text-white font-semibold line-clamp-1">
+                        {active.featuredProducts[0].title} · Limited{" "}
+                        {active.featuredProducts[0].stock || 12}
+                      </div>
+                    )}
+                    <div className="text-[10px] font-jakarta text-white/60 mt-0.5">
+                      Use code <span className="text-coral font-bold">{promoCode || "LIVE10"}</span> — 10% off
+                    </div>
+                  </div>
+                  {/* Controls */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button className="w-8 h-8 rounded-full bg-white/15 backdrop-blur grid place-items-center text-white hover:bg-white/25 transition">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                      </svg>
+                    </button>
+                    <button
+                      onClick={sendReaction}
+                      className="w-8 h-8 rounded-full bg-white/15 backdrop-blur grid place-items-center text-white hover:bg-white/25 transition"
+                    >
+                      <HiOutlineHeart className="text-sm" />
+                    </button>
+                    <button className="w-8 h-8 rounded-full bg-white/15 backdrop-blur grid place-items-center text-white hover:bg-white/25 transition">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+                        <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reaction bursts */}
+              {bursts.map((b) => {
+                const Icon = b.Icon;
+                return (
+                  <motion.div
+                    key={b.id}
+                    className="absolute bottom-12 text-xl text-white pointer-events-none"
+                    initial={{ y: 0, opacity: 1, scale: 0.8, x: `${b.left}%` }}
+                    animate={{ y: -220, opacity: 0, scale: 1.4 }}
+                    transition={{ duration: 1.6, ease: "easeOut" }}
+                  >
+                    <Icon />
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Products strip */}
+            {active.featuredProducts?.length > 0 && (
+              <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <HiOutlineTag className="text-coral text-xs" />
+                    <span className="text-[9px] uppercase tracking-[0.2em] font-jakarta font-bold text-ink/50">
+                      Tagged in this drop
+                    </span>
+                    <span className="text-[9px] font-bold text-coral bg-coral/10 px-1.5 py-0.5 rounded-full">
+                      {active.featuredProducts.length}
+                    </span>
+                  </div>
+                  <button className="text-[9px] font-jakarta font-semibold text-coral flex items-center gap-0.5 hover:gap-1.5 transition-all">
+                    View all <HiOutlineChevronRight className="text-xs" />
+                  </button>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {active.featuredProducts.map((p) => (
+                    <ProductCard key={p._id} p={p} compact />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Stats */}
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { icon: HiOutlineUserGroup, value: (viewers || stats.peakViewers || 0).toLocaleString(), label: "LIVE VIEWERS", accent: "text-white/70" },
+                { icon: TbHeartFilled, value: stats.heartsSent ? `${(stats.heartsSent / 1000).toFixed(1)}k` : "0", label: "HEARTS SENT", accent: "text-coral" },
+                { icon: HiOutlineShoppingBag, value: stats.itemsSold || 0, label: "ITEMS SOLD", accent: "text-white/70" },
+                { icon: TbCoin, value: `+${stats.coinsEarned || 0}`, label: "COINS EARNED", accent: "text-white/70" },
+              ].map((s, i) => (
+                <div key={i} className="rounded-2xl bg-white/5 dark:bg-white/5 border border-white/10 p-4 flex items-center gap-3">
+                  <s.icon className={`text-2xl shrink-0 ${s.accent}`} />
+                  <div>
+                    <div className="font-fraunces text-xl text-ink dark:text-cream">{s.value}</div>
+                    <div className="text-[9px] font-jakarta font-semibold text-ink/40 dark:text-cream/50 uppercase tracking-widest mt-0.5">{s.label}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Group buy */}
+            <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3.5">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5">
+                  <HiOutlineUserGroup className="text-leaf text-sm" />
+                  <span className="text-xs font-jakarta font-semibold text-ink dark:text-cream">
+                    Group Buy
+                  </span>
+                  <span className="text-[9px] bg-coral/20 text-coral font-bold px-1.5 py-0.5 rounded-full">
+                    {grpCount}/{grpMax} joined
+                  </span>
+                </div>
+                <span className="text-[10px] font-jakarta text-coral font-bold">
+                  {grpMax - grpCount} more needed!
+                </span>
+              </div>
+              <div className="text-[10px] font-jakarta text-ink/50 dark:text-cream/50 mb-2">
+                Unlock 25% off when {grpMax} join
+              </div>
+              <div className="h-2 rounded-full bg-ink/8 overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-leaf to-mint rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${grpPct}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                />
+              </div>
+              <button
+                onClick={() =>
+                  user &&
+                  api
+                    .post(`/live/sessions/${active._id}/group-buy/join`)
+                    .catch(() => {})
+                }
+                className="mt-2 w-full text-[10px] font-jakarta font-semibold text-white bg-leaf rounded-lg py-1.5 hover:bg-leaf/80 transition"
+              >
+                Join Group Buy
+              </button>
+            </div>
+
+            {/* Trust badges */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                {
+                  icon: "🛡️",
+                  title: "Buyer Protection",
+                  desc: "Money back guarantee",
+                },
+                {
+                  icon: "🚚",
+                  title: "Local Delivery",
+                  desc: "Direct from maker",
+                },
+                {
+                  icon: "↩️",
+                  title: "7-day Returns",
+                  desc: "No questions asked",
+                },
+              ].map((b) => (
+                <div
+                  key={b.title}
+                  className="rounded-xl bg-white/60 dark:bg-ink/60 border border-ink/5 dark:border-white/10 px-3 py-2.5 flex items-start gap-2"
+                >
+                  <span className="text-base leading-none mt-0.5">
+                    {b.icon}
+                  </span>
+                  <div>
+                    <div className="text-[10px] font-jakarta font-semibold text-ink">
+                      {b.title}
+                    </div>
+                    <div className="text-[9px] font-jakarta text-ink/40 mt-0.5">
+                      {b.desc}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Live Q&A Section */}
+            <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3.5 flex flex-col gap-3">
+              <div className="text-xs font-jakarta font-semibold text-ink mb-1">Live Q&A</div>
+              <div className="space-y-3">
+                {qaList.map((item) => (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl bg-peach/20 border border-coral/10 p-3 space-y-2"
+                  >
+                    {/* Question */}
+                    <div className="flex items-start gap-1.5">
+                      <div
+                        className="w-5 h-5 rounded-full shrink-0 grid place-items-center text-[8px] font-bold text-ink/70 mt-0.5"
+                        style={{ background: avatarBg(item.askedBy) }}
+                      >
+                        {(item.askedBy || "V")[0]}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[9px] font-jakarta font-bold text-ink/50">
+                          {item.askedBy}
+                        </div>
+                        <div className="text-[11px] font-jakarta font-semibold text-ink">
+                          ❓ {item.question}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Answer if exists */}
+                    {item.answer && (
+                      <div className="ml-6 rounded-lg bg-mint/15 border border-mint/30 px-2.5 py-2">
+                        <div className="text-[9px] font-jakarta font-bold text-leaf mb-0.5">
+                          ✅ {item.answeredBy}
+                        </div>
+                        <div className="text-[11px] font-jakarta text-ink/70">
+                          {item.answer}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Answer input for host */}
+                    {userIsHost && !item.answer && (
+                      <div className="ml-6 flex gap-1.5">
+                        <input
+                          value={qaAnswers[item.id] || ""}
+                          onChange={(e) =>
+                            setQaAnswers((prev) => ({
+                              ...prev,
+                              [item.id]: e.target.value,
+                            }))
+                          }
+                          onKeyDown={(e) => {
+                            if (
+                              e.key === "Enter" &&
+                              qaAnswers[item.id]?.trim()
+                            ) {
+                              getSocket().emit("live:qa:answer", {
+                                roomId: active.roomId,
+                                questionId: item.id,
+                                answer: qaAnswers[item.id].trim(),
+                              });
+                              setQaAnswers((prev) => ({
+                                ...prev,
+                                [item.id]: "",
+                              }));
+                            }
+                          }}
+                          placeholder="Type answer, press Enter..."
+                          className="flex-1 text-[10px] font-jakarta bg-white/80 border border-ink/10 rounded-lg px-2.5 py-1.5 outline-none focus:border-coral/40"
+                        />
+                        <button
+                          onClick={() => {
+                            if (!qaAnswers[item.id]?.trim()) return;
+                            getSocket().emit("live:qa:answer", {
+                              roomId: active.roomId,
+                              questionId: item.id,
+                              answer: qaAnswers[item.id].trim(),
+                            });
+                            setQaAnswers((prev) => ({
+                              ...prev,
+                              [item.id]: "",
+                            }));
+                          }}
+                          className="bg-coral text-white text-[9px] font-bold px-2 py-1.5 rounded-lg hover:bg-coral/80 transition shrink-0"
+                        >
+                          Reply
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Ask question input — viewers only */}
+              {!userIsHost && (
+                <div className="p-2 border-t border-ink/5 flex gap-1.5 shrink-0">
+                  <input
+                    value={qaQuestion}
+                    onChange={(e) => setQaQuestion(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === "Enter" &&
+                        qaQuestion.trim() &&
+                        active &&
+                        !isMock
+                      ) {
+                        getSocket().emit("live:qa:ask", {
+                          roomId: active.roomId,
+                          question: qaQuestion.trim(),
+                        });
+                        setQaQuestion("");
+                      }
+                    }}
+                    placeholder="Ask the seller something..."
+                    className="flex-1 text-xs font-jakarta bg-white/80 border border-ink/10 rounded-xl px-3 py-2 outline-none focus:border-coral/40"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!qaQuestion.trim() || !active || isMock) return;
+                      getSocket().emit("live:qa:ask", {
+                        roomId: active.roomId,
+                        question: qaQuestion.trim(),
+                      });
+                      setQaQuestion("");
+                    }}
+                    className="bg-coral text-white text-[9px] font-bold px-3 py-2 rounded-xl hover:bg-coral/80 transition shrink-0"
+                  >
+                     Ask
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── RIGHT: Chat sidebar ───────────────────────── */}
+          <aside
+            className="rounded-2xl bg-white/80 dark:bg-ink/70 border border-ink/5 dark:border-white/10 flex flex-col overflow-hidden shadow-sm lg:sticky lg:top-20"
+            style={{ height: "min(calc(100vh - 96px), 680px)" }}
+          >
+            {/* Tabs */}
+            <div className="flex border-b border-ink/5 shrink-0">
+              {CHAT_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setChatTab(tab.id)}
+                  className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 border-b-2 transition ${chatTab === tab.id ? "border-coral text-coral" : "border-transparent text-ink/35 dark:text-cream/55 hover:text-ink/55 dark:hover:text-cream"}`}
+                >
+                  <tab.icon className="text-sm" />
+                  <div className="flex items-center gap-0.5">
+                    <span className="text-[8px] font-jakarta font-bold uppercase tracking-wider">
+                      {tab.label}
+                    </span>
+                    {tab.count && (
+                      <span className="w-3.5 h-3.5 rounded-full bg-coral text-white text-[7px] grid place-items-center font-bold">
+                        {tab.count}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* ── CHAT TAB ── */}
+            {chatTab === "chat" && (
+              <>
+                {/* Currently selling banner */}
+                {active.featuredProducts?.[0] && (
+                  <div className="mx-3 mt-3 shrink-0 rounded-xl bg-gradient-to-r from-peach/60 to-coral/5 border border-coral/15 p-2.5 flex items-center gap-2.5">
+                    <div className="w-1 h-10 rounded-full bg-coral shrink-0" />
+                    <img
+                      src={active.featuredProducts[0].images?.[0]?.url}
+                      alt=""
+                      className="w-10 h-10 rounded-lg object-cover shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[7px] uppercase tracking-widest font-bold text-coral">
+                        • Selling Now
+                      </div>
+                      <div className="text-[10px] font-jakarta font-semibold text-ink line-clamp-1">
+                        {active.featuredProducts[0].title}
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="font-fraunces text-xs text-ink">
+                          ₹
+                          {active.featuredProducts[0].price?.toLocaleString(
+                            "en-IN",
+                          )}
+                        </span>
+                        {active.featuredProducts[0].originalPrice >
+                          active.featuredProducts[0].price && (
+                          <span className="text-[8px] text-ink/30 line-through">
+                            ₹
+                            {active.featuredProducts[0].originalPrice?.toLocaleString(
+                              "en-IN",
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button className="bg-coral text-white text-[9px] font-bold px-2 py-1.5 rounded-lg hover:bg-coral/80 transition shrink-0">
+                      Buy
+                    </button>
+                  </div>
+                )}
+
+                {/* Chat header */}
+                <div className="px-3 py-2 shrink-0 flex items-center justify-between border-b border-ink/5">
+                  <span className="text-[9px] font-jakarta text-ink/40 uppercase tracking-wider flex items-center gap-1">
+                    <HiOutlineSparkles className="text-coral" />
+                    Live chat
+                  </span>
+                  <span className="text-[9px] font-jakarta text-leaf font-semibold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-leaf animate-pulse" />
+                    Live
+                  </span>
+                </div>
+
+                <div className="mx-3 mt-3 shrink-0 rounded-xl bg-[#1a1020]/80 dark:bg-white/5 border border-coral/20 p-3">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="text-coral text-[9px]">📌</span>
+                    <span className="text-[9px] font-jakarta font-bold uppercase tracking-[0.2em] text-coral/80">PINNED</span>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <div
+                      className="w-7 h-7 rounded-full shrink-0 grid place-items-center text-[10px] font-bold text-white"
+                      style={{ background: avatarBg(hostName) }}
+                    >
+                      {hostName[0]?.toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-jakarta font-bold text-white/90">
+                        {hostName} <span className="text-white/40 font-normal">(Host)</span>
+                      </div>
+                      <p className="mt-0.5 text-[10px] text-white/60 font-jakarta leading-snug">
+                        Use code <span className="text-coral font-bold">{promoCode || "LIVE10"}</span> for 10% OFF — only while live!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+                  {chat.length === 0 && (
+                    <p className="text-ink/35 font-jakarta italic text-[10px] pt-2">
+                      Chat will light up once people join...
+                    </p>
+                  )}
+                  {chat.map((m, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-start gap-2"
+                    >
+                      <div
+                        className="w-6 h-6 rounded-full shrink-0 grid place-items-center text-[9px] font-bold text-white mt-0.5"
+                        style={{ background: avatarBg(m.user) }}
+                      >
+                        {(m.user || "V")[0].toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className={`text-[10px] font-jakarta font-bold ${m.isMe ? "text-coral" : "text-white/90 dark:text-white/90"}`}>
+                          {m.user || "viewer"}{" "}
+                        </span>
+                        {m.bought && (
+                          <span className="text-[7px] bg-coral/20 text-coral font-bold px-1.5 py-0.5 rounded-full mr-1">
+                            🛒 Bought
+                          </span>
+                        )}
+                        <span className="text-[11px] font-jakarta text-white/60 dark:text-white/60 break-words">
+                          {m.text}
+                        </span>
+                      </div>
+                    </motion.div>
+                  ))}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Emoji reaction bar */}
+                <div className="px-3 py-2 border-t border-white/10 dark:border-white/10 flex gap-1.5 overflow-x-auto shrink-0 bg-black/20 dark:bg-black/20">
+                  {["❤️","🔥","😍","✨","👏","😮","🙏","🌸"].map((e) => (
+                    <button
+                      key={e}
+                      onClick={() => { setText((t) => t + e); sendReaction(); }}
+                      className="text-lg hover:scale-125 transition-transform leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Input */}
+                <form
+                  onSubmit={sendChat}
+                  className="p-2 border-t border-ink/5 flex items-center gap-2 w-full"
+                >
+                  <div className="flex-1 min-w-0">
+                    <Input
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      placeholder="Say something nice..."
+                      className="w-full text-xs"
+                    />
+                  </div>
+
+                  <div className="w-auto flex-shrink-0">
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="!w-auto px-4"
+                      leftIcon={<HiOutlinePaperAirplane className="text-xs" />}
+                    >
+                      Send
+                    </Button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* ── SHOP TAB ── */}
+            {chatTab === "shop" && (
+              <div className="flex-1 overflow-y-auto py-2">
+                {(active.featuredProducts || []).map((p) => (
+                  <ProductCard key={p._id} p={p} compact={false} />
+                ))}
+              </div>
+            )}
+
+            {/* ── Q&A TAB ── */}
+            {chatTab === "qa" && (
+              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+                {[
+                  {
+                    q: "Is this pure silk?",
+                    a: "Yes! 100% pure Kanchipuram silk with zari border.",
+                  },
+                  {
+                    q: "Do you ship internationally?",
+                    a: "Currently India only, international launching soon!",
+                  },
+                ].map((item, i) => (
+                  <div
+                    key={i}
+                    className="rounded-xl bg-peach/20 border border-coral/10 p-3"
+                  >
+                    <div className="text-[10px] font-jakarta font-semibold text-ink mb-1">
+                      ❓ {item.q}
+                    </div>
+                    <div className="text-[10px] font-jakarta text-ink/60">
+                      ↳ {item.a}
+                    </div>
+                  </div>
+                ))}
+                <button className="w-full rounded-xl border border-dashed border-ink/15 py-2.5 text-[10px] font-jakarta text-ink/40 hover:border-coral/30 hover:text-coral transition">
+                  + Ask a question
+                </button>
+              </div>
+            )}
+
+            {/* ── POLL TAB ── */}
+            {chatTab === "poll" && (
+              <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
+                {!activePoll ? (
+                  <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-peach/40 grid place-items-center text-2xl">
+                      📊
+                    </div>
+                    <div className="font-fraunces text-base text-ink">
+                      No active poll
+                    </div>
+                    <div className="text-[10px] font-jakarta text-ink/40 max-w-[180px]">
+                      {userIsHost
+                        ? "Engage your viewers — start a poll below!"
+                        : "The seller will start one soon. Stay tuned!"}
+                    </div>
+                    {userIsHost && (
+                      <button
+                        onClick={() => setShowCreatePoll(true)}
+                        className="mt-2 inline-flex items-center gap-1.5 bg-coral text-white text-xs font-jakarta font-bold px-4 py-2 rounded-full hover:bg-coral/90 transition shadow-md"
+                      >
+                        <HiOutlinePlus className="text-sm" />
+                        Create Poll
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Question */}
+                    <div className="rounded-xl bg-gradient-to-br from-peach/40 to-lavender/30 border border-coral/15 p-3">
+                      <div className="text-[8px] uppercase tracking-[0.2em] font-jakarta font-bold text-coral mb-1">
+                        Live Poll
+                      </div>
+                      <div className="font-fraunces text-sm text-ink leading-snug">
+                        {activePoll.question}
+                      </div>
+                    </div>
+
+                    {/* Options */}
+                    <div className="space-y-2">
+                      {activePoll.options.map((opt, i) => {
+                        const total = activePoll.options.reduce(
+                          (s, o) => s + o.votes,
+                          0,
+                        );
+                        const pct = total
+                          ? Math.round((opt.votes / total) * 100)
+                          : 0;
+                        const hasVoted = myVote !== null;
+                        const isMyChoice = myVote === i;
+                        // Hosts see live results immediately and can't vote on their own poll
+                        const showResults = hasVoted || userIsHost;
+                        const disableButton = hasVoted || userIsHost;
+                        return (
+                          <button
+                            key={i}
+                            disabled={disableButton}
+                            onClick={async () => {
+                              if (hasVoted) return;
+                              try {
+                                setMyVote(i); // optimistic
+                                await api.post(
+                                  `/live/sessions/${active._id}/poll/${activePoll._id}/vote`,
+                                  { optionIndex: i },
+                                );
+                              } catch (err) {
+                                setMyVote(null); // rollback on error
+                                alert(
+                                  err.response?.data?.error || "Vote failed",
+                                );
+                              }
+                            }}
+                            className={`w-full text-left rounded-xl border overflow-hidden transition ${
+                              isMyChoice
+                                ? "border-coral bg-coral/5"
+                                : disableButton
+                                  ? "border-ink/10 cursor-default"
+                                  : "border-ink/10 hover:border-coral/30 cursor-pointer"
+                            }`}
+                          >
+                            <div className="px-3 py-2.5 relative">
+                              {/* Bar fill */}
+                              <div
+                                className={`absolute inset-y-0 left-0 transition-all duration-500 ${
+                                  isMyChoice ? "bg-coral/20" : "bg-coral/10"
+                                }`}
+                                style={{
+                                  width: showResults ? `${pct}%` : "0%",
+                                }}
+                              />
+                              <div className="relative flex justify-between items-center text-[11px] font-jakarta gap-2">
+                                <span className="font-semibold flex items-center gap-1.5">
+                                  {isMyChoice && !userIsHost && (
+                                    <span className="text-coral">✓</span>
+                                  )}
+                                  {opt.text}
+                                </span>
+                                {showResults && (
+                                  <span className="text-ink/50 tabular-nums shrink-0">
+                                    {pct}% · {opt.votes}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Total votes + host controls */}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[9px] font-jakarta text-ink/40">
+                        {activePoll.options.reduce((s, o) => s + o.votes, 0)}{" "}
+                        total votes
+                      </span>
+                      {userIsHost && (
+                        <button
+                          onClick={() => setShowCreatePoll(true)}
+                          className="text-[9px] font-jakarta font-semibold text-coral hover:underline"
+                        >
+                          + New poll
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </aside>
+        </div>
+
+        <section className="mt-6 w-full">
+          <div className="w-full rounded-[2rem] bg-white/90 dark:bg-ink/80 border border-ink/10 dark:border-white/10 p-5 shadow-soft">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-3xl bg-mint/10 text-leaf grid place-items-center text-xl">
+                🎡
+              </div>
+
+              <div>
+                <div className="text-[11px] font-semibold text-ink dark:text-cream">
+                  Spin the Wheel
+                </div>
+
+                <div className="text-[9px] text-ink/50 dark:text-cream/60">
+                  Win coins & deals
+                </div>
+              </div>
+            </div>
+
+            <Button
+              onClick={() => setShowSpin((v) => !v)}
+              className="w-full py-3 text-sm"
+            >
+              {showSpin ? "Hide wheel" : "Try your luck"}
+            </Button>
+          </div>
+          <AnimatePresence>
+            {showSpin && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 16 }}
+                className="mt-4 rounded-[2rem] bg-white/90 dark:bg-ink/80 border border-ink/10 dark:border-white/10 p-5 shadow-soft"
+              >
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-3xl bg-mint/10 text-leaf grid place-items-center text-xl">
+                    🎡
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-semibold text-ink dark:text-cream">
+                      Spin the Wheel
+                    </div>
+
+                    <div className="text-[9px] text-ink/50 dark:text-cream/60">
+                      One spin per session
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-center scale-[0.65] md:scale-75 lg:scale-90 origin-top">
+                  <SpinTheWheel onSpun={spin} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+      </div>
+
+      {/* Floating Go Live FAB for sellers (mobile + always-accessible CTA) */}
+      {showGoLiveFAB && (
+        <motion.button
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.3, type: "spring" }}
+          onClick={() => setShowGoLive(true)}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 bg-coral text-white px-5 py-3.5 rounded-full shadow-2xl hover:bg-coral/90 transition group"
+        >
+          <span className="relative flex">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-50 animate-ping" />
+            <HiOutlineVideoCamera className="text-base relative" />
+          </span>
+          <span className="font-jakarta font-bold text-sm">Go Live</span>
+        </motion.button>
+      )}
+
+      {/* Create Poll Modal (sellers only) */}
+      <AnimatePresence>
+        <CreatePollModal
+          open={showCreatePoll}
+          onClose={() => setShowCreatePoll(false)}
+          sessionId={active?._id}
+        />
+      </AnimatePresence>
+
+      {/* Go Live Modal */}
+      <AnimatePresence>
+        <GoLiveModal
+          open={showGoLive}
+          onClose={() => setShowGoLive(false)}
+          onCreated={goLive}
+        />
+      </AnimatePresence>
+    </div>
+  );
+}
