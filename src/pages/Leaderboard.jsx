@@ -18,16 +18,46 @@ import VerifiedBadge from "../components/VerifiedBadge";
 
 const CITIES = [
   "All",
-  "Mumbai",
-  "Delhi",
-  "Bengaluru",
-  "Hyderabad",
-  "Chennai",
-  "Kolkata",
-  "Pune",
-  "Jaipur",
-  "Lucknow",
-  "Varanasi",
+  // Maharashtra
+  "Mumbai", "Pune", "Nagpur", "Nashik", "Aurangabad", "Solapur", "Thane", "Navi Mumbai",
+  // Delhi NCR
+  "Delhi", "Noida", "Gurgaon", "Faridabad", "Ghaziabad",
+  // Karnataka
+  "Bengaluru", "Mysuru", "Hubli", "Mangaluru", "Belagavi",
+  // Telangana & Andhra Pradesh
+  "Hyderabad", "Warangal", "Visakhapatnam", "Vijayawada", "Guntur", "Tirupati",
+  // Tamil Nadu
+  "Chennai", "Coimbatore", "Madurai", "Salem", "Tiruchirappalli", "Tirunelveli",
+  // West Bengal
+  "Kolkata", "Howrah", "Durgapur", "Asansol", "Siliguri",
+  // Uttar Pradesh
+  "Lucknow", "Varanasi", "Agra", "Kanpur", "Prayagraj", "Meerut", "Bareilly", "Aligarh", "Moradabad", "Mathura",
+  // Rajasthan
+  "Jaipur", "Jodhpur", "Udaipur", "Kota", "Ajmer", "Bikaner",
+  // Gujarat
+  "Ahmedabad", "Surat", "Vadodara", "Rajkot", "Gandhinagar", "Bhavnagar",
+  // Madhya Pradesh
+  "Bhopal", "Indore", "Jabalpur", "Gwalior", "Ujjain",
+  // Bihar
+  "Patna", "Gaya", "Bhagalpur", "Muzaffarpur",
+  // Punjab & Haryana
+  "Chandigarh", "Ludhiana", "Amritsar", "Jalandhar", "Patiala",
+  // Himachal Pradesh & Uttarakhand
+  "Shimla", "Dharamshala", "Dehradun", "Haridwar", "Rishikesh", "Nainital",
+  // Odisha
+  "Bhubaneswar", "Cuttack", "Rourkela",
+  // Jharkhand & Chhattisgarh
+  "Ranchi", "Jamshedpur", "Dhanbad", "Raipur", "Bhilai",
+  // Assam & Northeast
+  "Guwahati", "Dibrugarh", "Shillong", "Imphal", "Aizawl", "Kohima", "Itanagar", "Agartala",
+  // Goa
+  "Panaji", "Margao",
+  // Kerala
+  "Kochi", "Thiruvananthapuram", "Kozhikode", "Thrissur", "Kannur",
+  // Jammu & Kashmir
+  "Jammu", "Srinagar", "Leh",
+  // Other
+  "Puducherry", "Tiruppur", "Erode", "Vellore", "Ratlam",
 ];
 
 const ROLES = [
