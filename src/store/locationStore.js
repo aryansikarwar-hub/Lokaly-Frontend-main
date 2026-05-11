@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 /**
  * Location store — persisted across sessions so the user doesn't have to
@@ -24,10 +24,10 @@ export const useLocationStore = create(
   persist(
     (set) => ({
       // ── Core fields ──────────────────────────────────────────────────
-      coords: null,       // { lng, lat }
-      label: null,        // "Indore, MP"
-      radiusKm: 10,       // default radius
-      pincode: null,      // "452001"
+      coords: null, // { lng, lat }
+      label: null, // "Indore, MP"
+      radiusKm: 10, // default radius
+      pincode: null, // "452001"
 
       // ── Actions ──────────────────────────────────────────────────────
       setFromGPS: (coords, label) =>
@@ -45,6 +45,13 @@ export const useLocationStore = create(
         }),
 
       setRadius: (radiusKm) => set({ radiusKm }),
+      // Inside the create(persist(...)) object, add to actions:
+
+      promptOpen: false,
+      setPromptOpen: (val) =>
+        set((state) => ({
+          promptOpen: typeof val === "function" ? val(state.promptOpen) : val,
+        })),
 
       clear: () =>
         set({
@@ -61,7 +68,7 @@ export const useLocationStore = create(
       setCity: (city) => set({ city }),
     }),
     {
-      name: 'lokaly-location', // localStorage key
+      name: "lokaly-location", // localStorage key
       // Only persist data fields, not action functions
       partialize: (state) => ({
         coords: state.coords,
@@ -71,8 +78,8 @@ export const useLocationStore = create(
         location: state.location,
         city: state.city,
       }),
-    }
-  )
+    },
+  ),
 );
 
 export default useLocationStore;

@@ -369,7 +369,7 @@ function OrdersTab() {
               />
             )}
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-jakarta font-semibold text-ink dark:text-cream font-mono">
+              <div className="text-xs font-jakarta font-semibold text-ink dark:text-cream">
                 #{String(o._id).slice(-8).toUpperCase()}
               </div>
               <div className="text-[11px] text-ink/55 dark:text-cream/55 mt-0.5 truncate font-jakarta">
