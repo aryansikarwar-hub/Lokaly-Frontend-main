@@ -5,22 +5,19 @@ import {
   HiOutlinePlusCircle, HiOutlineHashtag, HiHeart, HiOutlineHeart,
   HiOutlineChatBubbleOvalLeft, HiOutlinePaperAirplane, HiOutlineShieldCheck,
   HiOutlineShoppingBag, HiOutlinePhoto, HiOutlineBookmark, HiBookmark,
-  HiOutlineShare, HiOutlinePlay, HiOutlineFilm, HiOutlinePencilSquare,
+  HiOutlinePlay, HiOutlineFilm, HiOutlinePencilSquare,
   HiOutlineTrash, HiOutlineEllipsisHorizontal, HiOutlineSparkles, HiOutlineFire,
-  HiOutlineStar, HiOutlineVideoCamera, HiOutlineRectangleStack,
+  HiOutlineStar, HiOutlineVideoCamera,
   HiOutlineMagnifyingGlass, HiOutlineXMark, HiOutlineCheck, HiOutlineEye,
-  HiOutlineClock, HiOutlineMusicalNote, HiOutlineMapPin, HiOutlineFaceSmile,
-  HiOutlineArrowsRightLeft, HiOutlineAdjustmentsHorizontal, HiOutlineSpeakerWave,
-  HiOutlineSpeakerXMark, HiOutlinePause, HiOutlineUserGroup, HiOutlineGlobeAlt,
-  HiOutlineLockClosed, HiOutlineArrowUp, HiOutlineFlag,
+  HiOutlineClock, HiOutlineMusicalNote, HiOutlineMapPin,
+  HiOutlineSpeakerWave, HiOutlineSpeakerXMark,
+  HiOutlineUserGroup, HiOutlineGlobeAlt, HiOutlineArrowUp,
 } from "react-icons/hi2";
-import { TbVideoPlus, TbWand, TbCrop, TbPalette } from "react-icons/tb";
+import { TbVideoPlus, TbWand } from "react-icons/tb";
 import api from "../services/api";
 import { Reveal } from "../components/animations/Reveal";
 import { Spinner } from "../components/ui/Spinner";
-import { EmptyState } from "../components/ui/EmptyState";
 import { Modal } from "../components/ui/Modal";
-import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import MediaUploader from "../components/ui/MediaUploader";
 import { useAuthStore } from "../store/authStore";
@@ -42,9 +39,36 @@ const FEED_FILTERS = [
 ];
 const EMOJI_REACTIONS = ["❤️", "🔥", "👏", "😍", "🙌", "✨"];
 
+/* ===================== SAFE HELPERS ===================== */
+// CRITICAL: always returns an array, never throws
+const toArray = (v) => {
+  if (Array.isArray(v)) return v;
+  if (v == null) return [];
+  if (typeof v === "object") return Object.values(v);
+  return [];
+};
+
+// Extract URL from MediaUploader item (handles many shapes)
+const getMediaUrl = (item) => {
+  if (!item) return null;
+  if (typeof item === "string") return item;
+  return item.url || item.secure_url || item.src || item.path || null;
+};
+
+// Build clean media items from uploader array
+const cleanMedia = (arr, kind = "image") => {
+  return toArray(arr)
+    .map((m) => {
+      const url = getMediaUrl(m);
+      return url ? { url, kind } : null;
+    })
+    .filter(Boolean);
+};
+
 function timeAgo(dateStr) {
   if (!dateStr) return "";
   const diff = (Date.now() - new Date(dateStr)) / 1000;
+  if (isNaN(diff)) return "";
   if (diff < 60) return "just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -53,10 +77,10 @@ function timeAgo(dateStr) {
 }
 
 function formatCount(n) {
-  if (!n) return 0;
-  if (n < 1000) return n;
-  if (n < 1000000) return `${(n / 1000).toFixed(1)}K`;
-  return `${(n / 1000000).toFixed(1)}M`;
+  const num = Number(n) || 0;
+  if (num < 1000) return num;
+  if (num < 1000000) return `${(num / 1000).toFixed(1)}K`;
+  return `${(num / 1000000).toFixed(1)}M`;
 }
 
 /* ===================== STORIES STRIP ===================== */
@@ -75,7 +99,7 @@ function StoriesStrip({ user }) {
     <div className="bg-white/60 dark:bg-white/5 backdrop-blur-sm rounded-2xl border border-ink/5 p-3 mb-5 overflow-hidden">
       <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
         {stories.map((s) => (
-          <button key={s.id} className="shrink-0 flex flex-col items-center gap-1.5 group">
+          <button key={s.id} type="button" className="shrink-0 flex flex-col items-center gap-1.5 group">
             <div className="relative">
               <div className={`w-16 h-16 rounded-full p-[2.5px] ${
                 s.isYou ? "bg-ink/10" :
@@ -111,9 +135,10 @@ function StoriesStrip({ user }) {
 /* ===================== POST CARD ===================== */
 function PostCard({ post, onOpen, onDeleted, onEdited }) {
   const user = useAuthStore((s) => s.user);
-  const [liked, setLiked] = useState(post.likes?.includes?.(user?._id));
-  const [likeCount, setLikeCount] = useState(post.likes?.length || 0);
-  const [saved, setSaved] = useState(false);
+  const safeLikes = toArray(post?.likes);
+  const [liked, setLiked] = useState(safeLikes.includes?.(user?._id) ?? false);
+  const [likeCount, setLikeCount] = useState(safeLikes.length || 0);
+  const [saved, setSaved] = useState(Boolean(post?.savedByMe));
   const [menuOpen, setMenuOpen] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [activeReaction, setActiveReaction] = useState(null);
@@ -122,10 +147,13 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
   const reactionRef = useRef(null);
   const longPressTimer = useRef(null);
 
-  const allImages = post.media?.filter((m) => m.kind === "image" || !m.kind) || [];
-  const img = allImages[carouselIdx]?.url || post.media?.[0]?.url;
-  const tagged = post.taggedProducts || [];
-  const isOwner = user?._id === post.author?._id;
+  const allImages = useMemo(
+    () => toArray(post?.media).filter((m) => m && (m.kind === "image" || !m.kind) && m.url),
+    [post?.media]
+  );
+  const img = allImages[carouselIdx]?.url || allImages[0]?.url;
+  const tagged = toArray(post?.taggedProducts);
+  const isOwner = user?._id === post?.author?._id;
 
   useEffect(() => {
     function handle(e) {
@@ -138,15 +166,21 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
 
   async function toggleLike() {
     if (!user) { toast.error("Login karein pehle"); return; }
-    setLiked((v) => !v);
-    setLikeCount((c) => c + (liked ? -1 : 1));
-    if (!liked) setActiveReaction("❤️");
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikeCount((c) => c + (wasLiked ? -1 : 1));
+    if (!wasLiked) setActiveReaction("❤️");
     else setActiveReaction(null);
     try {
       const { data } = await api.post(`/posts/${post._id}/like`);
-      setLiked(data.liked);
-      setLikeCount(data.likeCount);
-    } catch { toast.error("Like update nahi hua"); }
+      if (typeof data?.liked === "boolean") setLiked(data.liked);
+      if (typeof data?.likeCount === "number") setLikeCount(data.likeCount);
+    } catch {
+      // revert on error
+      setLiked(wasLiked);
+      setLikeCount((c) => c + (wasLiked ? 1 : -1));
+      toast.error("Like update nahi hua");
+    }
   }
 
   function handleLongPressStart() {
@@ -162,17 +196,27 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
     toast.success(`${emoji} reacted`);
   }
 
-  function toggleSave() {
+  async function toggleSave() {
     if (!user) { toast.error("Login karein pehle"); return; }
-    setSaved((v) => !v);
-    toast.success(saved ? "Saved se hata diya" : "Post save ho gayi 🔖");
+    const wasSaved = saved;
+    setSaved(!wasSaved);
+    try {
+      await api.post(`/posts/${post._id}/save`).catch(() => {});
+      toast.success(wasSaved ? "Saved se hata diya" : "Post save ho gayi 🔖");
+    } catch {}
   }
 
   function handleShare() {
     const url = `${window.location.origin}/feed?post=${post._id}`;
-    if (navigator.share) navigator.share({ title: post.author?.name, text: post.caption, url }).catch(() => {});
-    else { navigator.clipboard.writeText(url); toast.success("Link copied! 🔗"); }
+    if (navigator.share) {
+      navigator.share({ title: post.author?.name, text: post.caption, url }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(url);
+      toast.success("Link copied! 🔗");
+    }
   }
+
+  if (!post?._id) return null;
 
   return (
     <motion.div
@@ -184,7 +228,7 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
     >
       {/* Header */}
       <div className="flex items-center gap-2.5 px-3.5 pt-3 pb-2">
-        <Link to={`/profile/${post.author?._id}`} className="relative">
+        <Link to={`/profile/${post.author?._id || ""}`} className="relative">
           <div className="p-[1.5px] rounded-full bg-gradient-to-tr from-coral to-mauve">
             <div className="p-[1.5px] rounded-full bg-white dark:bg-zinc-900">
               <Avatar src={post.author?.avatar} name={post.author?.name} size={30} />
@@ -193,33 +237,33 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1">
-            <Link to={`/profile/${post.author?._id}`} className="text-xs font-semibold text-ink dark:text-cream leading-tight truncate hover:underline">
+            <Link to={`/profile/${post.author?._id || ""}`} className="text-xs font-semibold text-ink dark:text-cream leading-tight truncate hover:underline">
               {post.author?.name || "Seller"}
             </Link>
             {post.author?.isVerified && <HiOutlineShieldCheck className="text-xs text-coral shrink-0" />}
           </div>
           <div className="flex items-center gap-1 text-[10px] text-ink/40">
             <span>{timeAgo(post.createdAt)}</span>
-            {post.location && (<><span>·</span><HiOutlineMapPin className="text-[10px]" /><span>{post.location}</span></>)}
+            {post.location && (<><span>·</span><HiOutlineMapPin className="text-[10px]" /><span className="truncate max-w-[80px]">{post.location}</span></>)}
           </div>
         </div>
         {!isOwner && user && (
-          <button className="text-[10px] font-bold text-coral hover:text-coral/80 transition px-2 py-0.5 rounded-md hover:bg-coral/5">
+          <button type="button" className="text-[10px] font-bold text-coral hover:text-coral/80 transition px-2 py-0.5 rounded-md hover:bg-coral/5">
             + Follow
           </button>
         )}
         {isOwner && (
           <div ref={menuRef} className="relative" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setMenuOpen((v) => !v)} className="w-7 h-7 rounded-full flex items-center justify-center text-ink/40 hover:bg-ink/5 transition">
+            <button type="button" onClick={() => setMenuOpen((v) => !v)} className="w-7 h-7 rounded-full flex items-center justify-center text-ink/40 hover:bg-ink/5 transition">
               <HiOutlineEllipsisHorizontal className="text-base" />
             </button>
             <AnimatePresence>
               {menuOpen && (
                 <motion.div initial={{ opacity: 0, scale: 0.95, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="absolute right-0 top-full mt-1 w-40 rounded-xl bg-white dark:bg-zinc-800 border border-ink/10 shadow-lg py-1 z-20">
-                  <button onClick={() => { setMenuOpen(false); onEdited?.(post); }} className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-ink/5 transition">
+                  <button type="button" onClick={() => { setMenuOpen(false); onEdited?.(post); }} className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-ink/5 transition">
                     <HiOutlinePencilSquare /> Edit
                   </button>
-                  <button onClick={async () => {
+                  <button type="button" onClick={async () => {
                     if (!window.confirm("Delete karni hai?")) return;
                     try { await api.delete(`/posts/${post._id}`); toast.success("Post delete ho gayi"); onDeleted?.(post._id); }
                     catch { toast.error("Delete nahi ho saki"); }
@@ -238,7 +282,6 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
         <div className="relative overflow-hidden bg-ink/5 cursor-pointer" onClick={() => onOpen?.(post)} onDoubleClick={(e) => { e.stopPropagation(); toggleLike(); }}>
           <img src={img} alt="" className="w-full aspect-square object-cover group-hover:scale-[1.02] transition-transform duration-700" />
 
-          {/* Double-tap heart animation */}
           <AnimatePresence>
             {activeReaction && (
               <motion.div
@@ -253,7 +296,6 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
             )}
           </AnimatePresence>
 
-          {/* Carousel dots */}
           {allImages.length > 1 && (
             <>
               <div className="absolute top-2 right-2">
@@ -263,14 +305,14 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
               </div>
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
                 {allImages.map((_, i) => (
-                  <button key={i} onClick={(e) => { e.stopPropagation(); setCarouselIdx(i); }} className={`h-1 rounded-full transition-all ${i === carouselIdx ? "w-4 bg-white" : "w-1 bg-white/60"}`} />
+                  <button key={i} type="button" onClick={(e) => { e.stopPropagation(); setCarouselIdx(i); }} className={`h-1 rounded-full transition-all ${i === carouselIdx ? "w-4 bg-white" : "w-1 bg-white/60"}`} />
                 ))}
               </div>
               {carouselIdx > 0 && (
-                <button onClick={(e) => { e.stopPropagation(); setCarouselIdx((i) => i - 1); }} className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 backdrop-blur text-white grid place-items-center opacity-0 group-hover:opacity-100 transition">←</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setCarouselIdx((i) => i - 1); }} className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 backdrop-blur text-white grid place-items-center opacity-0 group-hover:opacity-100 transition">←</button>
               )}
               {carouselIdx < allImages.length - 1 && (
-                <button onClick={(e) => { e.stopPropagation(); setCarouselIdx((i) => i + 1); }} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 backdrop-blur text-white grid place-items-center opacity-0 group-hover:opacity-100 transition">→</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setCarouselIdx((i) => i + 1); }} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 backdrop-blur text-white grid place-items-center opacity-0 group-hover:opacity-100 transition">→</button>
               )}
             </>
           )}
@@ -298,7 +340,7 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
                   className="absolute bottom-full mb-2 left-0 bg-white dark:bg-zinc-800 rounded-full shadow-lg border border-ink/10 px-2 py-1.5 flex items-center gap-1 z-30"
                 >
                   {EMOJI_REACTIONS.map((emo) => (
-                    <button key={emo} onClick={() => pickReaction(emo)} className="text-xl hover:scale-125 transition-transform">
+                    <button key={emo} type="button" onClick={() => pickReaction(emo)} className="text-xl hover:scale-125 transition-transform">
                       {emo}
                     </button>
                   ))}
@@ -306,6 +348,7 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
               )}
             </AnimatePresence>
             <button
+              type="button"
               onClick={toggleLike}
               onMouseDown={handleLongPressStart}
               onMouseUp={handleLongPressEnd}
@@ -318,10 +361,10 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
               {likeCount > 0 && formatCount(likeCount)}
             </button>
           </div>
-          <button onClick={() => onOpen?.(post)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-ink/50 hover:bg-ink/5 transition">
+          <button type="button" onClick={() => onOpen?.(post)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-ink/50 hover:bg-ink/5 transition">
             <HiOutlineChatBubbleOvalLeft className="text-base" /> {post.commentCount > 0 && formatCount(post.commentCount)}
           </button>
-          <button onClick={handleShare} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-ink/50 hover:bg-ink/5 transition">
+          <button type="button" onClick={handleShare} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-ink/50 hover:bg-ink/5 transition">
             <HiOutlinePaperAirplane className="text-base" />
           </button>
           {post.views > 0 && (
@@ -330,7 +373,7 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
             </span>
           )}
           <div className="flex-1" />
-          <button onClick={toggleSave} className={`px-2 py-1 rounded-lg text-xs transition ${saved ? "text-mauve" : "text-ink/40 hover:bg-ink/5"}`}>
+          <button type="button" onClick={toggleSave} className={`px-2 py-1 rounded-lg text-xs transition ${saved ? "text-mauve" : "text-ink/40 hover:bg-ink/5"}`}>
             {saved ? <HiBookmark className="text-base" /> : <HiOutlineBookmark className="text-base" />}
           </button>
         </div>
@@ -341,7 +384,7 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
           </p>
         )}
         {post.commentCount > 0 && (
-          <button onClick={() => onOpen?.(post)} className="text-[10px] text-ink/40 hover:text-ink/60 mt-1 transition">
+          <button type="button" onClick={() => onOpen?.(post)} className="text-[10px] text-ink/40 hover:text-ink/60 mt-1 transition">
             View all {post.commentCount} comments
           </button>
         )}
@@ -353,13 +396,14 @@ function PostCard({ post, onOpen, onDeleted, onEdited }) {
 /* ===================== REEL CARD ===================== */
 function ReelCard({ reel, onPlay, onDeleted, onEdited }) {
   const user = useAuthStore((s) => s.user);
-  const [liked, setLiked] = useState(reel.likes?.includes?.(user?._id));
-  const [likeCount, setLikeCount] = useState(reel.likes?.length || 0);
+  const safeLikes = toArray(reel?.likes);
+  const [liked, setLiked] = useState(safeLikes.includes?.(user?._id) ?? false);
+  const [likeCount, setLikeCount] = useState(safeLikes.length || 0);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
-  const isOwner = user?._id === reel.author?._id;
-  const thumb = reel.thumbnail || reel.media?.[0]?.url;
-  const duration = reel.duration || "0:30";
+  const isOwner = user?._id === reel?.author?._id;
+  const thumb = reel?.thumbnail || toArray(reel?.media)[0]?.url;
+  const duration = reel?.duration || "0:30";
 
   useEffect(() => {
     function handle(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); }
@@ -369,10 +413,18 @@ function ReelCard({ reel, onPlay, onDeleted, onEdited }) {
 
   async function toggleLike() {
     if (!user) { toast.error("Login karein pehle"); return; }
-    setLiked((v) => !v); setLikeCount((c) => c + (liked ? -1 : 1));
-    try { const { data } = await api.post(`/posts/${reel._id}/like`); setLiked(data.liked); setLikeCount(data.likeCount); }
-    catch {}
+    const wasLiked = liked;
+    setLiked(!wasLiked); setLikeCount((c) => c + (wasLiked ? -1 : 1));
+    try {
+      const { data } = await api.post(`/posts/${reel._id}/like`);
+      if (typeof data?.liked === "boolean") setLiked(data.liked);
+      if (typeof data?.likeCount === "number") setLikeCount(data.likeCount);
+    } catch {
+      setLiked(wasLiked); setLikeCount((c) => c + (wasLiked ? 1 : -1));
+    }
   }
+
+  if (!reel?._id) return null;
 
   return (
     <motion.div
@@ -387,11 +439,8 @@ function ReelCard({ reel, onPlay, onDeleted, onEdited }) {
           <HiOutlineFilm className="text-5xl text-white/30" />
         </div>
       )}
-
-      {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/30" />
 
-      {/* Top badges */}
       <div className="absolute top-2 left-2 flex items-center gap-1.5">
         <span className="bg-black/60 backdrop-blur-sm text-white text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 font-medium">
           <HiOutlineClock className="text-[10px]" /> {duration}
@@ -403,27 +452,22 @@ function ReelCard({ reel, onPlay, onDeleted, onEdited }) {
         )}
       </div>
 
-      {/* Play button on hover */}
       <div className="absolute inset-0 grid place-items-center opacity-0 group-hover:opacity-100 transition duration-300">
-        <motion.div
-          whileHover={{ scale: 1.1 }}
-          className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md border-2 border-white/40 grid place-items-center"
-        >
+        <motion.div whileHover={{ scale: 1.1 }} className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md border-2 border-white/40 grid place-items-center">
           <HiOutlinePlay className="text-white text-2xl ml-0.5" />
         </motion.div>
       </div>
 
-      {/* Owner menu */}
       {isOwner && (
         <div ref={menuRef} className="absolute top-2 right-2 z-10" onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => setMenuOpen((v) => !v)} className="w-7 h-7 rounded-full bg-black/50 backdrop-blur text-white grid place-items-center hover:bg-black/70 transition">
+          <button type="button" onClick={() => setMenuOpen((v) => !v)} className="w-7 h-7 rounded-full bg-black/50 backdrop-blur text-white grid place-items-center hover:bg-black/70 transition">
             <HiOutlineEllipsisHorizontal />
           </button>
           <AnimatePresence>
             {menuOpen && (
               <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="absolute right-0 top-full mt-1 w-36 rounded-xl bg-white dark:bg-zinc-900 border border-ink/10 shadow-lg py-1">
-                <button onClick={() => { setMenuOpen(false); onEdited?.(reel); }} className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-ink/5"><HiOutlinePencilSquare /> Edit</button>
-                <button onClick={async () => {
+                <button type="button" onClick={() => { setMenuOpen(false); onEdited?.(reel); }} className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-ink/5"><HiOutlinePencilSquare /> Edit</button>
+                <button type="button" onClick={async () => {
                   if (!window.confirm("Yeh reel delete karni hai?")) return;
                   try { await api.delete(`/posts/${reel._id}`); toast.success("Reel delete ho gayi"); onDeleted?.(reel._id); }
                   catch { toast.error("Delete nahi ho saki"); }
@@ -434,17 +478,16 @@ function ReelCard({ reel, onPlay, onDeleted, onEdited }) {
         </div>
       )}
 
-      {/* Bottom content */}
       <div className="absolute bottom-0 left-0 right-0 p-3">
         <div className="flex items-center gap-2 mb-2">
-          <Link to={`/profile/${reel.author?._id}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
+          <Link to={`/profile/${reel.author?._id || ""}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
             <Avatar src={reel.author?.avatar} name={reel.author?.name} size={22} />
             <span className="text-white text-[10px] font-semibold drop-shadow truncate max-w-[80px]">{reel.author?.name}</span>
           </Link>
         </div>
         {reel.caption && <p className="text-white text-[11px] font-medium line-clamp-2 mb-2 drop-shadow-md">{reel.caption}</p>}
         <div className="flex items-center justify-between gap-2">
-          <button onClick={(e) => { e.stopPropagation(); toggleLike(); }} className={`flex items-center gap-1 text-[11px] font-bold transition-colors ${liked ? "text-red-400" : "text-white"}`}>
+          <button type="button" onClick={(e) => { e.stopPropagation(); toggleLike(); }} className={`flex items-center gap-1 text-[11px] font-bold transition-colors ${liked ? "text-red-400" : "text-white"}`}>
             {liked ? <HiHeart className="text-sm" /> : <HiOutlineHeart className="text-sm" />}
             {likeCount > 0 && formatCount(likeCount)}
           </button>
@@ -456,7 +499,6 @@ function ReelCard({ reel, onPlay, onDeleted, onEdited }) {
         </div>
       </div>
 
-      {/* Music indicator */}
       {reel.music && (
         <div className="absolute top-1/2 right-2 -translate-y-1/2 flex items-center gap-1 bg-black/40 backdrop-blur-sm text-white text-[9px] px-1.5 py-0.5 rounded-full">
           <HiOutlineMusicalNote className="text-xs animate-pulse" />
@@ -472,7 +514,7 @@ function VideoModal({ reel, onClose }) {
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(false);
   const [progress, setProgress] = useState(0);
-  const videoUrl = reel?.media?.find((m) => m.kind === "video")?.url;
+  const videoUrl = toArray(reel?.media).find((m) => m?.kind === "video")?.url;
 
   useEffect(() => {
     if (videoRef.current && videoUrl) videoRef.current.play().catch(() => {});
@@ -481,7 +523,7 @@ function VideoModal({ reel, onClose }) {
   function togglePlay() {
     if (!videoRef.current) return;
     if (playing) videoRef.current.pause();
-    else videoRef.current.play();
+    else videoRef.current.play().catch(() => {});
     setPlaying(!playing);
   }
 
@@ -504,6 +546,7 @@ function VideoModal({ reel, onClose }) {
               poster={reel.thumbnail}
               loop
               muted={muted}
+              playsInline
               onTimeUpdate={onTimeUpdate}
               className="w-full h-full object-contain"
             />
@@ -511,7 +554,6 @@ function VideoModal({ reel, onClose }) {
             <div className="w-full h-full grid place-items-center"><HiOutlineFilm className="text-4xl text-white/30" /></div>
           )}
 
-          {/* Custom controls */}
           <AnimatePresence>
             {!playing && (
               <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="absolute inset-0 grid place-items-center pointer-events-none">
@@ -522,11 +564,10 @@ function VideoModal({ reel, onClose }) {
             )}
           </AnimatePresence>
 
-          <button onClick={(e) => { e.stopPropagation(); setMuted(!muted); }} className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/50 backdrop-blur text-white grid place-items-center">
+          <button type="button" onClick={(e) => { e.stopPropagation(); setMuted(!muted); }} className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/50 backdrop-blur text-white grid place-items-center">
             {muted ? <HiOutlineSpeakerXMark /> : <HiOutlineSpeakerWave />}
           </button>
 
-          {/* Progress bar */}
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
             <div className="h-full bg-coral transition-all" style={{ width: `${progress}%` }} />
           </div>
@@ -534,11 +575,11 @@ function VideoModal({ reel, onClose }) {
 
         <div className="flex items-center gap-2.5 px-1">
           <Avatar src={reel.author?.avatar} name={reel.author?.name} size={34} />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-ink dark:text-cream">{reel.author?.name}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-ink dark:text-cream truncate">{reel.author?.name}</p>
             <p className="text-[11px] text-ink/40">{timeAgo(reel.createdAt)}</p>
           </div>
-          <button className="text-xs font-bold text-white bg-coral px-3 py-1.5 rounded-full hover:opacity-90">Follow</button>
+          <button type="button" className="text-xs font-bold text-white bg-coral px-3 py-1.5 rounded-full hover:opacity-90 shrink-0">Follow</button>
         </div>
 
         {reel.caption && <p className="text-sm text-ink dark:text-cream/80 leading-relaxed px-1">{reel.caption}</p>}
@@ -551,53 +592,93 @@ function VideoModal({ reel, onClose }) {
 function PostModal({ post, onClose }) {
   const [idx, setIdx] = useState(0);
   const [newComment, setNewComment] = useState("");
+  const [comments, setComments] = useState([]);
+  const [loadingC, setLoadingC] = useState(false);
+
+  useEffect(() => {
+    if (!post?._id) return;
+    setLoadingC(true);
+    api.get(`/posts/${post._id}/comments`)
+      .then(({ data }) => setComments(toArray(data?.items || data?.comments)))
+      .catch(() => setComments([]))
+      .finally(() => setLoadingC(false));
+  }, [post?._id]);
+
+  async function postComment() {
+    if (!newComment.trim() || !post?._id) return;
+    try {
+      const { data } = await api.post(`/posts/${post._id}/comments`, { text: newComment });
+      if (data?.comment) setComments((c) => [data.comment, ...c]);
+      else setComments((c) => [{ _id: Date.now(), text: newComment, createdAt: new Date() }, ...c]);
+      setNewComment("");
+      toast.success("Comment added");
+    } catch { toast.error("Comment fail"); }
+  }
+
   if (!post) return null;
-  const imgs = post.media?.filter((m) => m.kind === "image" || !m.kind) || [];
+  const imgs = toArray(post.media).filter((m) => m && (m.kind === "image" || !m.kind) && m.url);
 
   return (
     <Modal open={!!post} onClose={onClose} title="">
-      <div className="space-y-4 -mt-2">
+      <div className="space-y-4 -mt-2 max-h-[80vh] overflow-y-auto scrollbar-none">
         {imgs.length > 0 && (
           <div className="relative rounded-xl overflow-hidden bg-ink/5">
             <img src={imgs[idx]?.url} alt="" className="w-full max-h-[50vh] object-contain" />
             {imgs.length > 1 && (
               <>
                 <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
-                  {imgs.map((_, i) => <button key={i} onClick={() => setIdx(i)} className={`h-1.5 rounded-full transition-all ${i === idx ? "w-5 bg-white" : "w-1.5 bg-white/50"}`} />)}
+                  {imgs.map((_, i) => <button key={i} type="button" onClick={() => setIdx(i)} className={`h-1.5 rounded-full transition-all ${i === idx ? "w-5 bg-white" : "w-1.5 bg-white/50"}`} />)}
                 </div>
-                {idx > 0 && <button onClick={() => setIdx(idx - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur text-white grid place-items-center">←</button>}
-                {idx < imgs.length - 1 && <button onClick={() => setIdx(idx + 1)} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur text-white grid place-items-center">→</button>}
+                {idx > 0 && <button type="button" onClick={() => setIdx(idx - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur text-white grid place-items-center">←</button>}
+                {idx < imgs.length - 1 && <button type="button" onClick={() => setIdx(idx + 1)} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur text-white grid place-items-center">→</button>}
               </>
             )}
           </div>
         )}
         <div className="flex items-center gap-2.5">
           <Avatar src={post.author?.avatar} name={post.author?.name} size={36} />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-ink dark:text-cream">{post.author?.name}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-ink dark:text-cream truncate">{post.author?.name}</p>
             <p className="text-[11px] text-ink/40">{timeAgo(post.createdAt)}</p>
           </div>
-          <button className="text-xs font-bold text-coral hover:bg-coral/5 px-3 py-1 rounded-full">+ Follow</button>
+          <button type="button" className="text-xs font-bold text-coral hover:bg-coral/5 px-3 py-1 rounded-full shrink-0">+ Follow</button>
         </div>
         {post.caption && <p className="text-sm text-ink dark:text-cream/80 leading-relaxed">{post.caption}</p>}
 
-        {/* Comment box */}
-        <div className="border-t border-ink/5 pt-3">
+        {/* Comments */}
+        <div className="border-t border-ink/5 pt-3 space-y-3">
           <div className="flex items-center gap-2">
             <input
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") postComment(); }}
               placeholder="Comment likho..."
               className="flex-1 bg-ink/5 dark:bg-white/5 rounded-full px-4 py-2 text-xs outline-none focus:bg-coral/5 transition"
             />
-            <button
-              onClick={() => { if (newComment.trim()) { toast.success("Comment added"); setNewComment(""); } }}
-              disabled={!newComment.trim()}
-              className="text-xs font-bold text-coral disabled:opacity-40"
-            >
+            <button type="button" onClick={postComment} disabled={!newComment.trim()} className="text-xs font-bold text-coral disabled:opacity-40">
               Post
             </button>
           </div>
+          {loadingC ? (
+            <div className="text-center py-4"><Spinner size={16} /></div>
+          ) : comments.length > 0 ? (
+            <div className="space-y-2.5 max-h-48 overflow-y-auto">
+              {comments.map((c) => (
+                <div key={c._id || c.id || Math.random()} className="flex gap-2">
+                  <Avatar src={c.author?.avatar} name={c.author?.name} size={26} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px]">
+                      <span className="font-semibold">{c.author?.name || "User"}</span>{" "}
+                      <span className="text-ink/70 dark:text-cream/70">{c.text}</span>
+                    </p>
+                    <p className="text-[9px] text-ink/30 mt-0.5">{timeAgo(c.createdAt)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-ink/40 text-center py-2">Pehla comment karo!</p>
+          )}
         </div>
       </div>
     </Modal>
@@ -606,41 +687,55 @@ function PostModal({ post, onClose }) {
 
 /* ===================== COMPOSE MODAL ===================== */
 function ComposeModal({ open, onClose, onPosted, editPost }) {
-  const [caption, setCaption] = useState(editPost?.caption || "");
+  const [caption, setCaption] = useState("");
   const [media, setMedia] = useState([]);
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState("");
   const [privacy, setPrivacy] = useState("public");
   const isEdit = Boolean(editPost);
 
-  useEffect(() => { if (editPost) setCaption(editPost.caption || ""); }, [editPost]);
-  useEffect(() => { if (!open && !isEdit) { setCaption(""); setMedia([]); setLocation(""); } }, [open, isEdit]);
+  useEffect(() => {
+    if (open) {
+      setCaption(editPost?.caption || "");
+      setMedia([]);
+      setLocation(editPost?.location || "");
+      setPrivacy(editPost?.privacy || "public");
+    }
+  }, [open, editPost]);
 
   async function submit(e) {
-    e.preventDefault();
-    if (!caption.trim() && media.length === 0) return;
-    const uploaded = media.filter((m) => m.url);
-    if (media.length > 0 && uploaded.length === 0) { toast.error("Images upload hone do pehle"); return; }
+    e?.preventDefault?.();
+    const cleaned = cleanMedia(media, "image");
+    if (!caption.trim() && cleaned.length === 0 && !isEdit) {
+      toast.error("Caption ya photo zaroori hai");
+      return;
+    }
+    if (toArray(media).length > 0 && cleaned.length === 0) {
+      toast.error("Image upload hone ka wait karo");
+      return;
+    }
     setLoading(true);
     try {
       let data;
       if (isEdit) {
-        ({ data } = await api.patch(`/posts/${editPost._id}`, { caption }));
+        ({ data } = await api.patch(`/posts/${editPost._id}`, { caption, location, privacy }));
         toast.success("Post update ho gayi ✅");
       } else {
         ({ data } = await api.post("/posts", {
           caption,
-          kind: uploaded.length > 0 ? "photo" : "text",
-          media: uploaded.map((m) => ({ url: m.url, kind: "image" })),
-          location,
+          kind: cleaned.length > 0 ? "photo" : "text",
+          media: cleaned,
+          location: location || undefined,
           privacy,
         }));
         toast.success("Post publish ho gayi 🎉");
       }
-      onPosted(data.post, isEdit);
+      onPosted?.(data?.post || data, isEdit);
       setCaption(""); setMedia([]); setLocation("");
-    } catch (err) { toast.error(err.response?.data?.error || "Post nahi ho saki"); }
-    finally { setLoading(false); }
+    } catch (err) {
+      console.error("Post error:", err);
+      toast.error(err?.response?.data?.error || err?.response?.data?.message || "Post nahi ho saki");
+    } finally { setLoading(false); }
   }
 
   const charCount = caption.length;
@@ -651,7 +746,14 @@ function ComposeModal({ open, onClose, onPosted, editPost }) {
       <form onSubmit={submit} className="space-y-4">
         {!isEdit && (
           <div className="rounded-xl border-2 border-dashed border-ink/10 p-4 hover:border-coral/30 transition">
-            <MediaUploader label="Photos add karo" value={media} onChange={setMedia} multiple accept="image/*" maxFiles={10} />
+            <MediaUploader
+              label="Photos add karo"
+              value={toArray(media)}
+              onChange={(v) => setMedia(toArray(v))}
+              multiple
+              accept="image/*"
+              maxFiles={10}
+            />
           </div>
         )}
 
@@ -666,44 +768,38 @@ function ComposeModal({ open, onClose, onPosted, editPost }) {
           <div className="absolute bottom-2 right-3 text-[10px] text-ink/30">{charCount}/{maxChars}</div>
         </div>
 
-        {/* Quick hashtags */}
-        {!isEdit && (
-          <div>
-            <p className="text-[10px] font-semibold text-ink/40 uppercase tracking-wider mb-1.5">Quick hashtags</p>
-            <div className="flex flex-wrap gap-1.5">
-              {HASHTAGS.slice(0, 6).map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  onClick={() => setCaption((c) => c.includes(`#${h}`) ? c : `${c} #${h}`.trim())}
-                  className="px-2 py-1 rounded-full bg-coral/10 text-coral text-[10px] font-medium hover:bg-coral/20 transition"
-                >
-                  #{h}
-                </button>
-              ))}
-            </div>
+        <div>
+          <p className="text-[10px] font-semibold text-ink/40 uppercase tracking-wider mb-1.5">Quick hashtags</p>
+          <div className="flex flex-wrap gap-1.5">
+            {HASHTAGS.slice(0, 6).map((h) => (
+              <button
+                key={h}
+                type="button"
+                onClick={() => setCaption((c) => c.includes(`#${h}`) ? c : `${c} #${h}`.trim())}
+                className="px-2 py-1 rounded-full bg-coral/10 text-coral text-[10px] font-medium hover:bg-coral/20 transition"
+              >
+                #{h}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
 
-        {/* Location + Privacy */}
-        {!isEdit && (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="relative">
-              <HiOutlineMapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/30 text-sm" />
-              <input
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="Location"
-                className="w-full pl-8 pr-3 py-2 rounded-xl border border-ink/10 bg-white dark:bg-white/5 text-xs outline-none focus:border-coral"
-              />
-            </div>
-            <select value={privacy} onChange={(e) => setPrivacy(e.target.value)} className="px-3 py-2 rounded-xl border border-ink/10 bg-white dark:bg-white/5 text-xs outline-none focus:border-coral">
-              <option value="public">🌐 Public</option>
-              <option value="followers">👥 Followers only</option>
-              <option value="private">🔒 Only me</option>
-            </select>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="relative">
+            <HiOutlineMapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/30 text-sm" />
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Location"
+              className="w-full pl-8 pr-3 py-2 rounded-xl border border-ink/10 bg-white dark:bg-white/5 text-xs outline-none focus:border-coral"
+            />
           </div>
-        )}
+          <select value={privacy} onChange={(e) => setPrivacy(e.target.value)} className="px-3 py-2 rounded-xl border border-ink/10 bg-white dark:bg-white/5 text-xs outline-none focus:border-coral">
+            <option value="public">🌐 Public</option>
+            <option value="followers">👥 Followers only</option>
+            <option value="private">🔒 Only me</option>
+          </select>
+        </div>
 
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? <span className="flex items-center justify-center gap-2"><Spinner size={14} /> Publishing...</span> : isEdit ? "Update Post" : "🚀 Publish Post"}
@@ -713,40 +809,44 @@ function ComposeModal({ open, onClose, onPosted, editPost }) {
   );
 }
 
-/* ===================== REEL MODAL (4-step wizard with thumbnail) ===================== */
+/* ===================== REEL MODAL (4-step wizard) ===================== */
 function ReelModal({ open, onClose, onPosted, editReel }) {
-  const [caption, setCaption] = useState(editReel?.caption || "");
+  const [caption, setCaption] = useState("");
   const [media, setMedia] = useState([]);
   const [thumbnail, setThumbnail] = useState([]);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(0);
   const [autoThumbFrames, setAutoThumbFrames] = useState([]);
   const [selectedFrameIdx, setSelectedFrameIdx] = useState(null);
-  const [thumbMode, setThumbMode] = useState("upload"); // upload | frames
+  const [thumbMode, setThumbMode] = useState("upload");
   const [extractingFrames, setExtractingFrames] = useState(false);
   const [music, setMusic] = useState("");
   const [location, setLocation] = useState("");
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const isEdit = Boolean(editReel);
 
-  useEffect(() => { if (editReel) setCaption(editReel.caption || ""); }, [editReel]);
   useEffect(() => {
-    if (!open) {
-      setStep(0); setMedia([]); setThumbnail([]); setCaption("");
-      setAutoThumbFrames([]); setSelectedFrameIdx(null); setThumbMode("upload");
-      setMusic(""); setLocation("");
+    if (open) {
+      setCaption(editReel?.caption || "");
+      setMedia([]);
+      setThumbnail([]);
+      setStep(0);
+      setAutoThumbFrames([]);
+      setSelectedFrameIdx(null);
+      setThumbMode("upload");
+      setMusic(editReel?.music || "");
+      setLocation(editReel?.location || "");
     }
-  }, [open]);
+  }, [open, editReel]);
 
-  const videoUploaded = media.filter((m) => m.url);
-  const thumbUploaded = thumbnail.filter((m) => m.url);
-  const hasThumbnail = thumbUploaded.length > 0 || selectedFrameIdx !== null;
+  // SAFE: always cast to array first
+  const videoCleaned = useMemo(() => cleanMedia(media, "video"), [media]);
+  const thumbCleaned = useMemo(() => cleanMedia(thumbnail, "image"), [thumbnail]);
+  const hasVideo = videoCleaned.length > 0;
+  const hasThumbnail = thumbCleaned.length > 0 || selectedFrameIdx !== null;
 
-  // Auto-extract 4 frames from video for thumbnail picker
   async function extractFrames() {
-    if (videoUploaded.length === 0) return;
-    const url = videoUploaded[0].url;
+    if (!hasVideo) return;
+    const url = videoCleaned[0].url;
     setExtractingFrames(true);
     setAutoThumbFrames([]);
 
@@ -755,11 +855,12 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
       video.src = url;
       video.crossOrigin = "anonymous";
       video.muted = true;
+      video.playsInline = true;
 
       await new Promise((res, rej) => {
-        video.onloadedmetadata = res;
-        video.onerror = rej;
-        setTimeout(rej, 8000);
+        const timeout = setTimeout(() => rej(new Error("timeout")), 10000);
+        video.onloadedmetadata = () => { clearTimeout(timeout); res(); };
+        video.onerror = () => { clearTimeout(timeout); rej(new Error("load error")); };
       });
 
       const duration = video.duration || 10;
@@ -772,70 +873,83 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
       const ctx = canvas.getContext("2d");
 
       for (const pos of positions) {
-        video.currentTime = pos;
-        await new Promise((res) => { video.onseeked = res; setTimeout(res, 1500); });
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        frames.push(canvas.toDataURL("image/jpeg", 0.7));
+        try {
+          video.currentTime = pos;
+          await new Promise((res) => {
+            const t = setTimeout(res, 2000);
+            video.onseeked = () => { clearTimeout(t); res(); };
+          });
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          frames.push(canvas.toDataURL("image/jpeg", 0.7));
+        } catch (e) { console.warn("Frame skip:", e); }
       }
       setAutoThumbFrames(frames);
+      if (frames.length === 0) toast.error("Frames extract nahi ho paye, image upload karo");
     } catch (e) {
       console.warn("Frame extract failed", e);
+      toast.error("Video se frames nahi nikle. Manual upload try karo");
     } finally {
       setExtractingFrames(false);
     }
   }
 
   useEffect(() => {
-    if (step === 1 && videoUploaded.length > 0 && autoThumbFrames.length === 0 && thumbMode === "frames") {
+    if (step === 1 && hasVideo && autoThumbFrames.length === 0 && thumbMode === "frames") {
       extractFrames();
     }
     // eslint-disable-next-line
-  }, [step, thumbMode]);
+  }, [step, thumbMode, hasVideo]);
 
   async function submit() {
+    if (!isEdit && !hasVideo) {
+      toast.error("Video upload karo pehle");
+      return;
+    }
     setLoading(true);
     try {
       let data;
       if (isEdit) {
-        ({ data } = await api.patch(`/posts/${editReel._id}`, { caption }));
+        ({ data } = await api.patch(`/posts/${editReel._id}`, { caption, music, location }));
         toast.success("Reel update ho gayi ✅");
       } else {
         const payload = {
           caption,
           kind: "video",
-          media: videoUploaded.map((m) => ({ url: m.url, kind: "video" })),
-          music,
-          location,
+          media: videoCleaned,
+          music: music || undefined,
+          location: location || undefined,
         };
-        if (thumbUploaded.length > 0) payload.thumbnail = thumbUploaded[0].url;
-        else if (selectedFrameIdx !== null && autoThumbFrames[selectedFrameIdx]) payload.thumbnail = autoThumbFrames[selectedFrameIdx];
+        if (thumbCleaned.length > 0) payload.thumbnail = thumbCleaned[0].url;
+        else if (selectedFrameIdx !== null && autoThumbFrames[selectedFrameIdx]) {
+          payload.thumbnail = autoThumbFrames[selectedFrameIdx];
+        }
         ({ data } = await api.post("/posts", payload));
         toast.success("Reel upload ho gayi 🎬");
       }
-      onPosted(data.post, isEdit);
+      onPosted?.(data?.post || data, isEdit);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Reel upload fail");
+      console.error("Reel error:", err);
+      toast.error(err?.response?.data?.error || err?.response?.data?.message || "Reel upload fail");
     } finally { setLoading(false); }
   }
 
   const steps = [
-    { label: "Video", icon: <HiOutlineVideoCamera />, sublabel: "Upload your reel" },
-    { label: "Thumbnail", icon: <HiOutlinePhoto />, sublabel: "Set cover image" },
-    { label: "Details", icon: <HiOutlineSparkles />, sublabel: "Caption & tags" },
-    { label: "Publish", icon: <HiOutlineCheck />, sublabel: "Review & post" },
+    { label: "Video", icon: <HiOutlineVideoCamera /> },
+    { label: "Thumbnail", icon: <HiOutlinePhoto /> },
+    { label: "Details", icon: <HiOutlineSparkles /> },
+    { label: "Publish", icon: <HiOutlineCheck /> },
   ];
 
   return (
     <Modal open={open} onClose={onClose} title={isEdit ? "Reel edit karo" : "🎬 Reel banao"}>
       {!isEdit ? (
         <div className="space-y-5">
-          {/* Step progress */}
           <div className="flex items-center gap-1">
             {steps.map((s, i) => (
               <div key={i} className="flex items-center flex-1">
                 <button
                   type="button"
-                  onClick={() => { if (i === 0 || (i >= 1 && videoUploaded.length > 0)) setStep(i); }}
+                  onClick={() => { if (i === 0 || (i >= 1 && hasVideo)) setStep(i); }}
                   className={`flex items-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-semibold transition-all flex-1 justify-center min-w-0 ${
                     i === step ? "bg-gradient-to-r from-coral to-mauve text-white shadow-sm scale-105" :
                     i < step ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" :
@@ -843,7 +957,7 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                   }`}
                 >
                   <span className="text-sm">{i < step ? <HiOutlineCheck /> : s.icon}</span>
-                  <span className="hidden xs:inline truncate">{s.label}</span>
+                  <span className="hidden sm:inline truncate">{s.label}</span>
                 </button>
                 {i < steps.length - 1 && <div className={`h-0.5 w-1.5 sm:w-3 transition-colors ${i < step ? "bg-emerald-400" : "bg-ink/10"}`} />}
               </div>
@@ -851,7 +965,6 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
           </div>
 
           <AnimatePresence mode="wait">
-            {/* STEP 0: VIDEO UPLOAD */}
             {step === 0 && (
               <motion.div key="s0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                 <div className="text-center p-3 bg-gradient-to-br from-coral/5 to-mauve/5 rounded-xl border border-coral/10">
@@ -860,23 +973,28 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                   <p className="text-[10px] text-ink/40 mt-0.5">9:16 portrait • Max 60 sec • Best quality</p>
                 </div>
                 <div className="rounded-xl border-2 border-dashed border-coral/20 p-4 bg-coral/5 hover:border-coral/40 transition">
-                  <MediaUploader label="Video file" value={media} onChange={setMedia} accept="video/*" maxFiles={1} />
+                  <MediaUploader
+                    label="Video file"
+                    value={toArray(media)}
+                    onChange={(v) => setMedia(toArray(v))}
+                    accept="video/*"
+                    maxFiles={1}
+                  />
                 </div>
-                {videoUploaded.length > 0 && (
+                {hasVideo && (
                   <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="relative rounded-xl overflow-hidden aspect-[9/16] max-h-56 mx-auto bg-black">
-                    <video src={videoUploaded[0].url} className="w-full h-full object-contain" muted loop autoPlay />
+                    <video src={videoCleaned[0].url} className="w-full h-full object-contain" muted loop autoPlay playsInline />
                     <div className="absolute top-2 left-2 bg-emerald-500/90 backdrop-blur text-white text-[9px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                       <HiOutlineCheck /> Ready
                     </div>
                   </motion.div>
                 )}
-                <Button type="button" className="w-full" disabled={videoUploaded.length === 0} onClick={() => setStep(1)}>
-                  {videoUploaded.length === 0 ? "Video upload karo" : "Next: Thumbnail →"}
+                <Button type="button" className="w-full" disabled={!hasVideo} onClick={() => setStep(1)}>
+                  {!hasVideo ? "Video upload karo" : "Next: Thumbnail →"}
                 </Button>
               </motion.div>
             )}
 
-            {/* STEP 1: THUMBNAIL */}
             {step === 1 && (
               <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                 <div className="text-center p-3 bg-gradient-to-br from-mauve/5 to-pink-100/30 dark:to-mauve/10 rounded-xl border border-mauve/10">
@@ -885,20 +1003,11 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                   <p className="text-[10px] text-ink/40 mt-0.5">Achhi thumbnail = 3x zyada views 🚀</p>
                 </div>
 
-                {/* Mode toggle: upload vs frames */}
                 <div className="flex items-center gap-1 bg-ink/5 dark:bg-white/5 rounded-full p-1">
-                  <button
-                    type="button"
-                    onClick={() => setThumbMode("upload")}
-                    className={`flex-1 py-1.5 rounded-full text-[11px] font-semibold transition flex items-center justify-center gap-1.5 ${thumbMode === "upload" ? "bg-white dark:bg-zinc-800 text-ink dark:text-cream shadow-sm" : "text-ink/50"}`}
-                  >
+                  <button type="button" onClick={() => setThumbMode("upload")} className={`flex-1 py-1.5 rounded-full text-[11px] font-semibold transition flex items-center justify-center gap-1.5 ${thumbMode === "upload" ? "bg-white dark:bg-zinc-800 text-ink dark:text-cream shadow-sm" : "text-ink/50"}`}>
                     <HiOutlinePhoto /> Upload Image
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setThumbMode("frames")}
-                    className={`flex-1 py-1.5 rounded-full text-[11px] font-semibold transition flex items-center justify-center gap-1.5 ${thumbMode === "frames" ? "bg-white dark:bg-zinc-800 text-ink dark:text-cream shadow-sm" : "text-ink/50"}`}
-                  >
+                  <button type="button" onClick={() => setThumbMode("frames")} className={`flex-1 py-1.5 rounded-full text-[11px] font-semibold transition flex items-center justify-center gap-1.5 ${thumbMode === "frames" ? "bg-white dark:bg-zinc-800 text-ink dark:text-cream shadow-sm" : "text-ink/50"}`}>
                     <TbWand /> Pick From Video
                   </button>
                 </div>
@@ -906,19 +1015,22 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                 {thumbMode === "upload" && (
                   <>
                     <div className="rounded-xl border-2 border-dashed border-mauve/20 p-4 bg-mauve/5">
-                      <MediaUploader label="Thumbnail image" value={thumbnail} onChange={setThumbnail} accept="image/*" maxFiles={1} />
+                      <MediaUploader
+                        label="Thumbnail image"
+                        value={toArray(thumbnail)}
+                        onChange={(v) => { setThumbnail(toArray(v)); setSelectedFrameIdx(null); }}
+                        accept="image/*"
+                        maxFiles={1}
+                      />
                     </div>
-                    {thumbUploaded.length > 0 && (
+                    {thumbCleaned.length > 0 && (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative rounded-xl overflow-hidden aspect-[9/16] max-h-64 mx-auto bg-ink/5">
-                        <img src={thumbUploaded[0].url} alt="Thumbnail" className="w-full h-full object-cover" />
+                        <img src={thumbCleaned[0].url} alt="Thumbnail" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                         <div className="absolute top-2 left-2 bg-emerald-500/90 text-white text-[9px] px-2 py-0.5 rounded-full font-bold">✓ Preview</div>
-                        <button onClick={() => setThumbnail([])} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 backdrop-blur text-white grid place-items-center">
+                        <button type="button" onClick={() => setThumbnail([])} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 backdrop-blur text-white grid place-items-center">
                           <HiOutlineXMark />
                         </button>
-                        <div className="absolute bottom-3 left-3 right-3">
-                          <p className="text-white text-[10px] font-semibold drop-shadow">Your reel will look like this ✨</p>
-                        </div>
                       </motion.div>
                     )}
                   </>
@@ -927,7 +1039,7 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                 {thumbMode === "frames" && (
                   <div className="space-y-3">
                     {extractingFrames ? (
-                      <div className="text-center py-10 bg-ink/3 rounded-xl">
+                      <div className="text-center py-10 bg-ink/5 rounded-xl">
                         <Spinner />
                         <p className="text-[11px] text-ink/50 mt-2">Frames extract ho rahe hain...</p>
                       </div>
@@ -939,7 +1051,7 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                             <button
                               key={i}
                               type="button"
-                              onClick={() => setSelectedFrameIdx(i)}
+                              onClick={() => { setSelectedFrameIdx(i); setThumbnail([]); }}
                               className={`relative aspect-[9/16] rounded-lg overflow-hidden border-2 transition-all ${selectedFrameIdx === i ? "border-coral shadow-md scale-105" : "border-transparent hover:border-ink/20"}`}
                             >
                               <img src={frame} alt={`Frame ${i + 1}`} className="w-full h-full object-cover" />
@@ -955,11 +1067,7 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                         </div>
                       </>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={extractFrames}
-                        className="w-full py-6 bg-mauve/5 rounded-xl border-2 border-dashed border-mauve/30 text-mauve text-xs font-semibold hover:bg-mauve/10 transition flex flex-col items-center gap-2"
-                      >
+                      <button type="button" onClick={extractFrames} className="w-full py-6 bg-mauve/5 rounded-xl border-2 border-dashed border-mauve/30 text-mauve text-xs font-semibold hover:bg-mauve/10 transition flex flex-col items-center gap-2">
                         <TbWand className="text-2xl" />
                         Extract Frames From Video
                       </button>
@@ -974,7 +1082,6 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
               </motion.div>
             )}
 
-            {/* STEP 2: DETAILS */}
             {step === 2 && (
               <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
                 <div>
@@ -991,12 +1098,7 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
 
                 <div className="flex flex-wrap gap-1.5">
                   {HASHTAGS.slice(0, 5).map((h) => (
-                    <button
-                      key={h}
-                      type="button"
-                      onClick={() => setCaption((c) => c.includes(`#${h}`) ? c : `${c} #${h}`.trim())}
-                      className="px-2 py-1 rounded-full bg-coral/10 text-coral text-[10px] font-medium hover:bg-coral/20 transition"
-                    >
+                    <button key={h} type="button" onClick={() => setCaption((c) => c.includes(`#${h}`) ? c : `${c} #${h}`.trim())} className="px-2 py-1 rounded-full bg-coral/10 text-coral text-[10px] font-medium hover:bg-coral/20 transition">
                       #{h}
                     </button>
                   ))}
@@ -1020,25 +1122,21 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
               </motion.div>
             )}
 
-            {/* STEP 3: REVIEW & PUBLISH */}
             {step === 3 && (
               <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                 <p className="text-[10px] font-bold text-ink/50 uppercase tracking-wider">Final Review</p>
 
                 <div className="flex gap-3 p-3 bg-gradient-to-br from-coral/5 to-mauve/5 rounded-xl border border-coral/10">
                   <div className="w-20 aspect-[9/16] rounded-lg overflow-hidden shrink-0 bg-ink/10 relative">
-                    {thumbUploaded.length > 0 ? (
-                      <img src={thumbUploaded[0].url} alt="" className="w-full h-full object-cover" />
-                    ) : selectedFrameIdx !== null ? (
+                    {thumbCleaned.length > 0 ? (
+                      <img src={thumbCleaned[0].url} alt="" className="w-full h-full object-cover" />
+                    ) : selectedFrameIdx !== null && autoThumbFrames[selectedFrameIdx] ? (
                       <img src={autoThumbFrames[selectedFrameIdx]} alt="" className="w-full h-full object-cover" />
-                    ) : videoUploaded.length > 0 ? (
-                      <video src={videoUploaded[0].url} muted className="w-full h-full object-cover" />
+                    ) : hasVideo ? (
+                      <video src={videoCleaned[0].url} muted className="w-full h-full object-cover" playsInline />
                     ) : (
                       <div className="w-full h-full grid place-items-center"><HiOutlineFilm className="text-ink/30" /></div>
                     )}
-                    <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[8px] px-1 rounded">
-                      <HiOutlinePlay className="text-[10px]" />
-                    </div>
                   </div>
                   <div className="flex-1 min-w-0 space-y-1.5">
                     <div className="flex items-center gap-1.5 text-[10px]">
@@ -1052,19 +1150,9 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                         <><HiOutlineXMark className="text-amber-500" /><span className="text-ink/50">Auto thumbnail</span></>
                       )}
                     </div>
-                    {caption && (
-                      <p className="text-[10px] text-ink/60 dark:text-cream/60 line-clamp-2 italic">"{caption}"</p>
-                    )}
-                    {music && (
-                      <div className="flex items-center gap-1 text-[10px] text-mauve">
-                        <HiOutlineMusicalNote /> {music}
-                      </div>
-                    )}
-                    {location && (
-                      <div className="flex items-center gap-1 text-[10px] text-coral">
-                        <HiOutlineMapPin /> {location}
-                      </div>
-                    )}
+                    {caption && <p className="text-[10px] text-ink/60 dark:text-cream/60 line-clamp-2 italic">"{caption}"</p>}
+                    {music && <div className="flex items-center gap-1 text-[10px] text-mauve"><HiOutlineMusicalNote /> {music}</div>}
+                    {location && <div className="flex items-center gap-1 text-[10px] text-coral"><HiOutlineMapPin /> {location}</div>}
                   </div>
                 </div>
 
@@ -1073,7 +1161,7 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                     <HiOutlineSparkles /> PRO TIPS
                   </p>
                   <ul className="text-[10px] text-amber-700/80 dark:text-amber-400/70 space-y-0.5">
-                    <li>• 6-9 PM mein post karne se 2x engagement milta hai</li>
+                    <li>• 6-9 PM mein post karo — 2x engagement</li>
                     <li>• 3 relevant hashtags zaroor use karo</li>
                   </ul>
                 </div>
@@ -1083,7 +1171,7 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                   <button
                     type="button"
                     onClick={submit}
-                    disabled={loading || videoUploaded.length === 0}
+                    disabled={loading || !hasVideo}
                     className="flex-1 bg-gradient-to-r from-coral to-mauve text-white py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-coral/30"
                   >
                     {loading ? <><Spinner size={14} /> Publishing...</> : <><TbVideoPlus className="text-base" /> Publish Reel 🎬</>}
@@ -1096,6 +1184,10 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
       ) : (
         <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="space-y-4">
           <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Caption..." rows={3} className="w-full rounded-xl border border-ink/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm outline-none focus:border-coral resize-none" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input value={music} onChange={(e) => setMusic(e.target.value)} placeholder="Music" className="px-3 py-2 rounded-xl border border-ink/10 bg-white dark:bg-white/5 text-xs outline-none focus:border-coral" />
+            <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location" className="px-3 py-2 rounded-xl border border-ink/10 bg-white dark:bg-white/5 text-xs outline-none focus:border-coral" />
+          </div>
           <Button type="submit" className="w-full" disabled={loading}>{loading ? "Loading..." : "Update Reel"}</Button>
         </form>
       )}
@@ -1108,7 +1200,6 @@ function TrendingSidebar({ hashtag, setHashtag }) {
   return (
     <aside className="hidden xl:block w-72 shrink-0">
       <div className="sticky top-24 space-y-4">
-        {/* Trending */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-ink/5 p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -1121,11 +1212,7 @@ function TrendingSidebar({ hashtag, setHashtag }) {
           </div>
           <div className="space-y-1">
             {TRENDING_TOPICS.map((t, i) => (
-              <button
-                key={t.tag}
-                onClick={() => setHashtag(hashtag === t.tag ? null : t.tag)}
-                className={`w-full text-left px-3 py-2 rounded-xl transition-all group ${hashtag === t.tag ? "bg-coral/10 text-coral" : "hover:bg-ink/5 text-ink/70 dark:text-cream/70"}`}
-              >
+              <button key={t.tag} type="button" onClick={() => setHashtag(hashtag === t.tag ? null : t.tag)} className={`w-full text-left px-3 py-2 rounded-xl transition-all group ${hashtag === t.tag ? "bg-coral/10 text-coral" : "hover:bg-ink/5 text-ink/70 dark:text-cream/70"}`}>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs font-black w-5 ${i === 0 ? "text-coral" : "text-ink/30"}`}>#{i + 1}</span>
                   <div className="flex-1 min-w-0">
@@ -1142,7 +1229,6 @@ function TrendingSidebar({ hashtag, setHashtag }) {
           </div>
         </div>
 
-        {/* Suggested creators */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-ink/5 p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -1166,13 +1252,12 @@ function TrendingSidebar({ hashtag, setHashtag }) {
                   <p className="text-xs font-semibold text-ink dark:text-cream truncate">{c.name}</p>
                   <p className="text-[10px] text-ink/40">{c.craft} · {c.followers}</p>
                 </div>
-                <button className="text-[10px] font-bold text-coral hover:bg-coral/5 px-2 py-1 rounded-full transition">Follow</button>
+                <button type="button" className="text-[10px] font-bold text-coral hover:bg-coral/5 px-2 py-1 rounded-full transition">Follow</button>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Creator Tips */}
         <div className="bg-gradient-to-br from-mauve/10 via-coral/5 to-amber-100/30 dark:to-amber-900/10 rounded-2xl border border-mauve/10 p-4">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-mauve to-pink-500 grid place-items-center">
@@ -1181,26 +1266,13 @@ function TrendingSidebar({ hashtag, setHashtag }) {
             <h3 className="text-sm font-bold text-ink dark:text-cream">Creator Tips</h3>
           </div>
           <ul className="space-y-2 text-[11px] text-ink/70 dark:text-cream/70">
-            <li className="flex items-start gap-1.5">
-              <HiOutlineStar className="text-amber-400 shrink-0 mt-0.5" />
-              <span>Custom thumbnail = <b>3x views</b></span>
-            </li>
-            <li className="flex items-start gap-1.5">
-              <HiOutlineStar className="text-amber-400 shrink-0 mt-0.5" />
-              <span>Trending hashtags use karo</span>
-            </li>
-            <li className="flex items-start gap-1.5">
-              <HiOutlineStar className="text-amber-400 shrink-0 mt-0.5" />
-              <span><b>6-9 PM</b> peak engagement time</span>
-            </li>
-            <li className="flex items-start gap-1.5">
-              <HiOutlineStar className="text-amber-400 shrink-0 mt-0.5" />
-              <span>Pehle 3 sec mein hook lagao</span>
-            </li>
+            <li className="flex items-start gap-1.5"><HiOutlineStar className="text-amber-400 shrink-0 mt-0.5" /><span>Custom thumbnail = <b>3x views</b></span></li>
+            <li className="flex items-start gap-1.5"><HiOutlineStar className="text-amber-400 shrink-0 mt-0.5" /><span>Trending hashtags use karo</span></li>
+            <li className="flex items-start gap-1.5"><HiOutlineStar className="text-amber-400 shrink-0 mt-0.5" /><span><b>6-9 PM</b> peak engagement</span></li>
+            <li className="flex items-start gap-1.5"><HiOutlineStar className="text-amber-400 shrink-0 mt-0.5" /><span>Pehle 3 sec mein hook lagao</span></li>
           </ul>
         </div>
 
-        {/* Footer */}
         <p className="text-[9px] text-ink/30 text-center px-3">
           © {new Date().getFullYear()} · Made with ❤️ in India
         </p>
@@ -1209,44 +1281,24 @@ function TrendingSidebar({ hashtag, setHashtag }) {
   );
 }
 
-/* ===================== FLOATING ACTION BUTTON (Mobile) ===================== */
+/* ===================== FAB ===================== */
 function FloatingActionButton({ onPost, onReel }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="fixed bottom-20 right-4 sm:hidden z-30">
       <AnimatePresence>
         {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-16 right-0 flex flex-col gap-2"
-          >
-            <motion.button
-              initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0 }}
-              transition={{ delay: 0.05 }}
-              onClick={() => { onPost(); setOpen(false); }}
-              className="bg-white dark:bg-zinc-800 text-ink dark:text-cream px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-xs font-semibold border border-ink/10"
-            >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute bottom-16 right-0 flex flex-col gap-2">
+            <motion.button type="button" initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0 }} transition={{ delay: 0.05 }} onClick={() => { onPost(); setOpen(false); }} className="bg-white dark:bg-zinc-800 text-ink dark:text-cream px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-xs font-semibold border border-ink/10">
               <HiOutlinePhoto /> Post
             </motion.button>
-            <motion.button
-              initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0 }}
-              transition={{ delay: 0.1 }}
-              onClick={() => { onReel(); setOpen(false); }}
-              className="bg-gradient-to-r from-coral to-mauve text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-xs font-semibold"
-            >
+            <motion.button type="button" initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0 }} transition={{ delay: 0.1 }} onClick={() => { onReel(); setOpen(false); }} className="bg-gradient-to-r from-coral to-mauve text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-xs font-semibold">
               <TbVideoPlus /> Reel
             </motion.button>
           </motion.div>
         )}
       </AnimatePresence>
-      <motion.button
-        whileTap={{ scale: 0.9 }}
-        animate={{ rotate: open ? 45 : 0 }}
-        onClick={() => setOpen(!open)}
-        className="w-14 h-14 rounded-full bg-gradient-to-br from-coral to-mauve text-white grid place-items-center shadow-xl shadow-coral/30"
-      >
+      <motion.button type="button" whileTap={{ scale: 0.9 }} animate={{ rotate: open ? 45 : 0 }} onClick={() => setOpen(!open)} className="w-14 h-14 rounded-full bg-gradient-to-br from-coral to-mauve text-white grid place-items-center shadow-xl shadow-coral/30">
         <HiOutlinePlusCircle className="text-2xl" />
       </motion.button>
     </div>
@@ -1276,35 +1328,49 @@ export default function Feed() {
   const sentinel = useRef(null);
   const [searchParams] = useSearchParams();
 
-  const load = useCallback(async (p = 1, tag = hashtag) => {
-    if (loading || done) return;
+  const load = useCallback(async (p = 1, tag = hashtag, filter = activeFilter) => {
     setLoading(true);
     try {
       const params = { page: p, limit: 12 };
       if (tag) params.hashtag = tag;
+      if (filter && filter !== "all") params.filter = filter;
       const { data } = await api.get("/posts", { params });
-      const items = data.items || [];
-      const photoPosts = items.filter((i) => i.kind !== "video");
-      const videoReels = items.filter((i) => i.kind === "video");
+      // SAFE: handle multiple response shapes
+      const items = toArray(data?.items || data?.posts || data);
+      const photoPosts = items.filter((i) => i && i.kind !== "video");
+      const videoReels = items.filter((i) => i && i.kind === "video");
       setPosts((prev) => p === 1 ? photoPosts : [...prev, ...photoPosts]);
       setReels((prev) => p === 1 ? videoReels : [...prev, ...videoReels]);
       if (items.length < 12) setDone(true);
+    } catch (err) {
+      console.error("Feed load:", err);
+      if (p === 1) { setPosts([]); setReels([]); }
     } finally { setLoading(false); }
-  }, [loading, done, hashtag]);
+  }, [hashtag, activeFilter]);
 
-  useEffect(() => { setPosts([]); setReels([]); setPage(1); setDone(false); load(1, hashtag); }, [hashtag]);
+  useEffect(() => {
+    setPosts([]); setReels([]); setPage(1); setDone(false);
+    load(1, hashtag, activeFilter);
+    // eslint-disable-next-line
+  }, [hashtag, activeFilter]);
 
   useEffect(() => {
     const postId = searchParams.get("post");
     if (!postId) { setOpenPost(null); return; }
-    api.get(`/posts/${postId}`).then(({ data }) => { if (data?.post) setOpenPost(data.post); }).catch(() => setOpenPost(null));
+    api.get(`/posts/${postId}`)
+      .then(({ data }) => { if (data?.post) setOpenPost(data.post); else if (data?._id) setOpenPost(data); })
+      .catch(() => setOpenPost(null));
   }, [searchParams]);
 
   useEffect(() => {
     const el = sentinel.current;
     if (!el) return;
     const obs = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && !loading && !done) { const next = page + 1; setPage(next); load(next); }
+      if (entries[0].isIntersecting && !loading && !done) {
+        const next = page + 1;
+        setPage(next);
+        load(next);
+      }
     }, { rootMargin: "300px" });
     obs.observe(el);
     return () => obs.disconnect();
@@ -1317,12 +1383,14 @@ export default function Feed() {
   }, []);
 
   function handlePostPosted(post, isEdit) {
+    if (!post?._id) return;
     if (isEdit) setPosts((arr) => arr.map((p) => p._id === post._id ? post : p));
     else setPosts((arr) => [post, ...arr]);
     setComposeOpen(false); setEditingPost(null);
   }
 
   function handleReelPosted(reel, isEdit) {
+    if (!reel?._id) return;
     if (isEdit) setReels((arr) => arr.map((r) => r._id === reel._id ? reel : r));
     else setReels((arr) => [reel, ...arr]);
     setReelOpen(false); setEditingReel(null);
@@ -1330,23 +1398,24 @@ export default function Feed() {
 
   const filteredPosts = useMemo(() => {
     if (!searchQuery) return posts;
+    const q = searchQuery.toLowerCase();
     return posts.filter((p) =>
-      p.caption?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.author?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+      p?.caption?.toLowerCase().includes(q) ||
+      p?.author?.name?.toLowerCase().includes(q)
     );
   }, [posts, searchQuery]);
 
   const filteredReels = useMemo(() => {
     if (!searchQuery) return reels;
+    const q = searchQuery.toLowerCase();
     return reels.filter((r) =>
-      r.caption?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.author?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+      r?.caption?.toLowerCase().includes(q) ||
+      r?.author?.name?.toLowerCase().includes(q)
     );
   }, [reels, searchQuery]);
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-5 lg:px-8 py-5 md:py-8">
-      {/* Header */}
       <Reveal>
         <div className="flex items-end justify-between gap-4 flex-wrap mb-5">
           <div className="min-w-0">
@@ -1360,25 +1429,16 @@ export default function Feed() {
             <p className="text-xs text-ink/40 mt-1">Curated by karma · Updated real-time ✨</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setSearchOpen(!searchOpen)}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-zinc-800 border border-ink/10 text-xs font-semibold text-ink dark:text-cream hover:bg-ink/5 transition shadow-sm"
-            >
+            <button type="button" onClick={() => setSearchOpen(!searchOpen)} className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-zinc-800 border border-ink/10 text-xs font-semibold text-ink dark:text-cream hover:bg-ink/5 transition shadow-sm">
               <HiOutlineMagnifyingGlass className="text-base" />
               <span>Search</span>
             </button>
             {user && (
               <>
-                <button
-                  onClick={() => setComposeOpen(true)}
-                  className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-800 border border-ink/10 text-xs font-semibold text-ink dark:text-cream hover:bg-ink/5 transition shadow-sm"
-                >
+                <button type="button" onClick={() => setComposeOpen(true)} className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-800 border border-ink/10 text-xs font-semibold text-ink dark:text-cream hover:bg-ink/5 transition shadow-sm">
                   <HiOutlinePhoto className="text-base" /> Post
                 </button>
-                <button
-                  onClick={() => setReelOpen(true)}
-                  className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-coral to-mauve text-white text-xs font-bold hover:shadow-lg hover:shadow-coral/30 transition shadow-sm"
-                >
+                <button type="button" onClick={() => setReelOpen(true)} className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-coral to-mauve text-white text-xs font-bold hover:shadow-lg hover:shadow-coral/30 transition shadow-sm">
                   <TbVideoPlus className="text-base" /> Upload Reel
                 </button>
               </>
@@ -1387,7 +1447,6 @@ export default function Feed() {
         </div>
       </Reveal>
 
-      {/* Search bar */}
       <AnimatePresence>
         {searchOpen && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-4">
@@ -1401,7 +1460,7 @@ export default function Feed() {
                 autoFocus
               />
               {searchQuery && (
-                <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 hover:text-ink/70">
+                <button type="button" onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 hover:text-ink/70">
                   <HiOutlineXMark />
                 </button>
               )}
@@ -1412,16 +1471,15 @@ export default function Feed() {
 
       <div className="flex gap-6">
         <div className="flex-1 min-w-0">
-          {/* Stories */}
           {user && <StoriesStrip user={user} />}
 
-          {/* Feed filter chips */}
           <div className="flex items-center gap-1.5 mb-4 overflow-x-auto scrollbar-none pb-1">
             {FEED_FILTERS.map((f) => {
               const Icon = f.icon;
               return (
                 <button
                   key={f.key}
+                  type="button"
                   onClick={() => setActiveFilter(f.key)}
                   className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-semibold transition-all ${
                     activeFilter === f.key
@@ -1435,8 +1493,7 @@ export default function Feed() {
             })}
           </div>
 
-          {/* Content tabs */}
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-5 gap-2">
             <div className="flex items-center gap-1 bg-white/60 dark:bg-white/5 rounded-full p-1 w-fit border border-ink/5 shadow-sm">
               {[
                 { key: "posts", label: "Photos", icon: <HiOutlinePhoto />, count: filteredPosts.length },
@@ -1444,6 +1501,7 @@ export default function Feed() {
               ].map((tab) => (
                 <button
                   key={tab.key}
+                  type="button"
                   onClick={() => setActiveTab(tab.key)}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all ${
                     activeTab === tab.key
@@ -1460,25 +1518,17 @@ export default function Feed() {
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => setSearchOpen(!searchOpen)}
-              className="sm:hidden w-9 h-9 rounded-full bg-white dark:bg-zinc-800 border border-ink/10 grid place-items-center text-ink/60"
-            >
+            <button type="button" onClick={() => setSearchOpen(!searchOpen)} className="sm:hidden w-9 h-9 rounded-full bg-white dark:bg-zinc-800 border border-ink/10 grid place-items-center text-ink/60">
               <HiOutlineMagnifyingGlass />
             </button>
           </div>
 
-          {/* Hashtag chips */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-5 scrollbar-none">
-            <button onClick={() => setHashtag(null)} className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium border transition-all ${!hashtag ? "bg-ink text-white border-ink shadow-sm" : "bg-white dark:bg-zinc-800 text-ink/60 border-ink/10 hover:border-ink/20"}`}>
+            <button type="button" onClick={() => setHashtag(null)} className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium border transition-all ${!hashtag ? "bg-ink text-white border-ink shadow-sm" : "bg-white dark:bg-zinc-800 text-ink/60 border-ink/10 hover:border-ink/20"}`}>
               All
             </button>
             {HASHTAGS.map((h) => (
-              <button
-                key={h}
-                onClick={() => setHashtag(hashtag === h ? null : h)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium border flex items-center gap-1 transition-all ${hashtag === h ? "bg-coral text-white border-coral shadow-sm" : "bg-white dark:bg-zinc-800 text-ink/60 border-ink/10 hover:border-coral/30"}`}
-              >
+              <button key={h} type="button" onClick={() => setHashtag(hashtag === h ? null : h)} className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium border flex items-center gap-1 transition-all ${hashtag === h ? "bg-coral text-white border-coral shadow-sm" : "bg-white dark:bg-zinc-800 text-ink/60 border-ink/10 hover:border-coral/30"}`}>
                 <HiOutlineHashtag className="text-[10px]" />{h}
               </button>
             ))}
@@ -1492,14 +1542,10 @@ export default function Feed() {
                     <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-coral/10 to-mauve/10 grid place-items-center mx-auto mb-4">
                       <HiOutlinePhoto className="text-3xl text-coral" />
                     </div>
-                    <p className="text-sm font-bold text-ink/60 mb-1">
-                      {searchQuery ? "Kuch nahi mila" : "Koi post nahi"}
-                    </p>
-                    <p className="text-xs text-ink/40 mb-4">
-                      {searchQuery ? "Different keywords try karo" : "Pehli post banake start karo"}
-                    </p>
+                    <p className="text-sm font-bold text-ink/60 mb-1">{searchQuery ? "Kuch nahi mila" : "Koi post nahi"}</p>
+                    <p className="text-xs text-ink/40 mb-4">{searchQuery ? "Different keywords try karo" : "Pehli post banake start karo"}</p>
                     {user && !searchQuery && (
-                      <button onClick={() => setComposeOpen(true)} className="px-4 py-2 bg-gradient-to-r from-coral to-mauve text-white text-xs font-bold rounded-full hover:shadow-lg transition">
+                      <button type="button" onClick={() => setComposeOpen(true)} className="px-4 py-2 bg-gradient-to-r from-coral to-mauve text-white text-xs font-bold rounded-full hover:shadow-lg transition">
                         Pehli post banao →
                       </button>
                     )}
@@ -1508,12 +1554,7 @@ export default function Feed() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredPosts.map((p, i) => (
                       <motion.div key={p._id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.05, 0.3) }}>
-                        <PostCard
-                          post={p}
-                          onOpen={setOpenPost}
-                          onDeleted={(id) => setPosts((arr) => arr.filter((x) => x._id !== id))}
-                          onEdited={(post) => { setEditingPost(post); setComposeOpen(true); }}
-                        />
+                        <PostCard post={p} onOpen={setOpenPost} onDeleted={(id) => setPosts((arr) => arr.filter((x) => x._id !== id))} onEdited={(post) => { setEditingPost(post); setComposeOpen(true); }} />
                       </motion.div>
                     ))}
                   </div>
@@ -1528,14 +1569,10 @@ export default function Feed() {
                     <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-coral/20 to-mauve/20 grid place-items-center mx-auto mb-4">
                       <TbVideoPlus className="text-3xl text-coral" />
                     </div>
-                    <p className="text-sm font-bold text-ink/60 mb-1">
-                      {searchQuery ? "Koi reel nahi mili" : "Koi reel nahi"}
-                    </p>
-                    <p className="text-xs text-ink/40 mb-4">
-                      {searchQuery ? "Try different search" : "Thumbnail ke saath reel upload karo!"}
-                    </p>
+                    <p className="text-sm font-bold text-ink/60 mb-1">{searchQuery ? "Koi reel nahi mili" : "Koi reel nahi"}</p>
+                    <p className="text-xs text-ink/40 mb-4">{searchQuery ? "Try different search" : "Thumbnail ke saath reel upload karo!"}</p>
                     {user && !searchQuery && (
-                      <button onClick={() => setReelOpen(true)} className="px-4 py-2 bg-gradient-to-r from-coral to-mauve text-white text-xs font-bold rounded-full hover:shadow-lg transition">
+                      <button type="button" onClick={() => setReelOpen(true)} className="px-4 py-2 bg-gradient-to-r from-coral to-mauve text-white text-xs font-bold rounded-full hover:shadow-lg transition">
                         Pehli Reel Upload Karo 🎬
                       </button>
                     )}
@@ -1544,12 +1581,7 @@ export default function Feed() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {filteredReels.map((r, i) => (
                       <motion.div key={r._id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.25) }}>
-                        <ReelCard
-                          reel={r}
-                          onPlay={setPlayingReel}
-                          onDeleted={(id) => setReels((arr) => arr.filter((x) => x._id !== id))}
-                          onEdited={(reel) => { setEditingReel(reel); setReelOpen(true); }}
-                        />
+                        <ReelCard reel={r} onPlay={setPlayingReel} onDeleted={(id) => setReels((arr) => arr.filter((x) => x._id !== id))} onEdited={(reel) => { setEditingReel(reel); setReelOpen(true); }} />
                       </motion.div>
                     ))}
                   </div>
@@ -1558,11 +1590,7 @@ export default function Feed() {
             )}
           </AnimatePresence>
 
-          {loading && (
-            <div className="grid place-items-center py-10">
-              <Spinner />
-            </div>
-          )}
+          {loading && <div className="grid place-items-center py-10"><Spinner /></div>}
           {done && (posts.length > 0 || reels.length > 0) && (
             <div className="text-center py-8">
               <div className="inline-flex items-center gap-2 text-[11px] text-ink/40 bg-ink/5 px-4 py-2 rounded-full">
@@ -1576,10 +1604,10 @@ export default function Feed() {
         <TrendingSidebar hashtag={hashtag} setHashtag={setHashtag} />
       </div>
 
-      {/* Scroll to top */}
       <AnimatePresence>
         {showScrollTop && (
           <motion.button
+            type="button"
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0 }}
@@ -1591,10 +1619,8 @@ export default function Feed() {
         )}
       </AnimatePresence>
 
-      {/* Mobile FAB */}
       {user && <FloatingActionButton onPost={() => setComposeOpen(true)} onReel={() => setReelOpen(true)} />}
 
-      {/* Modals */}
       <PostModal post={openPost} onClose={() => setOpenPost(null)} />
       <ComposeModal open={composeOpen} onClose={() => { setComposeOpen(false); setEditingPost(null); }} onPosted={handlePostPosted} editPost={editingPost} />
       <ReelModal open={reelOpen} onClose={() => { setReelOpen(false); setEditingReel(null); }} onPosted={handleReelPosted} editReel={editingReel} />
