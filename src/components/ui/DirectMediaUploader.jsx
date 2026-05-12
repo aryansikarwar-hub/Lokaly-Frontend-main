@@ -1,27 +1,21 @@
+// components/ui/DirectMediaUploader.jsx
+// Self-contained uploader — stable image/video preview + upload
+
 import { useRef, useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  HiOutlineCloudArrowUp, HiOutlineXMark, HiOutlinePhoto,
-  HiOutlineVideoCamera, HiOutlineCheck, HiOutlineExclamationTriangle,
+  HiOutlineCloudArrowUp,
+  HiOutlineXMark,
+  HiOutlinePhoto,
+  HiOutlineVideoCamera,
+  HiOutlineCheck,
+  HiOutlineExclamationTriangle,
 } from "react-icons/hi2";
+
 import { Spinner } from "./Spinner";
 import api from "../../services/api";
 import toast from "react-hot-toast";
 
-/**
- * Props:
- * - value: array of { url, kind, name, size, progress }
- * - onChange: (newArray) => void
- * - accept: "image/*" | "video/*" | "image/*,video/*"
- * - maxFiles: number (default 1)
- * - maxSizeMB: number (default 100 for video, 10 for image)
- * - label: string
- *
- * Upload strategy:
- * 1. Tries POST /api/upload with FormData (multer-style)
- * 2. Falls back to Cloudinary unsigned upload if env var set
- * 3. Shows upload progress per-file
- */
 export default function DirectMediaUploader({
   value = [],
   onChange,
@@ -32,6 +26,8 @@ export default function DirectMediaUploader({
 }) {
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
+
+  // SAFE ARRAY
   const items = Array.isArray(value) ? value : [];
   // ✅ Always keep latest items in ref to avoid stale closure in async uploadFile
   const itemsRef = useRef(items);
@@ -51,138 +47,284 @@ export default function DirectMediaUploader({
     const latest = itemsRef.current;
     onChange?.(latest.filter((_, i) => i !== idx));
   }, [onChange]);
+  // =========================
+  // CLEANUP OBJECT URLS
+  // =========================
+  useEffect(() => {
+    return () => {
+      items.forEach((item) => {
+        if (item?.preview?.startsWith?.("blob:")) {
+          URL.revokeObjectURL(item.preview);
+        }
+      });
+    };
+  }, []);
 
+  // =========================
+  // UPDATE ITEM
+  // =========================
+  const updateItem = useCallback(
+    (idx, patch) => {
+      const updated = items.map((it, i) =>
+        i === idx ? { ...it, ...patch } : it
+      );
+
+      onChange?.(updated);
+    },
+    [items, onChange]
+  );
+
+  // =========================
+  // REMOVE ITEM
+  // =========================
+  const removeItem = useCallback(
+    (idx) => {
+      const item = items[idx];
+
+      // revoke blob url
+      if (item?.preview?.startsWith?.("blob:")) {
+        URL.revokeObjectURL(item.preview);
+      }
+
+      onChange?.(items.filter((_, i) => i !== idx));
+    },
+    [items, onChange]
+  );
+
+  // =========================
+  // UPLOAD FILE
+  // =========================
   async function uploadFile(file, idx) {
-    console.log("[Upload] Starting:", file.name, file.size, file.type);
+    console.log("[UPLOAD START]", file);
 
-    // Validate
+    // FILE SIZE VALIDATION
     if (file.size > sizeLimit) {
-      toast.error(`${file.name} too big (max ${maxSizeMB || defaultMaxSize}MB)`);
+      toast.error(
+        `${file.name} too big (max ${
+          maxSizeMB || defaultMaxSize
+        }MB)`
+      );
+
       removeItem(idx);
       return;
     }
 
     try {
-      // ===== Strategy 1: Cloudinary unsigned upload =====
-      const cloudName = import.meta.env?.VITE_CLOUDINARY_CLOUD_NAME;
-      const uploadPreset = import.meta.env?.VITE_CLOUDINARY_UPLOAD_PRESET;
+      // ===================================
+      // CLOUDINARY UPLOAD
+      // ===================================
+      const cloudName =
+        import.meta.env?.VITE_CLOUDINARY_CLOUD_NAME;
+
+      const uploadPreset =
+        import.meta.env?.VITE_CLOUDINARY_UPLOAD_PRESET;
 
       if (cloudName && uploadPreset) {
-        console.log("[Upload] Using Cloudinary:", cloudName);
+        console.log("[UPLOAD] Using Cloudinary");
+
         const formData = new FormData();
+
         formData.append("file", file);
         formData.append("upload_preset", uploadPreset);
-        const resourceType = file.type.startsWith("video/") ? "video" : "image";
+
+        const resourceType = file.type.startsWith("video/")
+          ? "video"
+          : "image";
 
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`);
 
+        xhr.open(
+          "POST",
+          `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`
+        );
+
+        // PROGRESS
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
-            const progress = Math.round((e.loaded / e.total) * 100);
+            const progress = Math.round(
+              (e.loaded / e.total) * 100
+            );
+
             updateItem(idx, { progress });
           }
         };
 
-        const data = await new Promise((res, rej) => {
+        const data = await new Promise((resolve, reject) => {
           xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) {
-              res(JSON.parse(xhr.responseText));
+              resolve(JSON.parse(xhr.responseText));
             } else {
-              rej(new Error(`Cloudinary ${xhr.status}: ${xhr.responseText}`));
+              reject(
+                new Error(
+                  `Cloudinary ${xhr.status}: ${xhr.responseText}`
+                )
+              );
             }
           };
-          xhr.onerror = () => rej(new Error("Network error"));
+
+          xhr.onerror = () =>
+            reject(new Error("Network error"));
+
           xhr.send(formData);
         });
 
-        console.log("[Upload] Cloudinary success:", data);
+        console.log("[UPLOAD SUCCESS]", data);
+
         updateItem(idx, {
           url: data.secure_url || data.url,
           publicId: data.public_id,
-          progress: 100,
           uploaded: true,
+          progress: 100,
           kind: resourceType,
         });
+
         return;
       }
 
-      // ===== Strategy 2: Backend upload via /api/upload =====
-      console.log("[Upload] Using backend /upload");
+      // ===================================
+      // BACKEND UPLOAD
+      // ===================================
+      console.log("[UPLOAD] Using Backend");
+
       const formData = new FormData();
+
       formData.append("file", file);
-      formData.append("kind", file.type.startsWith("video/") ? "video" : "image");
 
-      const { data } = await api.post("/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (e) => {
-          const progress = Math.round((e.loaded / (e.total || 1)) * 100);
-          updateItem(idx, { progress });
-        },
-      });
+      formData.append(
+        "kind",
+        file.type.startsWith("video/")
+          ? "video"
+          : "image"
+      );
 
-      console.log("[Upload] Backend success:", data);
-      const url = data?.url || data?.secure_url || data?.location;
-      if (!url) throw new Error("No URL in upload response");
+      const { data } = await api.post(
+        "/upload",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+
+          onUploadProgress: (e) => {
+            const progress = Math.round(
+              (e.loaded / (e.total || 1)) * 100
+            );
+
+            updateItem(idx, { progress });
+          },
+        }
+      );
+
+      console.log("[BACKEND SUCCESS]", data);
+
+      const uploadedUrl =
+        data?.url ||
+        data?.secure_url ||
+        data?.location;
+
+      if (!uploadedUrl) {
+        throw new Error("No URL returned");
+      }
 
       updateItem(idx, {
-        url,
-        progress: 100,
+        url: uploadedUrl,
         uploaded: true,
-        kind: file.type.startsWith("video/") ? "video" : "image",
+        progress: 100,
+        kind: file.type.startsWith("video/")
+          ? "video"
+          : "image",
       });
     } catch (err) {
-      console.error("[Upload] FAILED:", err);
-      console.error("[Upload] Response:", err?.response?.data);
-      toast.error(`Upload fail: ${err?.response?.data?.error || err.message}`);
-      updateItem(idx, { error: err.message, progress: 0 });
+      console.error("[UPLOAD FAILED]", err);
+
+      toast.error(
+        err?.response?.data?.error ||
+          err.message ||
+          "Upload failed"
+      );
+
+      updateItem(idx, {
+        error: true,
+        progress: 0,
+      });
     }
   }
 
+  // =========================
+  // HANDLE FILES
+  // =========================
   function handleFiles(fileList) {
     const files = Array.from(fileList || []);
+
     if (files.length === 0) return;
 
     const remaining = maxFiles - items.length;
+
     const toAdd = files.slice(0, remaining);
+
     if (files.length > remaining) {
       toast.error(`Max ${maxFiles} file(s) allowed`);
     }
 
-    // Generate previews + add to state
+    // CREATE PREVIEWS
     const newItems = toAdd.map((file) => ({
       name: file.name,
       size: file.size,
       type: file.type,
-      kind: file.type.startsWith("video/") ? "video" : "image",
+
+      kind: file.type.startsWith("video/")
+        ? "video"
+        : "image",
+
       preview: URL.createObjectURL(file),
+
       progress: 0,
       uploaded: false,
-      url: null,
+      error: false,
+      url: "",
     }));
 
+    console.log("[NEW ITEMS]", newItems);
+
     const startIdx = items.length;
+
     onChange?.([...items, ...newItems]);
 
-    // Kick off uploads
-    toAdd.forEach((file, i) => uploadFile(file, startIdx + i));
+    // START UPLOAD
+    toAdd.forEach((file, i) => {
+      uploadFile(file, startIdx + i);
+    });
   }
 
+  // =========================
+  // DRAG DROP
+  // =========================
   function onDrop(e) {
     e.preventDefault();
+
     setDragging(false);
+
     handleFiles(e.dataTransfer.files);
   }
 
-  const Icon = isVideo ? HiOutlineVideoCamera : HiOutlinePhoto;
+  const Icon = isVideo
+    ? HiOutlineVideoCamera
+    : HiOutlinePhoto;
 
   return (
     <div className="space-y-3">
+      {/* ========================= */}
+      {/* UPLOAD BOX */}
+      {/* ========================= */}
+
       {items.length < maxFiles && (
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
           className={`w-full rounded-xl border-2 border-dashed p-6 transition-all flex flex-col items-center justify-center gap-2 ${
@@ -194,86 +336,187 @@ export default function DirectMediaUploader({
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-coral/15 to-mauve/15 grid place-items-center">
             <HiOutlineCloudArrowUp className="text-2xl text-coral" />
           </div>
+
           <p className="text-xs font-bold text-ink dark:text-cream">
-            {dragging ? "Drop karo!" : `${label} ke liye click ya drag karo`}
+            {dragging
+              ? "Drop karo!"
+              : `${label} ke liye click ya drag karo`}
           </p>
+
           <p className="text-[10px] text-ink/40 dark:text-cream/40">
-            {isVideo ? `MP4, MOV, WEBM · Max ${maxSizeMB || defaultMaxSize}MB` : `JPG, PNG, WEBP · Max ${maxSizeMB || defaultMaxSize}MB`}
+            {isVideo
+              ? `MP4, MOV, WEBM · Max ${
+                  maxSizeMB || defaultMaxSize
+                }MB`
+              : `JPG, PNG, WEBP · Max ${
+                  maxSizeMB || defaultMaxSize
+                }MB`}
           </p>
         </button>
       )}
+
+      {/* ========================= */}
+      {/* INPUT */}
+      {/* ========================= */}
 
       <input
         ref={inputRef}
         type="file"
         accept={accept}
         multiple={maxFiles > 1}
-        onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
         className="hidden"
+        onChange={(e) => {
+          handleFiles(e.target.files);
+          e.target.value = "";
+        }}
       />
 
-      {/* Preview grid */}
+      {/* ========================= */}
+      {/* PREVIEW GRID */}
+      {/* ========================= */}
+
       <AnimatePresence>
         {items.length > 0 && (
-          <div className={`grid gap-2 ${isVideo ? "grid-cols-1" : "grid-cols-3"}`}>
-            {items.map((item, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className={`relative rounded-xl overflow-hidden bg-ink/5 border border-ink/10 ${
-                  isVideo ? "aspect-[9/16] max-h-56 mx-auto w-full sm:w-40" : "aspect-square"
-                }`}
-              >
-                {item.kind === "video" ? (
-                  <video src={item.preview || item.url} className="w-full h-full object-cover" muted playsInline />
-                ) : (
-                  <img src={item.preview || item.url} alt="" className="w-full h-full object-cover" />
-                )}
+          <div
+            className={`grid gap-2 ${
+              isVideo
+                ? "grid-cols-1"
+                : "grid-cols-3"
+            }`}
+          >
+            {items.map((item, idx) => {
+              const mediaSrc =
+                item.uploaded && item.url
+                  ? item.url
+                  : item.preview;
 
-                {/* Progress overlay */}
-                {!item.uploaded && !item.error && (
-                  <div className="absolute inset-0 bg-black/60 backdrop-blur-sm grid place-items-center">
-                    <div className="text-white text-center">
-                      <Spinner size={18} />
-                      <p className="text-[10px] font-bold mt-1">{item.progress || 0}%</p>
-                    </div>
-                  </div>
-                )}
+              console.log("[ITEM]", item);
 
-                {/* Progress bar */}
-                {!item.uploaded && !item.error && (
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
-                    <div className="h-full bg-coral transition-all" style={{ width: `${item.progress || 0}%` }} />
-                  </div>
-                )}
-
-                {/* Success check */}
-                {item.uploaded && (
-                  <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-emerald-500 text-white grid place-items-center">
-                    <HiOutlineCheck className="text-xs" />
-                  </div>
-                )}
-
-                {/* Error */}
-                {item.error && (
-                  <div className="absolute inset-0 bg-red-500/80 grid place-items-center text-white text-center p-2">
-                    <HiOutlineExclamationTriangle className="text-xl mx-auto mb-1" />
-                    <p className="text-[9px] font-bold">Failed</p>
-                  </div>
-                )}
-
-                {/* Remove */}
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); removeItem(idx); }}
-                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 backdrop-blur text-white grid place-items-center hover:bg-red-500 transition"
+              return (
+                <motion.div
+                  key={idx}
+                  initial={{
+                    opacity: 0,
+                    scale: 0.9,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    scale: 1,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    scale: 0.9,
+                  }}
+                  className={`relative rounded-xl overflow-hidden bg-ink/5 border border-ink/10 ${
+                    isVideo
+                      ? "aspect-[9/16] max-h-56 mx-auto w-full sm:w-40"
+                      : "aspect-square"
+                  }`}
                 >
-                  <HiOutlineXMark className="text-xs" />
-                </button>
-              </motion.div>
-            ))}
+                  {/* VIDEO */}
+                  {item.kind === "video" ? (
+                    <video
+                      src={mediaSrc || ""}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                      controls={item.uploaded}
+                    />
+                  ) : (
+                    // IMAGE
+                    <img
+                      src={mediaSrc || ""}
+                      alt="preview"
+                      className="w-full h-full object-cover"
+                      crossOrigin="anonymous"
+                      onError={(e) => {
+                        console.log(
+                          "[IMAGE FAILED]",
+                          item
+                        );
+
+                        e.currentTarget.src =
+                          "https://via.placeholder.com/300x300?text=Preview";
+                      }}
+                    />
+                  )}
+
+                  {/* ========================= */}
+                  {/* PROGRESS OVERLAY */}
+                  {/* ========================= */}
+
+                  {!item.uploaded &&
+                    !item.error && (
+                      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm grid place-items-center">
+                        <div className="text-white text-center">
+                          <Spinner size={18} />
+
+                          <p className="text-[10px] font-bold mt-1">
+                            {item.progress || 0}%
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                  {/* ========================= */}
+                  {/* PROGRESS BAR */}
+                  {/* ========================= */}
+
+                  {!item.uploaded &&
+                    !item.error && (
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
+                        <div
+                          className="h-full bg-coral transition-all"
+                          style={{
+                            width: `${
+                              item.progress || 0
+                            }%`,
+                          }}
+                        />
+                      </div>
+                    )}
+
+                  {/* ========================= */}
+                  {/* SUCCESS */}
+                  {/* ========================= */}
+
+                  {item.uploaded && (
+                    <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-emerald-500 text-white grid place-items-center">
+                      <HiOutlineCheck className="text-xs" />
+                    </div>
+                  )}
+
+                  {/* ========================= */}
+                  {/* ERROR */}
+                  {/* ========================= */}
+
+                  {item.error && (
+                    <div className="absolute inset-0 bg-red-500/80 grid place-items-center text-white text-center p-2">
+                      <HiOutlineExclamationTriangle className="text-xl mx-auto mb-1" />
+
+                      <p className="text-[9px] font-bold">
+                        Failed
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ========================= */}
+                  {/* REMOVE */}
+                  {/* ========================= */}
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeItem(idx);
+                    }}
+                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 backdrop-blur text-white grid place-items-center hover:bg-red-500 transition"
+                  >
+                    <HiOutlineXMark className="text-xs" />
+                  </button>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </AnimatePresence>
