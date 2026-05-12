@@ -29,11 +29,24 @@ export default function DirectMediaUploader({
 
   // SAFE ARRAY
   const items = Array.isArray(value) ? value : [];
+  // ✅ Always keep latest items in ref to avoid stale closure in async uploadFile
+  const itemsRef = useRef(items);
+  useEffect(() => { itemsRef.current = items; }, [items]);
 
   const isVideo = accept.includes("video");
   const defaultMaxSize = isVideo ? 100 : 10;
   const sizeLimit = (maxSizeMB || defaultMaxSize) * 1024 * 1024;
 
+  const updateItem = useCallback((idx, patch) => {
+    // ✅ Use ref to get latest items — avoids stale closure in async uploadFile
+    const latest = itemsRef.current;
+    onChange?.(latest.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  }, [onChange]);
+
+  const removeItem = useCallback((idx) => {
+    const latest = itemsRef.current;
+    onChange?.(latest.filter((_, i) => i !== idx));
+  }, [onChange]);
   // =========================
   // CLEANUP OBJECT URLS
   // =========================
