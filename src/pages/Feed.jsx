@@ -33,6 +33,7 @@ import Button from "../components/ui/Button";
 import MediaUploader from "../components/ui/MediaUploader";
 import { useAuthStore } from "../store/authStore";
 import { Avatar } from "../components/ui/Avatar";
+import ReelUploadModal from "../components/ReelUploadModal";
 
 import toast from "react-hot-toast";
 
@@ -581,6 +582,36 @@ function ReelCard({
             {likeCount > 0 && likeCount}
           </button>
 
+          {/* COMMENT */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onPlay?.(reel);
+            }}
+            className="flex items-center gap-1 text-[10px] text-white/70 hover:text-white"
+          >
+            <HiOutlineChatBubbleOvalLeft className="text-sm" />
+            {reel.comments?.length > 0 && reel.comments.length}
+          </button>
+
+          {/* SHARE */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const url = `${window.location.origin}/feed?post=${reel._id}`;
+              if (navigator.share) {
+                navigator.share({ title: reel.caption, url });
+              } else {
+                navigator.clipboard.writeText(url);
+                toast.success("Link copy ho gaya 📋");
+              }
+              api.post(`/posts/${reel._id}/share`).catch(() => {});
+            }}
+            className="flex items-center gap-1 text-[10px] text-white/70 hover:text-white"
+          >
+            <HiOutlinePaperAirplane className="text-sm" />
+          </button>
+
           <Link
             to={`/profile/${reel.author?._id}`}
             onClick={(e) => e.stopPropagation()}
@@ -604,6 +635,13 @@ function ReelCard({
 
 function VideoModal({ reel, onClose }) {
   const videoRef = useRef(null);
+  const user = useAuthStore((s) => s.user);
+
+  const [liked, setLiked] = useState(reel?.likes?.includes?.(user?._id));
+  const [likeCount, setLikeCount] = useState(reel?.likes?.length || 0);
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState("");
+  const [loadingComments, setLoadingComments] = useState(false);
 
   const videoUrl = reel?.media?.find(
     (m) => m.kind === "video"
@@ -614,6 +652,51 @@ function VideoModal({ reel, onClose }) {
       videoRef.current.play().catch(() => {});
     }
   }, [videoUrl]);
+
+  useEffect(() => {
+    if (!reel) return;
+    setLiked(reel.likes?.includes?.(user?._id));
+    setLikeCount(reel.likes?.length || 0);
+    setLoadingComments(true);
+    api.get(`/posts/${reel._id}`)
+      .then(({ data }) => setComments(data.post?.comments || []))
+      .catch(() => {})
+      .finally(() => setLoadingComments(false));
+  }, [reel, user?._id]);
+
+  async function toggleLike() {
+    if (!user) { toast.error("Login karein pehle"); return; }
+    setLiked((v) => !v);
+    setLikeCount((c) => c + (liked ? -1 : 1));
+    try {
+      const { data } = await api.post(`/posts/${reel._id}/like`);
+      setLiked(data.liked);
+      setLikeCount(data.likeCount);
+    } catch {}
+  }
+
+  async function submitComment(e) {
+    e.preventDefault();
+    if (!commentText.trim()) return;
+    try {
+      const { data } = await api.post(`/posts/${reel._id}/comment`, { text: commentText.trim() });
+      setComments((c) => [...c, data.comment]);
+      setCommentText("");
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Comment nahi ho saka");
+    }
+  }
+
+  function handleShare() {
+    const url = `${window.location.origin}/feed?post=${reel._id}`;
+    if (navigator.share) {
+      navigator.share({ title: reel.caption, url });
+    } else {
+      navigator.clipboard.writeText(url);
+      toast.success("Link copy ho gaya 📋");
+    }
+    api.post(`/posts/${reel._id}/share`).catch(() => {});
+  }
 
   if (!reel) return null;
 
@@ -631,21 +714,69 @@ function VideoModal({ reel, onClose }) {
             src={videoUrl}
             controls
             playsInline
-            className="w-full rounded-xl max-h-[70vh] bg-ink"
+            className="w-full rounded-xl max-h-[60vh] bg-ink"
           />
         ) : (
           <div className="w-full h-64 rounded-xl bg-ink/10 grid place-items-center">
-            <p className="text-xs text-ink/40">
-              Video unavailable
-            </p>
+            <p className="text-xs text-ink/40">Video unavailable</p>
           </div>
         )}
 
         {reel.caption && (
-          <p className="text-sm text-ink/80 dark:text-cream/80">
-            {reel.caption}
-          </p>
+          <p className="text-sm text-ink/80 dark:text-cream/80">{reel.caption}</p>
         )}
+
+        {/* Like / Share bar */}
+        <div className="flex items-center gap-4 py-2 border-t border-ink/5">
+          <button
+            onClick={toggleLike}
+            className="flex items-center gap-1.5 text-xs text-ink/60 hover:text-coral transition"
+          >
+            {liked
+              ? <HiHeart className="text-coral text-base" />
+              : <HiOutlineHeart className="text-base" />}
+            {likeCount > 0 && <span>{likeCount}</span>}
+            <span>Like</span>
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 text-xs text-ink/60 hover:text-ink transition"
+          >
+            <HiOutlinePaperAirplane className="text-base" />
+            Share
+          </button>
+        </div>
+
+        {/* Comments */}
+        <div className="space-y-2">
+          <p className="text-[11px] font-semibold text-ink/50 uppercase tracking-wider">
+            Comments {comments.length > 0 && `(${comments.length})`}
+          </p>
+          {loadingComments && (
+            <p className="text-xs text-ink/30">Loading...</p>
+          )}
+          {comments.length > 0 && (
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+              {comments.map((c, i) => (
+                <div key={i} className="rounded-xl bg-cream/60 dark:bg-white/5 px-3 py-2">
+                  <p className="text-[11px] font-semibold">{c.user?.name || "User"}</p>
+                  <p className="text-[11px] text-ink/70 dark:text-cream/70">{c.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {user && (
+            <form onSubmit={submitComment} className="flex gap-2 pt-1 border-t border-ink/5">
+              <Input
+                placeholder="Comment likho..."
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                className="flex-1"
+              />
+              <Button type="submit" size="sm">Post</Button>
+            </form>
+          )}
+        </div>
       </div>
     </Modal>
   );
@@ -895,125 +1026,6 @@ function ComposeModal({
             : isEdit
             ? "Update Post"
             : "Publish Post"}
-        </Button>
-      </form>
-    </Modal>
-  );
-}
-
-/* =========================================================
-   REEL MODAL
-========================================================= */
-
-function ReelModal({
-  open,
-  onClose,
-  onPosted,
-  editReel,
-}) {
-  const [caption, setCaption] = useState(
-    editReel?.caption || ""
-  );
-
-  const [media, setMedia] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const isEdit = Boolean(editReel);
-
-  useEffect(() => {
-    if (editReel) {
-      setCaption(editReel.caption || "");
-    }
-  }, [editReel]);
-
-  async function submit(e) {
-    e.preventDefault();
-
-    const uploaded = media.filter((m) => m.url);
-
-    setLoading(true);
-
-    try {
-      let data;
-
-      if (isEdit) {
-        ({ data } = await api.patch(
-          `/posts/${editReel._id}`,
-          { caption }
-        ));
-
-        toast.success("Reel update ho gayi ✅");
-      } else {
-        ({ data } = await api.post("/posts", {
-          caption,
-          kind: "video",
-          media: uploaded.map((m) => ({
-            url: m.url,
-            kind: "video",
-          })),
-        }));
-
-        toast.success("Reel upload ho gayi 🎬");
-      }
-
-      onPosted(data.post, isEdit);
-
-      setCaption("");
-      setMedia([]);
-    } catch (err) {
-      toast.error(
-        err.response?.data?.error ||
-          "Reel upload fail"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={
-        isEdit
-          ? "Reel edit karo"
-          : "Reel upload karo"
-      }
-    >
-      <form
-        onSubmit={submit}
-        className="space-y-4"
-      >
-        {!isEdit && (
-          <MediaUploader
-            label="Video"
-            value={media}
-            onChange={setMedia}
-            accept="video/*"
-            maxFiles={1}
-          />
-        )}
-
-        <textarea
-          value={caption}
-          onChange={(e) =>
-            setCaption(e.target.value)
-          }
-          placeholder="Caption..."
-          rows={3}
-          className="w-full rounded-xl border border-ink/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm outline-none focus:border-coral resize-none"
-        />
-
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={loading}
-        >
-          {loading
-            ? "Loading..."
-            : isEdit
-            ? "Update Reel"
-            : "Publish Reel"}
         </Button>
       </form>
     </Modal>
@@ -1425,7 +1437,7 @@ export default function Feed() {
         editPost={editingPost}
       />
 
-      <ReelModal
+      <ReelUploadModal
         open={reelOpen}
         onClose={() => {
           setReelOpen(false);
