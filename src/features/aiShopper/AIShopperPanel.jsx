@@ -440,46 +440,56 @@ export default function AIShopperPanel() {
                     {visibleResults.length > 0 ? (
                       <CardStack
                         items={visibleResults}
-                        render={(r) => (
-                          <Link
-                            to={`/product/${r.product._id}`}
-                            className="block h-full"
-                          >
-                            <div className="h-full w-full relative">
-                              <img
-                                src={r.product.images?.[0]?.url}
-                                alt=""
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = "none";
-                                }}
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent" />
+                        render={(r, _idx, isTop) => (
+                          <div className="h-full w-full relative">
+                            <img
+                              src={r.product.images?.[0]?.url}
+                              alt=""
+                              className="w-full h-full object-cover pointer-events-none select-none"
+                              draggable={false}
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent pointer-events-none" />
+                            {r._bestBuy && (
+                              <div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-butter text-tangerine text-[10px] font-jakarta font-bold uppercase tracking-wider shadow-pop flex items-center gap-1 pointer-events-none">
+                                <TbSortDescending className="text-xs" /> Best buy
+                              </div>
+                            )}
+                            {isTop && (
+                              <div className="absolute top-3 right-3 px-2 py-1 rounded-full bg-white/80 backdrop-blur text-ink/70 text-[9px] font-jakarta uppercase tracking-wider pointer-events-none">
+                                swipe ← →
+                              </div>
+                            )}
+                            <div className="absolute bottom-0 left-0 right-0 p-4 text-white pointer-events-none">
+                              <div className="text-[10px] opacity-70">
+                                {Math.round(r.score * 100)}% match
+                                {r.product.city_name ? ` · ${r.product.city_name}` : ""}
+                              </div>
+                              <div className="font-jakarta font-semibold line-clamp-2">
+                                {r.product.title}
+                              </div>
+                              <div className="font-fraunces text-2xl">
+                                &#8377;{r.product.price?.toLocaleString("en-IN")}
+                              </div>
                               {r._bestBuy && (
-                                <div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-butter text-tangerine text-[10px] font-jakarta font-bold uppercase tracking-wider shadow-pop flex items-center gap-1">
-                                  <TbSortDescending className="text-xs" /> Best buy
+                                <div className="text-[10px] opacity-80 font-caveat mt-0.5">
+                                  cheapest of the strong matches
                                 </div>
                               )}
-                              <div className="absolute bottom-4 left-4 right-4 text-white">
-                                <div className="text-[10px] opacity-70">
-                                  {Math.round(r.score * 100)}% match
-                                  {r.product.city_name ? ` · ${r.product.city_name}` : ""}
-                                </div>
-                                <div className="font-jakarta font-semibold line-clamp-2">
-                                  {r.product.title}
-                                </div>
-                                <div className="font-fraunces text-2xl">
-                                  &#8377;
-                                  {r.product.price?.toLocaleString("en-IN")}
-                                </div>
-                                {r._bestBuy && (
-                                  <div className="text-[10px] opacity-80 font-caveat mt-0.5">
-                                    cheapest of the strong matches
-                                  </div>
-                                )}
-                              </div>
+                              <Link
+                                to={`/product/${r.product._id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpen(false);
+                                }}
+                                className="pointer-events-auto mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-coral text-white text-xs font-jakarta font-semibold shadow-pop hover:bg-coral/90 transition"
+                              >
+                                View product →
+                              </Link>
                             </div>
-                          </Link>
+                          </div>
                         )}
                       />
                     ) : results.length > 0 ? (
