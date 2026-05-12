@@ -1,14 +1,21 @@
 import { useEffect, useState } from "react";
+
 import {
   HiOutlinePlus,
   HiOutlineTrash,
 } from "react-icons/hi2";
 
 import api from "../services/api";
+
 import Modal from "./ui/Modal";
 import { Input, Textarea } from "./ui/Input";
 import { Button } from "./ui/Button";
+
 import MediaUploader from "./ui/MediaUploader";
+
+/* =========================================================
+   CATEGORIES
+========================================================= */
 
 const CATEGORIES = [
   "Fashion",
@@ -31,30 +38,48 @@ const CATEGORIES = [
   "Other",
 ];
 
+/* =========================================================
+   EMPTY STATE
+========================================================= */
+
 const EMPTY = {
   title: "",
   description: "",
   category: CATEGORIES[0],
+
   tags: "",
+
   price: "",
   compareAtPrice: "",
+
   stock: "0",
+
   images: [],
   videos: [],
+
   attributes: [],
+
   isActive: true,
 };
 
-function attrsObjectToRows(obj) {
-  if (!obj || typeof obj !== "object") return [];
+/* =========================================================
+   ATTRIBUTES HELPERS
+========================================================= */
 
-  return Object.entries(obj).map(([key, value]) => ({
-    key,
-    value:
-      typeof value === "string"
-        ? value
-        : JSON.stringify(value),
-  }));
+function attrsObjectToRows(obj) {
+  if (!obj || typeof obj !== "object") {
+    return [];
+  }
+
+  return Object.entries(obj).map(
+    ([key, value]) => ({
+      key,
+      value:
+        typeof value === "string"
+          ? value
+          : JSON.stringify(value),
+    })
+  );
 }
 
 function rowsToAttrsObject(rows) {
@@ -71,6 +96,10 @@ function rowsToAttrsObject(rows) {
   return out;
 }
 
+/* =========================================================
+   COMPONENT
+========================================================= */
+
 export default function ProductFormModal({
   open,
   mode,
@@ -79,15 +108,24 @@ export default function ProductFormModal({
   onSaved,
 }) {
   const isEdit =
-    mode === "edit" || (!mode && !!product);
+    mode === "edit" ||
+    (!mode && !!product);
 
-  const [form, setForm] = useState(EMPTY);
+  const [form, setForm] =
+    useState(EMPTY);
 
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] =
+    useState({});
 
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] =
+    useState(false);
 
-  const [apiError, setApiError] = useState(null);
+  const [apiError, setApiError] =
+    useState(null);
+
+  /* =======================================================
+     LOAD PRODUCT
+  ======================================================= */
 
   useEffect(() => {
     if (!open) return;
@@ -96,12 +134,16 @@ export default function ProductFormModal({
       setForm({
         title: product.title || "",
 
-        description: product.description || "",
+        description:
+          product.description || "",
 
         category:
-          product.category || CATEGORIES[0],
+          product.category ||
+          CATEGORIES[0],
 
-        tags: Array.isArray(product.tags)
+        tags: Array.isArray(
+          product.tags
+        )
           ? product.tags.join(", ")
           : "",
 
@@ -112,7 +154,9 @@ export default function ProductFormModal({
 
         compareAtPrice:
           product.compareAtPrice != null
-            ? String(product.compareAtPrice)
+            ? String(
+                product.compareAtPrice
+              )
             : "",
 
         stock:
@@ -120,19 +164,25 @@ export default function ProductFormModal({
             ? String(product.stock)
             : "0",
 
-        images: Array.isArray(product.images)
+        images: Array.isArray(
+          product.images
+        )
           ? product.images
           : [],
 
-        videos: Array.isArray(product.videos)
+        videos: Array.isArray(
+          product.videos
+        )
           ? product.videos
           : [],
 
-        attributes: attrsObjectToRows(
-          product.attributes,
-        ),
+        attributes:
+          attrsObjectToRows(
+            product.attributes
+          ),
 
-        isActive: product.isActive !== false,
+        isActive:
+          product.isActive !== false,
       });
     } else {
       setForm(EMPTY);
@@ -142,6 +192,10 @@ export default function ProductFormModal({
     setApiError(null);
   }, [open, product]);
 
+  /* =======================================================
+     UPDATE
+  ======================================================= */
+
   function update(key, value) {
     setForm((f) => ({
       ...f,
@@ -149,13 +203,22 @@ export default function ProductFormModal({
     }));
   }
 
+  /* =======================================================
+     ATTRIBUTES
+  ======================================================= */
+
   function setAttrRow(idx, patch) {
     setForm((f) => ({
       ...f,
-      attributes: f.attributes.map((row, i) =>
-        i === idx
-          ? { ...row, ...patch }
-          : row,
+
+      attributes: f.attributes.map(
+        (row, i) =>
+          i === idx
+            ? {
+                ...row,
+                ...patch,
+              }
+            : row
       ),
     }));
   }
@@ -163,9 +226,13 @@ export default function ProductFormModal({
   function addAttrRow() {
     setForm((f) => ({
       ...f,
+
       attributes: [
         ...f.attributes,
-        { key: "", value: "" },
+        {
+          key: "",
+          value: "",
+        },
       ],
     }));
   }
@@ -173,29 +240,42 @@ export default function ProductFormModal({
   function removeAttrRow(idx) {
     setForm((f) => ({
       ...f,
-      attributes: f.attributes.filter(
-        (_, i) => i !== idx,
-      ),
+
+      attributes:
+        f.attributes.filter(
+          (_, i) => i !== idx
+        ),
     }));
   }
+
+  /* =======================================================
+     VALIDATION
+  ======================================================= */
 
   function validate() {
     const e = {};
 
     if (!form.title.trim()) {
       e.title = "Title is required";
-    } else if (form.title.trim().length < 3) {
+    } else if (
+      form.title.trim().length < 3
+    ) {
       e.title =
         "Title must be at least 3 characters";
     }
 
-    const priceNum = Number(form.price);
+    const priceNum = Number(
+      form.price
+    );
 
     if (!(priceNum > 0)) {
-      e.price = "Price must be greater than 0";
+      e.price =
+        "Price must be greater than 0";
     }
 
-    const stockNum = Number(form.stock);
+    const stockNum = Number(
+      form.stock
+    );
 
     if (
       !Number.isInteger(stockNum) ||
@@ -209,17 +289,25 @@ export default function ProductFormModal({
       form.compareAtPrice !== "" &&
       Number(form.compareAtPrice) < 0
     ) {
-      e.compareAtPrice = "Must be >= 0";
+      e.compareAtPrice =
+        "Must be >= 0";
     }
 
     if (!form.images.length) {
-      e.images = "At least 1 image is required";
+      e.images =
+        "At least 1 image is required";
     }
 
     setErrors(e);
 
-    return Object.keys(e).length === 0;
+    return (
+      Object.keys(e).length === 0
+    );
   }
+
+  /* =======================================================
+     SUBMIT
+  ======================================================= */
 
   async function handleSubmit(ev) {
     ev.preventDefault();
@@ -231,72 +319,96 @@ export default function ProductFormModal({
     setApiError(null);
 
     try {
-      // IMPORTANT FIX
-      // only save uploaded URLs
-      const cleanImages = form.images
-        .filter((img) => img?.url)
-        .map((img) => ({
-          url: img.url,
-          kind: img.kind || "image",
-        }));
+      /* ============================
+         IMPORTANT FIX
+         Save only uploaded URLs
+      ============================ */
 
-      const cleanVideos = form.videos
-        .filter((vid) => vid?.url)
-        .map((vid) => ({
-          url: vid.url,
-          kind: vid.kind || "video",
-        }));
+      const cleanImages =
+        form.images
+          .filter((img) => img?.url)
+          .map((img) => ({
+            url: img.url,
+
+            publicId:
+              img.publicId || "",
+          }));
+
+      const cleanVideos =
+        form.videos
+          .filter((vid) => vid?.url)
+          .map((vid) => ({
+            url: vid.url,
+
+            publicId:
+              vid.publicId || "",
+          }));
 
       const payload = {
-        title: form.title.trim(),
+        title:
+          form.title.trim(),
 
         description:
           form.description.trim(),
 
-        category: form.category,
+        category:
+          form.category,
 
         tags: form.tags
           .split(",")
           .map((t) => t.trim())
           .filter(Boolean),
 
-        price: Number(form.price),
+        price: Number(
+          form.price
+        ),
 
-        stock: Number(form.stock),
+        stock: Number(
+          form.stock
+        ),
 
         images: cleanImages,
 
         videos: cleanVideos,
 
-        attributes: rowsToAttrsObject(
-          form.attributes,
-        ),
+        attributes:
+          rowsToAttrsObject(
+            form.attributes
+          ),
       };
 
-      if (form.compareAtPrice !== "") {
-        payload.compareAtPrice = Number(
-          form.compareAtPrice,
-        );
+      if (
+        form.compareAtPrice !== ""
+      ) {
+        payload.compareAtPrice =
+          Number(
+            form.compareAtPrice
+          );
       }
 
       if (isEdit) {
-        payload.isActive = !!form.isActive;
+        payload.isActive =
+          !!form.isActive;
       }
 
       console.log(
         "[PRODUCT PAYLOAD]",
-        payload,
+        payload
       );
+
+      /* ============================
+         API CALL
+      ============================ */
 
       if (isEdit) {
         await api.patch(
           `/products/${product._id}`,
-          payload,
+          payload
         );
       } else {
         await api.post(
           "/products",
-          payload,
+          payload
         );
       }
 
@@ -307,18 +419,27 @@ export default function ProductFormModal({
       console.error(err);
 
       setApiError(
-        err?.response?.data?.error ||
-          "Failed to save product",
+        err?.response?.data
+          ?.error ||
+          "Failed to save product"
       );
     } finally {
       setSaving(false);
     }
   }
 
+  /* =======================================================
+     UI
+  ======================================================= */
+
   return (
     <Modal
       open={open}
-      onClose={saving ? () => {} : onClose}
+      onClose={
+        saving
+          ? () => {}
+          : onClose
+      }
       eyebrow={
         isEdit
           ? "Edit listing"
@@ -335,15 +456,22 @@ export default function ProductFormModal({
         onSubmit={handleSubmit}
         className="space-y-3"
       >
+        {/* TITLE */}
+
         <Input
           label="Title"
           value={form.title}
           onChange={(e) =>
-            update("title", e.target.value)
+            update(
+              "title",
+              e.target.value
+            )
           }
           error={errors.title}
           placeholder="Handblock cotton saree..."
         />
+
+        {/* DESCRIPTION */}
 
         <Textarea
           label="Description"
@@ -351,11 +479,13 @@ export default function ProductFormModal({
           onChange={(e) =>
             update(
               "description",
-              e.target.value,
+              e.target.value
             )
           }
           placeholder="Tell the story behind this piece..."
         />
+
+        {/* CATEGORY + TAGS */}
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
@@ -368,19 +498,21 @@ export default function ProductFormModal({
               onChange={(e) =>
                 update(
                   "category",
-                  e.target.value,
+                  e.target.value
                 )
               }
               className="w-full rounded-xl bg-white/80 dark:bg-ink/60 border border-ink/10 dark:border-cream/15 focus:border-coral/60 outline-none px-3 py-2.5 text-xs text-ink dark:text-cream font-jakarta"
             >
-              {CATEGORIES.map((c) => (
-                <option
-                  key={c}
-                  value={c}
-                >
-                  {c}
-                </option>
-              ))}
+              {CATEGORIES.map(
+                (c) => (
+                  <option
+                    key={c}
+                    value={c}
+                  >
+                    {c}
+                  </option>
+                )
+              )}
             </select>
           </label>
 
@@ -388,11 +520,16 @@ export default function ProductFormModal({
             label="Tags (comma-separated)"
             value={form.tags}
             onChange={(e) =>
-              update("tags", e.target.value)
+              update(
+                "tags",
+                e.target.value
+              )
             }
             placeholder="cotton, pastel, summer"
           />
         </div>
+
+        {/* PRICING */}
 
         <div className="grid grid-cols-3 gap-3">
           <Input
@@ -402,7 +539,10 @@ export default function ProductFormModal({
             step="1"
             value={form.price}
             onChange={(e) =>
-              update("price", e.target.value)
+              update(
+                "price",
+                e.target.value
+              )
             }
             error={errors.price}
             placeholder="1299"
@@ -413,14 +553,18 @@ export default function ProductFormModal({
             type="number"
             min="0"
             step="1"
-            value={form.compareAtPrice}
+            value={
+              form.compareAtPrice
+            }
             onChange={(e) =>
               update(
                 "compareAtPrice",
-                e.target.value,
+                e.target.value
               )
             }
-            error={errors.compareAtPrice}
+            error={
+              errors.compareAtPrice
+            }
             placeholder="1599"
           />
 
@@ -431,13 +575,17 @@ export default function ProductFormModal({
             step="1"
             value={form.stock}
             onChange={(e) =>
-              update("stock", e.target.value)
+              update(
+                "stock",
+                e.target.value
+              )
             }
             error={errors.stock}
           />
         </div>
 
         {/* IMAGES */}
+
         <div>
           <MediaUploader
             label="Images"
@@ -445,9 +593,11 @@ export default function ProductFormModal({
             onChange={(v) =>
               setForm((f) => ({
                 ...f,
-                images: Array.isArray(v)
-                  ? v
-                  : [],
+
+                images:
+                  Array.isArray(v)
+                    ? v
+                    : [],
               }))
             }
             multiple
@@ -463,6 +613,7 @@ export default function ProductFormModal({
         </div>
 
         {/* VIDEOS */}
+
         <div>
           <MediaUploader
             label="Videos (optional)"
@@ -470,9 +621,11 @@ export default function ProductFormModal({
             onChange={(v) =>
               setForm((f) => ({
                 ...f,
-                videos: Array.isArray(v)
-                  ? v
-                  : [],
+
+                videos:
+                  Array.isArray(v)
+                    ? v
+                    : [],
               }))
             }
             multiple
@@ -483,6 +636,7 @@ export default function ProductFormModal({
         </div>
 
         {/* ATTRIBUTES */}
+
         <div>
           <div className="flex items-center justify-between mb-1">
             <span className="text-[11px] font-jakarta font-semibold text-ink/70 dark:text-cream/70 uppercase tracking-wider">
@@ -495,57 +649,65 @@ export default function ProductFormModal({
               className="inline-flex items-center gap-1 text-[11px] font-jakarta font-semibold text-coral"
             >
               <HiOutlinePlus />
+
               Add row
             </button>
           </div>
 
           <div className="space-y-2">
-            {form.attributes.map((row, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-2"
-              >
-                <input
-                  value={row.key}
-                  onChange={(e) =>
-                    setAttrRow(i, {
-                      key: e.target.value,
-                    })
-                  }
-                  placeholder="Key"
-                  className="flex-1 rounded-xl border px-3 py-2 text-xs"
-                />
-
-                <input
-                  value={row.value}
-                  onChange={(e) =>
-                    setAttrRow(i, {
-                      value: e.target.value,
-                    })
-                  }
-                  placeholder="Value"
-                  className="flex-1 rounded-xl border px-3 py-2 text-xs"
-                />
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    removeAttrRow(i)
-                  }
-                  className="w-8 h-8 grid place-items-center"
+            {form.attributes.map(
+              (row, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2"
                 >
-                  <HiOutlineTrash />
-                </button>
-              </div>
-            ))}
+                  <input
+                    value={row.key}
+                    onChange={(e) =>
+                      setAttrRow(i, {
+                        key: e.target.value,
+                      })
+                    }
+                    placeholder="Key"
+                    className="flex-1 rounded-xl border px-3 py-2 text-xs"
+                  />
+
+                  <input
+                    value={row.value}
+                    onChange={(e) =>
+                      setAttrRow(i, {
+                        value:
+                          e.target.value,
+                      })
+                    }
+                    placeholder="Value"
+                    className="flex-1 rounded-xl border px-3 py-2 text-xs"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      removeAttrRow(i)
+                    }
+                    className="w-8 h-8 grid place-items-center"
+                  >
+                    <HiOutlineTrash />
+                  </button>
+                </div>
+              )
+            )}
           </div>
         </div>
+
+        {/* API ERROR */}
 
         {apiError && (
           <div className="rounded-xl bg-coral/10 border border-coral/30 px-3 py-2 text-[11px] text-coral">
             {apiError}
           </div>
         )}
+
+        {/* ACTIONS */}
 
         <div className="flex justify-end gap-2 pt-2">
           <Button

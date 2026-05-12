@@ -4,6 +4,7 @@
 // ✅ Single image upload
 // ✅ Multiple image upload
 // ✅ Video upload
+// ✅ Image/video preview
 // ✅ Auth token
 // ✅ Persist login after refresh
 // ✅ Backend routes:
@@ -12,7 +13,6 @@
 
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -23,7 +23,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   HiOutlineArrowUpTray,
   HiOutlineCloudArrowUp,
-  HiOutlinePhoto,
   HiOutlineDocument,
   HiXMark,
 } from "react-icons/hi2";
@@ -54,7 +53,9 @@ const API_ORIGIN = (() => {
 function absolutizeUrl(url) {
   if (!url) return url;
 
-  if (/^https?:\/\//i.test(url)) return url;
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
 
   if (url.startsWith("/") && API_ORIGIN) {
     return `${API_ORIGIN}${url}`;
@@ -63,12 +64,23 @@ function absolutizeUrl(url) {
   return url;
 }
 
+function isImageUrl(url = "") {
+  return /\.(png|jpg|jpeg|gif|webp|svg|bmp)(\?|$)/i.test(url);
+}
+
+/* =========================================================
+   NORMALIZE BACKEND RESPONSE
+========================================================= */
+
 function normalizeUploadResponse(data) {
   if (!data) return [];
 
   const normalize = (x) => ({
     url: absolutizeUrl(x.url),
     publicId: x.publicId || "",
+    kind:
+      x.kind ||
+      (isImageUrl(x.url) ? "image" : "video"),
   });
 
   if (Array.isArray(data.files)) {
@@ -82,12 +94,10 @@ function normalizeUploadResponse(data) {
   return [];
 }
 
-function isImageUrl(url = "") {
-  return /\.(png|jpg|jpeg|gif|webp|svg|bmp)(\?|$)/i.test(url);
-}
-
 function matchesAccept(file, accept) {
-  if (!accept || accept === "*") return true;
+  if (!accept || accept === "*") {
+    return true;
+  }
 
   const fileType = file.type.toLowerCase();
 
@@ -96,7 +106,9 @@ function matchesAccept(file, accept) {
     .map((x) => x.trim())
     .some((rule) => {
       if (rule.endsWith("/*")) {
-        return fileType.startsWith(rule.replace("/*", "/"));
+        return fileType.startsWith(
+          rule.replace("/*", "/")
+        );
       }
 
       return fileType === rule;
@@ -111,7 +123,14 @@ function toItemArray(value) {
   }
 
   if (typeof value === "string") {
-    return [{ url: value }];
+    return [
+      {
+        url: value,
+        kind: isImageUrl(value)
+          ? "image"
+          : "video",
+      },
+    ];
   }
 
   return [];
@@ -150,13 +169,17 @@ export default function MediaUploader({
     ? `${API_ORIGIN}/api/upload/multi`
     : `${API_ORIGIN}/api/upload`;
 
-  const resolvedFieldName = multiple ? "files" : "file";
+  const resolvedFieldName = multiple
+    ? "files"
+    : "file";
 
   /* =======================================================
      STATE
   ======================================================= */
 
-  const [dragActive, setDragActive] = useState(false);
+  const [dragActive, setDragActive] =
+    useState(false);
+
   const [error, setError] = useState("");
 
   const [uploads, setUploads] = useState([]);
@@ -172,7 +195,7 @@ export default function MediaUploader({
       if (multiple) {
         onChange?.(next);
       } else {
-        onChange?.(next[0]?.url || "");
+        onChange?.(next[0] || null);
       }
     },
     [multiple, onChange]
@@ -197,7 +220,9 @@ export default function MediaUploader({
   const doUpload = useCallback(
     (file) => {
       return new Promise((resolve) => {
-        const id = Math.random().toString(36).slice(2);
+        const id = Math.random()
+          .toString(36)
+          .slice(2);
 
         setUploads((prev) => [
           ...prev,
@@ -214,7 +239,11 @@ export default function MediaUploader({
 
         const xhr = new XMLHttpRequest();
 
-        xhr.open("POST", resolvedUploadUrl, true);
+        xhr.open(
+          "POST",
+          resolvedUploadUrl,
+          true
+        );
 
         /* ============================
            AUTH TOKEN
@@ -255,20 +284,31 @@ export default function MediaUploader({
           let parsed = {};
 
           try {
-            parsed = JSON.parse(xhr.responseText);
+            parsed = JSON.parse(
+              xhr.responseText
+            );
           } catch {}
 
-          if (xhr.status >= 200 && xhr.status < 300) {
+          if (
+            xhr.status >= 200 &&
+            xhr.status < 300
+          ) {
             setUploads((prev) =>
-              prev.filter((u) => u.id !== id)
+              prev.filter(
+                (u) => u.id !== id
+              )
             );
 
             resolve(
-              normalizeUploadResponse(parsed)
+              normalizeUploadResponse(
+                parsed
+              )
             );
           } else {
             setUploads((prev) =>
-              prev.filter((u) => u.id !== id)
+              prev.filter(
+                (u) => u.id !== id
+              )
             );
 
             triggerError(
@@ -286,7 +326,9 @@ export default function MediaUploader({
 
         xhr.onerror = () => {
           setUploads((prev) =>
-            prev.filter((u) => u.id !== id)
+            prev.filter(
+              (u) => u.id !== id
+            )
           );
 
           triggerError("Network error");
@@ -313,17 +355,22 @@ export default function MediaUploader({
     async (fileList) => {
       if (disabled) return;
 
-      const files = Array.from(fileList || []);
+      const files = Array.from(
+        fileList || []
+      );
 
       if (!files.length) return;
 
       const validFiles = [];
 
       for (const file of files) {
-        if (!matchesAccept(file, accept)) {
+        if (
+          !matchesAccept(file, accept)
+        ) {
           triggerError(
             `${file.name} invalid file type`
           );
+
           continue;
         }
 
@@ -334,6 +381,7 @@ export default function MediaUploader({
           triggerError(
             `${file.name} exceeds ${maxSizeMB}MB`
           );
+
           continue;
         }
 
@@ -347,7 +395,9 @@ export default function MediaUploader({
       ============================ */
 
       if (!multiple) {
-        const result = await doUpload(validFiles[0]);
+        const result = await doUpload(
+          validFiles[0]
+        );
 
         if (result.length) {
           emit(result);
@@ -363,21 +413,22 @@ export default function MediaUploader({
       const remaining =
         maxFiles - items.length;
 
-      const selected = validFiles.slice(
-        0,
-        remaining
-      );
+      const selected =
+        validFiles.slice(
+          0,
+          remaining
+        );
 
-      const results = await Promise.all(
-        selected.map((f) => doUpload(f))
-      );
+      const results =
+        await Promise.all(
+          selected.map((f) =>
+            doUpload(f)
+          )
+        );
 
       const flat = results.flat();
 
-      emit([
-        ...items,
-        ...flat,
-      ]);
+      emit([...items, ...flat]);
     },
     [
       accept,
@@ -415,7 +466,8 @@ export default function MediaUploader({
 
     if (disabled) return;
 
-    const files = e.dataTransfer?.files;
+    const files =
+      e.dataTransfer?.files;
 
     if (files?.length) {
       handleFiles(files);
@@ -437,7 +489,12 @@ export default function MediaUploader({
   ======================================================= */
 
   return (
-    <div className={cn("w-full", className)}>
+    <div
+      className={cn(
+        "w-full",
+        className
+      )}
+    >
       {label && (
         <p className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
           {label}
@@ -453,10 +510,13 @@ export default function MediaUploader({
         multiple={multiple}
         className="hidden"
         onChange={(e) => {
-          handleFiles(e.target.files);
+          handleFiles(
+            e.target.files
+          );
 
           if (fileRef.current) {
-            fileRef.current.value = "";
+            fileRef.current.value =
+              "";
           }
         }}
       />
@@ -515,9 +575,15 @@ export default function MediaUploader({
             {uploads.map((u) => (
               <motion.div
                 key={u.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                initial={{
+                  opacity: 0,
+                }}
+                animate={{
+                  opacity: 1,
+                }}
+                exit={{
+                  opacity: 0,
+                }}
                 className="border rounded-xl p-3"
               >
                 <div className="flex justify-between text-sm mb-2">
@@ -548,35 +614,45 @@ export default function MediaUploader({
 
       {items.length > 0 && (
         <div className="grid grid-cols-3 gap-3 mt-4">
-          {items.map((item, index) => (
-            <div
-              key={item.url + index}
-              className="relative aspect-square rounded-xl overflow-hidden border"
-            >
-              {isImageUrl(item.url) ? (
-                <img
-                  src={item.url}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-xs text-zinc-500 bg-zinc-100 dark:bg-zinc-900">
-                  <HiOutlineDocument className="text-2xl mb-1" />
-                  VIDEO
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() =>
-                  removeAt(index)
+          {items.map(
+            (item, index) => (
+              <div
+                key={
+                  item.url + index
                 }
-                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center"
+                className="relative aspect-square rounded-xl overflow-hidden border"
               >
-                <HiXMark />
-              </button>
-            </div>
-          ))}
+                {(item.kind ===
+                  "image" ||
+                  isImageUrl(
+                    item.url
+                  )) ? (
+                  <img
+                    src={item.url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <video
+                    src={item.url}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                  />
+                )}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    removeAt(index)
+                  }
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center"
+                >
+                  <HiXMark />
+                </button>
+              </div>
+            )
+          )}
         </div>
       )}
 
