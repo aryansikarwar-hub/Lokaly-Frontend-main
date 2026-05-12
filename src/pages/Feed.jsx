@@ -479,10 +479,37 @@ function ReelCard({ reel, onPlay, onDeleted, onEdited }) {
       )}
 
       <div className="absolute bottom-0 left-0 right-0 p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <Link to={`/profile/${reel.author?._id || ""}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
-            <Avatar src={reel.author?.avatar} name={reel.author?.name} size={22} />
-            <span className="text-white text-[10px] font-semibold drop-shadow truncate max-w-[80px]">{reel.author?.name}</span>
+        <p className="text-white text-[11px] font-semibold line-clamp-2">
+          {reel.caption}
+        </p>
+
+        <div className="mt-2 flex items-center gap-3">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleLike();
+            }}
+            className="flex items-center gap-1 text-[10px] text-white/70 hover:text-coral"
+          >
+            {liked ? (
+              <HiHeart className="text-coral text-sm" />
+            ) : (
+              <HiOutlineHeart className="text-sm" />
+            )}
+
+            {likeCount > 0 && likeCount}
+          </button>
+
+          <Link
+            to={`/profile/${reel.author?._id}`}
+            onClick={(e) => e.stopPropagation()}F
+            className="ml-auto"
+          >
+            <Avatar
+              src={reel.author?.avatar}
+              name={reel.author?.name}
+              size="xs"
+            />
           </Link>
         </div>
         {reel.caption && <p className="text-white text-[11px] font-medium line-clamp-2 mb-2 drop-shadow-md">{reel.caption}</p>}

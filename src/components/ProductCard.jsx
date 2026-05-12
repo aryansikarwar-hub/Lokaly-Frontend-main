@@ -21,7 +21,13 @@ function absolutizeUrl(url) {
 }
 
 export default function ProductCard({ product }) {
-  const img = absolutizeUrl(product.images?.[0]?.url);
+  // Accept either shape:
+  //   Mongoose Product:  images: [{ url, publicId }]
+  //   HF recommender:    image: "https://..."   (flat string)
+  //   Hyperlocal feed:   imageUrl: "..."
+  const rawImg =
+    product.images?.[0]?.url || product.image || product.imageUrl || "";
+  const img = absolutizeUrl(rawImg);
   const seller = product.seller || {};
   const discount = product.compareAtPrice
     ? Math.max(0, Math.round(100 - (product.price / product.compareAtPrice) * 100))

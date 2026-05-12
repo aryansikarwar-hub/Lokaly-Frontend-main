@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { TbWand, TbSortDescending } from "react-icons/tb";
@@ -8,9 +8,22 @@ import {
   HiOutlineSparkles,
   HiOutlineAdjustmentsHorizontal,
 } from "react-icons/hi2";
-import api from "../../services/api";
+import api, { getSimilarProducts } from "../../services/api";
 import { CardStack } from "../../components/animations/CardStack";
 import { useAIShopperStore } from "../../store/aiShopperStore";
+
+const API_ORIGIN = (() => {
+  const raw = import.meta.env.VITE_API_URL;
+  if (!raw) return "";
+  try { return new URL(raw).origin; } catch { return ""; }
+})();
+
+function absolutizeUrl(url) {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
+  if (url.startsWith("/") && API_ORIGIN) return `${API_ORIGIN}${url}`;
+  return url;
+}
 
 const SUGGESTIONS = [
   "blue saree under 1500",
@@ -32,6 +45,7 @@ export default function AIShopperPanel() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
+  const [similar, setSimilar] = useState([]);
   const [history, setHistory] = useState([]);
   const [sort, setSort] = useState("best_buy");
   const [filters, setFilters] = useState({ city: "", category: "", maxPrice: 0 });
@@ -75,6 +89,43 @@ export default function AIShopperPanel() {
     });
   }, [results]);
 
+  // "You may like" — fetch similar products for the top match
+  useEffect(() => {
+    const topId = results[0]?.product?._id;
+    if (!topId) {
+      setSimilar([]);
+      return;
+    }
+    let cancelled = false;
+    getSimilarProducts(topId)
+      .then((data) => {
+        if (cancelled) return;
+        const seen = new Set(results.map((r) => r.product._id));
+        const list = (data?.similar || [])
+          .map((p) => {
+            const id = String(p._id || p.id || "");
+            if (!id || seen.has(id)) return null;
+            const rawImg = p.images?.[0]?.url || p.image || p.imageUrl || "";
+            return {
+              _id: id,
+              title: p.title || "",
+              price: p.price,
+              image: absolutizeUrl(rawImg),
+              city_name: p.city_name || "",
+            };
+          })
+          .filter(Boolean)
+          .slice(0, 6);
+        setSimilar(list);
+      })
+      .catch(() => {
+        if (!cancelled) setSimilar([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [results]);
+
   // Apply filters + sort
   const visibleResults = useMemo(() => {
     let list = scored.filter((h) => {
@@ -100,21 +151,29 @@ export default function AIShopperPanel() {
     setQuery("");
     setLoading(true);
     setFilters({ city: "", category: "", maxPrice: 0 });
+    setSimilar([]);
     try {
       const { data } = await api.post("/recommendations/search", { query: body });
       const list = Array.isArray(data?.results) ? data.results : [];
-      const hits = list.map((p) => ({
-        score: typeof p.match_score === "number" ? p.match_score / 100 : 0,
-        product: {
-          _id: p._id || p.id || "",
-          title: p.title || "",
-          price: p.price,
-          images: p.image ? [{ url: p.image }] : [],
-          city_name: p.city_name || "",
-          category: p.category || "",
-          shop_name: p.shop_name || "",
-        },
-      }));
+      const hits = list
+        .map((p) => {
+          const id = String(p._id || p.id || "");
+          if (!id) return null;
+          const rawImg = p.images?.[0]?.url || p.image || p.imageUrl || "";
+          return {
+            score: typeof p.match_score === "number" ? p.match_score / 100 : 0,
+            product: {
+              _id: id,
+              title: p.title || "",
+              price: p.price,
+              images: rawImg ? [{ url: absolutizeUrl(rawImg) }] : [],
+              city_name: p.city_name || "",
+              category: p.category || "",
+              shop_name: p.shop_name || "",
+            },
+          };
+        })
+        .filter(Boolean);
       setResults(hits);
       setHistory((h) => [
         ...h,
@@ -435,6 +494,50 @@ export default function AIShopperPanel() {
                   </div>
                 </div>
               </div>
+
+              {similar.length > 0 && (
+                <div className="border-t border-ink/5 dark:border-white/10 px-5 py-3 bg-cream dark:bg-[#2A2438]">
+                  <div className="text-[10px] uppercase tracking-[0.25em] font-jakarta font-semibold text-coral mb-2">
+                    You may also like
+                  </div>
+                  <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+                    {similar.map((p) => (
+                      <Link
+                        key={p._id}
+                        to={`/product/${p._id}`}
+                        onClick={() => setOpen(false)}
+                        className="shrink-0 w-32 rounded-xl overflow-hidden bg-white dark:bg-white/10 border border-white dark:border-white/10 hover:border-coral/40 transition-all"
+                      >
+                        <div className="aspect-square bg-peach/30 overflow-hidden">
+                          {p.image ? (
+                            <img
+                              src={p.image}
+                              alt={p.title}
+                              loading="lazy"
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.currentTarget.style.display = "none"; }}
+                            />
+                          ) : (
+                            <div className="w-full h-full grid place-items-center text-ink/20 font-fraunces text-2xl">
+                              {p.title?.[0] || "?"}
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2">
+                          <div className="text-[11px] font-jakarta font-semibold text-ink dark:text-cream truncate">
+                            {p.title}
+                          </div>
+                          {p.price != null && (
+                            <div className="text-[11px] font-fraunces text-ink/80 dark:text-cream/80">
+                              ₹{Number(p.price).toLocaleString("en-IN")}
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <form
                 onSubmit={(e) => {

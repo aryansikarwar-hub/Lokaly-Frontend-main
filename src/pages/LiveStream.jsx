@@ -24,6 +24,7 @@ import {
   HiOutlineMicrophone,
   HiOutlineStop,
   HiOutlineShare,
+  HiOutlinePhoto,
   HiOutlinePlus,
   HiOutlineXMark,
 } from "react-icons/hi2";
@@ -60,53 +61,60 @@ const PINNED_MESSAGE = {
   text: "Use code SARAH10 for 10% OFF all items — only while live!",
 };
 
+// ─── Helper: Convert relative image paths to full URLs ───────────────────
+function getImageUrl(imagePath) {
+  if (!imagePath) return "";
+  if (imagePath.startsWith("http")) return imagePath;
+  const apiUrl = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
+  const normalizedPath = imagePath.startsWith("/") ? imagePath.slice(1) : imagePath;
+  return `${apiUrl}/${normalizedPath}`;
+}
+
 function LiveCarouselCard({ stream, active, onClick }) {
   return (
     <button
-  type="button"
-  onClick={() => onClick(stream)}
-  className={`group shrink-0 min-w-[140px] max-w-[140px] rounded-lg overflow-hidden border transition shadow-sm ${
-    active
-      ? "border-coral shadow-glow"
-      : "border-transparent hover:border-ink/10"
-  }`}
->
-  {/* IMAGE */}
-  <div className="relative h-20 bg-slate-100 dark:bg-white/5 overflow-hidden">
+      type="button"
+      onClick={() => onClick(stream)}
+      className={`group shrink-0 min-w-[140px] max-w-[140px] rounded-lg overflow-hidden border transition shadow-sm ${
+        active
+          ? "border-coral shadow-glow"
+          : "border-transparent hover:border-ink/10"
+      }`}
+    >
+      <div className="relative h-20 bg-slate-100 dark:bg-white/5 overflow-hidden">
+        {stream.coverImage ? (
+          <img
+            src={getImageUrl(stream.coverImage)}
+            alt={stream.title || "Live stream"}
+            className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-ink/80 to-coral/30 dark:from-white/10 dark:to-coral/20" />
+        )}
 
-    <img
-      src={stream.coverImage}
-      alt={stream.title}
-      className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
-    />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
-    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+        <div className="absolute left-1.5 top-1.5 flex items-center gap-1 bg-black/60 text-white text-[6px] font-semibold uppercase tracking-[0.12em] px-1 py-[2px] rounded-full">
+          <span className="w-1 h-1 rounded-full bg-coral animate-pulse" />
+          LIVE
+        </div>
 
-    {/* LIVE */}
-    <div className="absolute left-1.5 top-1.5 flex items-center gap-1 bg-black/60 text-white text-[6px] font-semibold uppercase tracking-[0.12em] px-1 py-[2px] rounded-full">
-      <span className="w-1 h-1 rounded-full bg-coral animate-pulse" />
-      LIVE
-    </div>
+        <div className="absolute right-1.5 top-1.5 flex items-center gap-1 bg-white/15 text-white text-[6px] font-semibold px-1 py-[2px] rounded-full backdrop-blur-sm">
+          <HiOutlineUserGroup className="text-[8px]" />
+          {stream.stats?.peakViewers?.toLocaleString() || "0"}
+        </div>
 
-    {/* VIEWERS */}
-    <div className="absolute right-1.5 top-1.5 flex items-center gap-1 bg-white/15 text-white text-[6px] font-semibold px-1 py-[2px] rounded-full backdrop-blur-sm">
-      <HiOutlineUserGroup className="text-[8px]" />
-      {stream.stats?.peakViewers?.toLocaleString() || "0"}
-    </div>
+        <div className="absolute bottom-1.5 left-1.5 right-1.5">
+          <div className="text-[7px] text-white/70 truncate">
+            {stream.host?.shopName || stream.host?.name || "Host"}
+          </div>
 
-    {/* TITLE OVERLAY */}
-    <div className="absolute bottom-1.5 left-1.5 right-1.5">
-      <div className="text-[7px] text-white/70 truncate">
-        {stream.host?.shopName || stream.host?.name}
+          <div className="text-[8px] font-semibold text-white leading-tight line-clamp-1">
+            {stream.title || "Untitled Live"}
+          </div>
+        </div>
       </div>
-
-      <div className="text-[8px] font-semibold text-white leading-tight line-clamp-1">
-        {stream.title}
-      </div>
-    </div>
-
-  </div>
-</button>
+    </button>
   );
 }
 
@@ -218,7 +226,7 @@ const MOCK_SESSION = {
       ],
     },
   ],
-  groupBuy: { participants: Array(7).fill(null), threshold: 10 },
+  groupBuy: { participants: Array(1).fill(null), threshold: 2 },
   stats: {
     peakViewers: 2928,
     heartsSent: 12400,
@@ -366,6 +374,9 @@ function GoLiveModal({ open, onClose, onCreated }) {
   const [category, setCategory] = useState("");
   const [loading, setLoading] = useState(false);
   const [permError, setPermError] = useState("");
+  const [coverImage, setCoverImage] = useState(null);
+  const [coverPreview, setCoverPreview] = useState("");
+  const [coverError, setCoverError] = useState("");
   const [previewStream, setPreviewStream] = useState(null);
   const previewRef = useRef(null);
 
@@ -377,6 +388,12 @@ function GoLiveModal({ open, onClose, onCreated }) {
       setCategory("");
       setLoading(false);
       setPermError("");
+      setCoverImage(null);
+      setCoverError("");
+      if (coverPreview) {
+        URL.revokeObjectURL(coverPreview);
+        setCoverPreview("");
+      }
       if (previewStream) {
         previewStream.getTracks().forEach((t) => t.stop());
         setPreviewStream(null);
@@ -391,6 +408,14 @@ function GoLiveModal({ open, onClose, onCreated }) {
     }
   }, [previewStream]);
 
+  useEffect(() => {
+    return () => {
+      if (coverPreview) {
+        URL.revokeObjectURL(coverPreview);
+      }
+    };
+  }, [coverPreview]);
+
   // Cleanup preview stream on unmount
   useEffect(() => {
     return () => {
@@ -399,6 +424,36 @@ function GoLiveModal({ open, onClose, onCreated }) {
       }
     };
   }, [previewStream]);
+
+  function handleCoverSelect(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setCoverError("Upload a JPG, JPEG, PNG, or WEBP image.");
+      setCoverImage(null);
+      if (coverPreview) {
+        URL.revokeObjectURL(coverPreview);
+        setCoverPreview("");
+      }
+      return;
+    }
+
+    if (coverPreview) {
+      URL.revokeObjectURL(coverPreview);
+    }
+
+    setCoverImage(file);
+    setCoverPreview(URL.createObjectURL(file));
+    setCoverError("");
+  }
 
   async function requestPermissions(audioOnly = false) {
     setPermError("");
@@ -529,7 +584,25 @@ function GoLiveModal({ open, onClose, onCreated }) {
     setPermError("");
     try {
       console.log("🔴 Step 1: Creating session...");
-      const { data } = await api.post("/live/sessions", { title, category });
+      
+      const formData = new FormData();
+      formData.append("title", title.trim());
+      formData.append("category", category.trim());
+      if (coverImage) {
+        formData.append("coverImage", coverImage);
+      }
+
+      // Log FormData contents for debugging
+      console.log("📤 FormData fields:", {
+        title: title.trim(),
+        category: category.trim(),
+        hasFile: !!coverImage,
+      });
+
+      // Send FormData — axios/browser will handle Content-Type as multipart/form-data
+      const resp = await api.post("/live/sessions", formData);
+      const data = resp.data;
+
       console.log("🔴 Step 2: Session created:", data.session);
 
       console.log("🔴 Step 3: Starting session...");
@@ -545,6 +618,11 @@ function GoLiveModal({ open, onClose, onCreated }) {
       onCreated(data.session);
     } catch (err) {
       console.error("❌ GoLive error:", err);
+      console.error("📨 Error response:", {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message,
+      });
       const msg =
         err.response?.data?.error || err.message || "Failed to start session";
       setPermError(msg);
@@ -608,6 +686,62 @@ function GoLiveModal({ open, onClose, onCreated }) {
                   onChange={(e) => setCategory(e.target.value)}
                   disabled={loading}
                 />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-jakarta font-bold uppercase tracking-wider text-ink/50">
+                    Live Cover Image
+                  </label>
+                  <label className="group relative rounded-2xl border border-ink/10 dark:border-white/10 bg-white/95 dark:bg-[#111117] px-4 py-3 cursor-pointer hover:border-ink/30 transition-colors">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-ink dark:text-cream">
+                      <HiOutlinePhoto className="text-base" />
+                      <span>{coverImage ? "Change cover image" : "Upload cover image"}</span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      className="sr-only"
+                      onChange={handleCoverSelect}
+                      disabled={loading}
+                    />
+                  </label>
+                </div>
+
+                {coverPreview ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-ink/10 dark:border-white/10 bg-slate-100 dark:bg-white/5">
+                    <img
+                      src={coverPreview}
+                      alt="Live cover preview"
+                      className="w-full h-40 object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    <div className="absolute left-3 right-3 bottom-3 flex items-center justify-between gap-2 text-white text-[11px]">
+                      <span className="font-semibold">Preview</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (coverPreview) {
+                            URL.revokeObjectURL(coverPreview);
+                          }
+                          setCoverImage(null);
+                          setCoverPreview("");
+                        }}
+                        className="rounded-full bg-black/60 px-3 py-1 text-[10px] font-semibold"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-ink/60 dark:text-cream/60">
+                    Supported formats: JPG, JPEG, PNG, WEBP.
+                  </div>
+                )}
+
+                {coverError && (
+                  <div className="text-[11px] text-red-600">{coverError}</div>
+                )}
               </div>
 
               {/* Permission notice */}
@@ -1090,11 +1224,14 @@ export default function LiveStream() {
     if (!videoRef.current) return;
 
     let mounted = true;
-    const localClient = createClient();
-    clientRef.current = localClient;
+    let localClient = null;
 
     const init = async () => {
       try {
+        localClient = await createClient();
+        if (!mounted) return;
+        clientRef.current = localClient;
+
         const isHost = isHostOfSession(user, active);
         // ✅ Agora SDK valid roles: "host" | "audience"
         const agoraRole = isHost ? "host" : "audience";
@@ -1373,7 +1510,7 @@ export default function LiveStream() {
 
   const stats = active.stats || {};
   const grpCount = active.groupBuy?.participants?.length || 0;
-  const grpMax = active.groupBuy?.threshold || 10;
+  const grpMax = active.groupBuy?.threshold || 2;
   const grpPct = Math.round((grpCount / grpMax) * 100);
 
   // Should we show the floating "Go Live" button for sellers?

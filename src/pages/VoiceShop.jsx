@@ -100,16 +100,38 @@ export default function VoiceShop() {
     setListening(false);
   }
 
-  // ── FIX 2: Better error handling + loading state for search ──────────────
+  // Voice search ko AI Shopper waale multilingual recommender pe bhejo —
+  // /ml/search English-only MiniLM hai, Hindi/Tamil/etc. queries score
+  // bahut low aate the aur minScore filter sab kuch drop kar deta tha
+  // (transcript dikhta tha, recommendations zero). HF-hosted endpoint
+  // multilingual hai aur DB-enriched results return karta hai.
   async function search(q) {
     if (!q.trim()) return;
     setSearching(true);
     setSearchError(null);
     try {
-      const { data } = await api.post("/ml/search", { query: q, topK: 8 });
-      const hits = data.hits || [];
+      const { data } = await api.post("/recommendations/search", { query: q });
+      const list = Array.isArray(data?.results) ? data.results : [];
+      const hits = list
+        .map((p) => {
+          const id = String(p._id || p.id || "");
+          if (!id) return null;
+          return {
+            score: typeof p.match_score === "number" ? p.match_score / 100 : 0,
+            product: {
+              _id: id,
+              title: p.title,
+              price: p.price,
+              images: p.images || (p.image ? [{ url: p.image }] : []),
+              seller: p.seller,
+              category: p.category,
+              rating: p.rating,
+              reviewCount: p.reviewCount,
+            },
+          };
+        })
+        .filter(Boolean);
       setResults(hits);
-      // ── FIX 3: If no results, show helpful message instead of empty screen ──
       if (hits.length === 0) {
         setSearchError("Koi product nahi mila. Dobara bolein ya alag shabdon mein try karein.");
       }
@@ -118,7 +140,7 @@ export default function VoiceShop() {
       setResults([]);
       setSearchError(
         err?.response?.status === 503
-          ? "ML model load ho raha hai, thoda wait karke dobara try karein."
+          ? "Recommender model warm-up ho raha hai, thoda wait karke dobara try karein."
           : "Search mein kuch gadbad hui. Please retry karein."
       );
     } finally {

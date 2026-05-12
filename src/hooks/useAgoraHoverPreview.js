@@ -1,10 +1,19 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import AgoraRTC from "agora-rtc-sdk-ng";
 import api from "../services/api";
 import { APP_ID } from "../services/agora";
 
 const HOVER_DELAY_MS = 400;
 const NO_HOST_TIMEOUT_MS = 5000;
+
+// Lazy-load Agora — its 1.5MB bundle should not block initial page load.
+// First call triggers the dynamic import; subsequent calls reuse the promise.
+let _agoraPromise = null;
+function loadAgora() {
+  if (!_agoraPromise) {
+    _agoraPromise = import("agora-rtc-sdk-ng").then((m) => m.default || m);
+  }
+  return _agoraPromise;
+}
 
 export function useAgoraHoverPreview({ autoStart = null } = {}) {
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -63,6 +72,7 @@ export function useAgoraHoverPreview({ autoStart = null } = {}) {
           return;
         }
 
+        const AgoraRTC = await loadAgora();
         const client = AgoraRTC.createClient({
           mode: "live",
           codec: "vp8",

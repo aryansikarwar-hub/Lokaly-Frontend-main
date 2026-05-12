@@ -21,7 +21,6 @@ import VerifiedBadge from "../components/VerifiedBadge";
 import { useAuthStore } from "../store/authStore";
 
 const TABS = [
-  { key: "products", label: "Products" },
   { key: "posts", label: "Posts" },
   { key: "reviews", label: "Reviews" },
 ];
@@ -51,7 +50,11 @@ export default function Profile() {
   // background /trust enrichment is in flight.
   const [user, setUser] = useState(() => (isMe && me ? me : null));
   const [trust, setTrust] = useState(null);
-  const [tab, setTab] = useState("products");
+  const [tab, setTab] = useState(() =>
+    (isMe && me?.role === "seller") || (isMe && me?.role === "admin")
+      ? "products"
+      : "posts",
+  );
   const [products, setProducts] = useState([]);
   const [posts, setPosts] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -162,6 +165,11 @@ export default function Profile() {
       </div>
     );
   }
+  
+  const visibleTabs =
+    user?.role === "seller" || user?.role === "admin"
+      ? [{ key: "products", label: "Products" }, ...TABS]
+      : TABS;
 
   return (
     <div>
@@ -255,7 +263,10 @@ dark:bg-[radial-gradient(circle_at_top_left,_#2a2238_0%,_#171320_45%,_#0d0b14_10
                   } catch (e) {
                     // best-effort: still navigate — Messages page also tries to open
                     // eslint-disable-next-line no-console
-                    console.warn("[Profile] open-conversation failed", e?.message);
+                    console.warn(
+                      "[Profile] open-conversation failed",
+                      e?.message,
+                    );
                   } finally {
                     setOpeningChat(false);
                     navigate(`/messages?to=${id}`);
@@ -277,7 +288,7 @@ dark:bg-[radial-gradient(circle_at_top_left,_#2a2238_0%,_#171320_45%,_#0d0b14_10
         <div className="md:col-span-2">
           {/* Tabs */}
           <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {TABS.map((t) => (
+            {visibleTabs.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
@@ -294,6 +305,7 @@ dark:bg-[radial-gradient(circle_at_top_left,_#2a2238_0%,_#171320_45%,_#0d0b14_10
 
           <div className="mt-5">
             {tab === "products" &&
+              (user?.role === "seller" || user?.role === "admin") &&
               (products.length === 0 ? (
                 <EmptyTabState label="No products yet" />
               ) : (
