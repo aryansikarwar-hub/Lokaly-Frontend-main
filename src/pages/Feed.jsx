@@ -81,30 +81,18 @@ const toArray = (v) => {
   return [];
 };
 
-// Make relative /uploads/... URLs absolute using the API origin
-const API_ORIGIN = (() => {
-  const raw = import.meta.env.VITE_API_URL || "";
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return "";
-  }
-})();
+// Normalize any URL format so it works through the Vite /uploads proxy
 function absolutize(url) {
   if (!url) return url;
-  // blob: and data: URLs are always fine as-is
   if (url.startsWith("blob:") || url.startsWith("data:")) return url;
-  // Strip http://localhost:PORT — legacy dev URLs stored in old DB records
+  // Strip http://localhost:PORT so it goes through Vite proxy
   url = url.replace(/^https?:\/\/localhost:\d+/i, "");
-  // Already a clean external URL (Cloudinary, S3, render.com, etc.)
+  // Already an external URL (Cloudinary, S3, etc.)
   if (/^https?:\/\//i.test(url)) return url;
-  // Has no leading slash — could be:
-  //   "uploads/filename.mp4"  → prepend /
-  //   "filename.mp4"          → prepend /uploads/
+  // Fix missing leading slash
   if (!url.startsWith("/")) {
     url = url.startsWith("uploads/") ? "/" + url : "/uploads/" + url;
   }
-  // Now url is /uploads/... or /api/... — return relative for Vite proxy
   return url;
 }
 
@@ -1354,20 +1342,19 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
   );
   const hasVideo = videoCleaned.length > 0;
   const hasThumbnail = thumbCleaned.length > 0 || selectedFrameIdx !== null;
-  // For UI preview: use uploaded url first, fallback to blob preview
+  // Blob preview URLs (instant, no network needed)
   const thumbPreviewUrl = useMemo(() => {
-    const arr = toArray(thumbnail);
+    const arr = Array.isArray(thumbnail) ? thumbnail : [];
     if (arr.length === 0) return null;
     const item = arr[0];
-    // Prefer blob preview (always immediate), fall back to server URL
     return item?.preview || absolutize(item?.url) || null;
   }, [thumbnail]);
   const thumbUploading = useMemo(() => {
-    const arr = toArray(thumbnail);
+    const arr = Array.isArray(thumbnail) ? thumbnail : [];
     return arr.length > 0 && !arr[0]?.uploaded && !arr[0]?.error;
   }, [thumbnail]);
   const videoUploading = useMemo(() => {
-    const arr = toArray(media);
+    const arr = Array.isArray(media) ? media : [];
     return arr.length > 0 && !arr[0]?.uploaded && !arr[0]?.error;
   }, [media]);
 
@@ -1493,9 +1480,9 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
       onPosted?.(data?.post || data, isEdit);
     } catch (err) {
       console.error("Reel error:", err);
-      const msg =
-        err?.response?.data?.error || err.message || "Reel post nahi ho saki";
-      toast.error(msg);
+      toast.error(
+        err?.response?.data?.error || err.message || "Reel post nahi ho saki",
+      );
       toast.error(
         err?.response?.data?.error ||
           err?.response?.data?.message ||
@@ -1585,7 +1572,10 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                     className="relative rounded-xl overflow-hidden aspect-[9/16] max-h-56 mx-auto bg-black"
                   >
                     <video
-                      src={toArray(media)[0]?.preview || videoCleaned[0].url}
+                      src={
+                        (Array.isArray(media) && media[0]?.preview) ||
+                        videoCleaned[0].url
+                      }
                       className="w-full h-full object-contain"
                       muted
                       loop
@@ -1670,7 +1660,7 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                         <div className="absolute top-2 left-2 bg-emerald-500/90 text-white text-[9px] px-2 py-0.5 rounded-full font-bold">
-                          {thumbUploading ? "⏳ Uploading..." : "✓ Preview"}
+                          ✓ Preview
                         </div>
                         <button
                           type="button"
@@ -1867,7 +1857,10 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                       />
                     ) : hasVideo ? (
                       <video
-                        src={videoCleaned[0].url}
+                        src={
+                          (Array.isArray(media) && media[0]?.preview) ||
+                          videoCleaned[0]?.url
+                        }
                         muted
                         className="w-full h-full object-cover"
                         playsInline
@@ -1875,13 +1868,6 @@ function ReelModal({ open, onClose, onPosted, editReel }) {
                     ) : (
                       <div className="w-full h-full grid place-items-center">
                         <HiOutlineFilm className="text-ink/30" />
-                      </div>
-                    )}
-                    {thumbUploading && (
-                      <div className="absolute inset-0 bg-black/50 grid place-items-center">
-                        <span className="text-white text-[8px] font-bold">
-                          Uploading...
-                        </span>
                       </div>
                     )}
                   </div>
