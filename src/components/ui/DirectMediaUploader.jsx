@@ -1,0 +1,280 @@
+// components/ui/DirectMediaUploader.jsx
+// Self-contained uploader — does not depend on MediaUploader component
+// Uploads directly to backend /api/upload endpoint or Cloudinary
+
+import { useRef, useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  HiOutlineCloudArrowUp, HiOutlineXMark, HiOutlinePhoto,
+  HiOutlineVideoCamera, HiOutlineCheck, HiOutlineExclamationTriangle,
+} from "react-icons/hi2";
+import { Spinner } from "./Spinner";
+import api from "../../services/api";
+import toast from "react-hot-toast";
+
+/**
+ * Props:
+ * - value: array of { url, kind, name, size, progress }
+ * - onChange: (newArray) => void
+ * - accept: "image/*" | "video/*" | "image/*,video/*"
+ * - maxFiles: number (default 1)
+ * - maxSizeMB: number (default 100 for video, 10 for image)
+ * - label: string
+ *
+ * Upload strategy:
+ * 1. Tries POST /api/upload with FormData (multer-style)
+ * 2. Falls back to Cloudinary unsigned upload if env var set
+ * 3. Shows upload progress per-file
+ */
+export default function DirectMediaUploader({
+  value = [],
+  onChange,
+  accept = "image/*",
+  maxFiles = 1,
+  maxSizeMB,
+  label = "Upload",
+}) {
+  const inputRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
+  const items = Array.isArray(value) ? value : [];
+
+  const isVideo = accept.includes("video");
+  const defaultMaxSize = isVideo ? 100 : 10;
+  const sizeLimit = (maxSizeMB || defaultMaxSize) * 1024 * 1024;
+
+  const updateItem = useCallback((idx, patch) => {
+    onChange?.(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  }, [items, onChange]);
+
+  const removeItem = useCallback((idx) => {
+    onChange?.(items.filter((_, i) => i !== idx));
+  }, [items, onChange]);
+
+  async function uploadFile(file, idx) {
+    console.log("[Upload] Starting:", file.name, file.size, file.type);
+
+    // Validate
+    if (file.size > sizeLimit) {
+      toast.error(`${file.name} too big (max ${maxSizeMB || defaultMaxSize}MB)`);
+      removeItem(idx);
+      return;
+    }
+
+    try {
+      // ===== Strategy 1: Cloudinary unsigned upload =====
+      const cloudName = import.meta.env?.VITE_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = import.meta.env?.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+      if (cloudName && uploadPreset) {
+        console.log("[Upload] Using Cloudinary:", cloudName);
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", uploadPreset);
+        const resourceType = file.type.startsWith("video/") ? "video" : "image";
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`);
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const progress = Math.round((e.loaded / e.total) * 100);
+            updateItem(idx, { progress });
+          }
+        };
+
+        const data = await new Promise((res, rej) => {
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              res(JSON.parse(xhr.responseText));
+            } else {
+              rej(new Error(`Cloudinary ${xhr.status}: ${xhr.responseText}`));
+            }
+          };
+          xhr.onerror = () => rej(new Error("Network error"));
+          xhr.send(formData);
+        });
+
+        console.log("[Upload] Cloudinary success:", data);
+        updateItem(idx, {
+          url: data.secure_url || data.url,
+          publicId: data.public_id,
+          progress: 100,
+          uploaded: true,
+          kind: resourceType,
+        });
+        return;
+      }
+
+      // ===== Strategy 2: Backend upload via /api/upload =====
+      console.log("[Upload] Using backend /upload");
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("kind", file.type.startsWith("video/") ? "video" : "image");
+
+      const { data } = await api.post("/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (e) => {
+          const progress = Math.round((e.loaded / (e.total || 1)) * 100);
+          updateItem(idx, { progress });
+        },
+      });
+
+      console.log("[Upload] Backend success:", data);
+      const url = data?.url || data?.secure_url || data?.location;
+      if (!url) throw new Error("No URL in upload response");
+
+      updateItem(idx, {
+        url,
+        progress: 100,
+        uploaded: true,
+        kind: file.type.startsWith("video/") ? "video" : "image",
+      });
+    } catch (err) {
+      console.error("[Upload] FAILED:", err);
+      console.error("[Upload] Response:", err?.response?.data);
+      toast.error(`Upload fail: ${err?.response?.data?.error || err.message}`);
+      updateItem(idx, { error: err.message, progress: 0 });
+    }
+  }
+
+  function handleFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (files.length === 0) return;
+
+    const remaining = maxFiles - items.length;
+    const toAdd = files.slice(0, remaining);
+    if (files.length > remaining) {
+      toast.error(`Max ${maxFiles} file(s) allowed`);
+    }
+
+    // Generate previews + add to state
+    const newItems = toAdd.map((file) => ({
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      kind: file.type.startsWith("video/") ? "video" : "image",
+      preview: URL.createObjectURL(file),
+      progress: 0,
+      uploaded: false,
+      url: null,
+    }));
+
+    const startIdx = items.length;
+    onChange?.([...items, ...newItems]);
+
+    // Kick off uploads
+    toAdd.forEach((file, i) => uploadFile(file, startIdx + i));
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    setDragging(false);
+    handleFiles(e.dataTransfer.files);
+  }
+
+  const Icon = isVideo ? HiOutlineVideoCamera : HiOutlinePhoto;
+
+  return (
+    <div className="space-y-3">
+      {items.length < maxFiles && (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          className={`w-full rounded-xl border-2 border-dashed p-6 transition-all flex flex-col items-center justify-center gap-2 ${
+            dragging
+              ? "border-coral bg-coral/10 scale-[0.98]"
+              : "border-ink/15 dark:border-white/15 hover:border-coral/40 hover:bg-coral/5"
+          }`}
+        >
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-coral/15 to-mauve/15 grid place-items-center">
+            <HiOutlineCloudArrowUp className="text-2xl text-coral" />
+          </div>
+          <p className="text-xs font-bold text-ink dark:text-cream">
+            {dragging ? "Drop karo!" : `${label} ke liye click ya drag karo`}
+          </p>
+          <p className="text-[10px] text-ink/40 dark:text-cream/40">
+            {isVideo ? `MP4, MOV, WEBM · Max ${maxSizeMB || defaultMaxSize}MB` : `JPG, PNG, WEBP · Max ${maxSizeMB || defaultMaxSize}MB`}
+          </p>
+        </button>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        multiple={maxFiles > 1}
+        onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
+        className="hidden"
+      />
+
+      {/* Preview grid */}
+      <AnimatePresence>
+        {items.length > 0 && (
+          <div className={`grid gap-2 ${isVideo ? "grid-cols-1" : "grid-cols-3"}`}>
+            {items.map((item, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className={`relative rounded-xl overflow-hidden bg-ink/5 border border-ink/10 ${
+                  isVideo ? "aspect-[9/16] max-h-56 mx-auto w-full sm:w-40" : "aspect-square"
+                }`}
+              >
+                {item.kind === "video" ? (
+                  <video src={item.preview || item.url} className="w-full h-full object-cover" muted playsInline />
+                ) : (
+                  <img src={item.preview || item.url} alt="" className="w-full h-full object-cover" />
+                )}
+
+                {/* Progress overlay */}
+                {!item.uploaded && !item.error && (
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-sm grid place-items-center">
+                    <div className="text-white text-center">
+                      <Spinner size={18} />
+                      <p className="text-[10px] font-bold mt-1">{item.progress || 0}%</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Progress bar */}
+                {!item.uploaded && !item.error && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
+                    <div className="h-full bg-coral transition-all" style={{ width: `${item.progress || 0}%` }} />
+                  </div>
+                )}
+
+                {/* Success check */}
+                {item.uploaded && (
+                  <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-emerald-500 text-white grid place-items-center">
+                    <HiOutlineCheck className="text-xs" />
+                  </div>
+                )}
+
+                {/* Error */}
+                {item.error && (
+                  <div className="absolute inset-0 bg-red-500/80 grid place-items-center text-white text-center p-2">
+                    <HiOutlineExclamationTriangle className="text-xl mx-auto mb-1" />
+                    <p className="text-[9px] font-bold">Failed</p>
+                  </div>
+                )}
+
+                {/* Remove */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); removeItem(idx); }}
+                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 backdrop-blur text-white grid place-items-center hover:bg-red-500 transition"
+                >
+                  <HiOutlineXMark className="text-xs" />
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

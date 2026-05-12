@@ -19,7 +19,7 @@ import { Reveal } from "../components/animations/Reveal";
 import { Spinner } from "../components/ui/Spinner";
 import { Modal } from "../components/ui/Modal";
 import Button from "../components/ui/Button";
-import MediaUploader from "../components/ui/MediaUploader";
+import MediaUploader from "../components/ui/DirectMediaUploader";
 import { useAuthStore } from "../store/authStore";
 import { Avatar } from "../components/ui/Avatar";
 import toast from "react-hot-toast";
