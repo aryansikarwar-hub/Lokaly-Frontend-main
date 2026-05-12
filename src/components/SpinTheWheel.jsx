@@ -123,7 +123,7 @@ export default function SpinTheWheel({ onSpun }) {
         innerBorderColor="#FFF8F0"
         radiusLineColor="#FFF8F0"
         radiusLineWidth={2}
-        fontSize={11}
+        fontSize={20}
         onStopSpinning={() => {
           setSpinning(false);
           const p = DATA[idx]?.option;

@@ -1033,6 +1033,9 @@ export default function LiveStream() {
   const [qaList, setQaList] = useState([]);
   const [qaAnswers, setQaAnswers] = useState({});
   const [qaQuestion, setQaQuestion] = useState("");
+  const [sellerProducts, setSellerProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState("");
 
   // Derived: is current user the host of the active session?
   const userIsSeller = isUserSeller(user);
@@ -1132,6 +1135,51 @@ export default function LiveStream() {
     const digits = Math.floor(100 + Math.random() * 900);
     setPromoCode(`${base}${digits}`);
   }, [active?._id, hostName]);
+
+  // ─── Fetch seller products when active stream changes ──────────────────────
+  useEffect(() => {
+    if (!active || isMock) {
+      setSellerProducts([]);
+      setProductsLoading(false);
+      return;
+    }
+
+    const sellerId = active.host?._id || active.host || active.seller?._id;
+    console.log("[LiveStream] Fetching products for seller:", { sellerId, hostData: active.host });
+    
+    if (!sellerId) {
+      console.warn("[LiveStream] No seller ID found");
+      setSellerProducts([]);
+      setProductsLoading(false);
+      return;
+    }
+
+    const fetchSellerProducts = async () => {
+      try {
+        setProductsLoading(true);
+        setProductsError("");
+
+        const { data } = await api.get("/products", {
+          params: { seller: sellerId },
+        });
+
+        console.log("[LiveStream] Products response:", { data });
+
+        const products = data?.items || data?.products || data?.data || [];
+        console.log("[LiveStream] Extracted products:", { count: products.length, products });
+        
+        setSellerProducts(products);
+      } catch (error) {
+        console.error("[LiveStream] Failed to fetch seller products:", error);
+        setProductsError("Unable to load seller products");
+        setSellerProducts([]);
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+
+    fetchSellerProducts();
+  }, [active?._id, isMock]);
 
   // ─── Load sessions ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1858,7 +1906,7 @@ export default function LiveStream() {
             </div>
 
             {/* Products strip */}
-            {active.featuredProducts?.length > 0 && (
+            {!isMock && active && (
               <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3">
                 <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center gap-1.5">
@@ -1866,18 +1914,36 @@ export default function LiveStream() {
                     <span className="text-[9px] uppercase tracking-[0.2em] font-jakarta font-bold text-ink/50">
                       Tagged in this drop
                     </span>
-                    <span className="text-[9px] font-bold text-coral bg-coral/10 px-1.5 py-0.5 rounded-full">
-                      {active.featuredProducts.length}
-                    </span>
+                    {sellerProducts?.length > 0 && (
+                      <span className="text-[9px] font-bold text-coral bg-coral/10 px-1.5 py-0.5 rounded-full">
+                        {sellerProducts.length}
+                      </span>
+                    )}
                   </div>
-                  <button className="text-[9px] font-jakarta font-semibold text-coral flex items-center gap-0.5 hover:gap-1.5 transition-all">
-                    View all <HiOutlineChevronRight className="text-xs" />
-                  </button>
+                  {sellerProducts?.length > 0 && (
+                    <button className="text-[9px] font-jakarta font-semibold text-coral flex items-center gap-0.5 hover:gap-1.5 transition-all">
+                      View all <HiOutlineChevronRight className="text-xs" />
+                    </button>
+                  )}
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {active.featuredProducts.map((p) => (
-                    <ProductCard key={p._id} p={p} compact />
-                  ))}
+                <div className="flex gap-2 overflow-x-auto pb-1 min-h-[120px]">
+                  {productsLoading ? (
+                    <div className="flex items-center w-full text-center">
+                      <div className="text-[10px] text-ink/60 dark:text-cream/60 px-2 py-1 m-auto">
+                        ⏳ Loading seller products...
+                      </div>
+                    </div>
+                  ) : sellerProducts?.length > 0 ? (
+                    sellerProducts.map((p) => (
+                      <ProductCard key={p._id} p={p} compact />
+                    ))
+                  ) : (
+                    <div className="flex items-center w-full text-center">
+                      <div className="text-[10px] text-ink/60 dark:text-cream/60 px-2 py-1 m-auto">
+                        📦 No products available yet
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
