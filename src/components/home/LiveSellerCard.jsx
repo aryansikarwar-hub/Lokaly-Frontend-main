@@ -19,6 +19,14 @@ const CATEGORY_COLORS = {
   default: "from-coral to-tangerine",
 };
 
+function getImageUrl(imagePath) {
+  if (!imagePath) return "";
+  if (imagePath.startsWith("http")) return imagePath;
+  const apiUrl = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
+  const normalizedPath = imagePath.startsWith("/") ? imagePath.slice(1) : imagePath;
+  return `${apiUrl}/${normalizedPath}`;
+}
+
 export default function LiveSellerCard({ stream, autoplay = false }) {
   const navigate = useNavigate();
 
@@ -111,7 +119,7 @@ export default function LiveSellerCard({ stream, autoplay = false }) {
           <>
             {stream.coverImage ? (
               <img
-                src={stream.coverImage}
+                src={getImageUrl(stream.coverImage)}
                 alt={stream.host.shopName}
                 className="absolute inset-0 w-full h-full object-cover"
                 loading="lazy"

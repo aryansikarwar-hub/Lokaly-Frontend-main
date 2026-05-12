@@ -514,23 +514,23 @@ function CallOut({ icon: Icon, title, copy, to, bg, eyebrow }) {
     <Tilt max={4}>
       <Link
         to={to}
-        className={`block rounded-2xl p-6 md:p-7 ${bg} relative overflow-hidden group border border-ink/5 h-full`}
+        className={`block rounded-2xl p-6 md:p-7 ${bg} relative overflow-hidden group border border-ink/5 dark:border-white/10 h-full`}
       >
         <div className="flex items-start justify-between mb-6">
-          <div className="w-9 h-9 grid place-items-center rounded-lg bg-white/40 backdrop-blur text-ink text-base">
+          <div className="w-9 h-9 grid place-items-center rounded-lg bg-white/40 backdrop-blur text-ink dark:text-cream text-base">
             <Icon />
           </div>
-          <span className="text-[9px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/50">
+          <span className="text-[9px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/50 dark:text-cream/50">
             {eyebrow}
           </span>
         </div>
-        <h3 className="font-fraunces text-lg md:text-xl text-ink tracking-tight">
+        <h3 className="font-fraunces text-lg md:text-xl text-ink dark:text-cream tracking-tight">
           {title}
         </h3>
-        <p className="mt-2 font-jakarta text-ink/65 text-[13px] leading-relaxed max-w-sm">
+        <p className="mt-2 font-jakarta text-ink/65 dark:text-cream/70 text-[13px] leading-relaxed max-w-sm">
           {copy}
         </p>
-        <div className="mt-5 inline-flex items-center gap-1.5 text-ink font-jakarta font-semibold text-xs group-hover:gap-2.5 transition-all">
+        <div className="mt-5 inline-flex items-center gap-1.5 text-ink dark:text-cream font-jakarta font-semibold text-xs group-hover:gap-2.5 transition-all">
           Try it <HiArrowLongRight className="text-sm" />
         </div>
       </Link>

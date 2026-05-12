@@ -13,13 +13,24 @@ console.log('[api] baseURL =', API_BASE);
 
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token;
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) config.headers = { ...config.headers, Authorization: `Bearer ${token}` };
+
+  // Don't set Content-Type for FormData — let browser handle multipart/form-data with boundary
+  if (config.data instanceof FormData) {
+    if (config.headers) {
+      delete config.headers['Content-Type'];
+      delete config.headers['content-type'];
+      delete config.headers.common?.['Content-Type'];
+      delete config.headers.common?.['content-type'];
+    }
+  }
+
   if (DEBUG) {
     // eslint-disable-next-line no-console
     console.log(
       `%c→ ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
       'color:#6B5A82',
-      { params: config.params, data: config.data, hasToken: !!token }
+      { params: config.params, data: config.data instanceof FormData ? '[FormData]' : config.data, hasToken: !!token }
     );
   }
   return config;
