@@ -30,6 +30,12 @@ export default function DirectMediaUploader({
   // SAFE ARRAY
   const items = Array.isArray(value) ? value : [];
 
+  // ✅ Always keep latest items in ref to avoid stale closure in async uploadFile
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
   const isVideo = accept.includes("video");
   const defaultMaxSize = isVideo ? 100 : 10;
   const sizeLimit = (maxSizeMB || defaultMaxSize) * 1024 * 1024;
@@ -45,37 +51,36 @@ export default function DirectMediaUploader({
         }
       });
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // =========================
   // UPDATE ITEM
+  // ✅ Uses itemsRef to avoid stale closure in async uploadFile
   // =========================
   const updateItem = useCallback(
     (idx, patch) => {
-      const updated = items.map((it, i) =>
-        i === idx ? { ...it, ...patch } : it
-      );
-
-      onChange?.(updated);
+      const latest = itemsRef.current;
+      onChange?.(latest.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
     },
-    [items, onChange]
+    [onChange]
   );
 
   // =========================
   // REMOVE ITEM
+  // ✅ Uses itemsRef to avoid stale closure in async uploadFile
   // =========================
   const removeItem = useCallback(
     (idx) => {
-      const item = items[idx];
-
-      // revoke blob url
+      const latest = itemsRef.current;
+      // revoke blob url if present
+      const item = latest[idx];
       if (item?.preview?.startsWith?.("blob:")) {
         URL.revokeObjectURL(item.preview);
       }
-
-      onChange?.(items.filter((_, i) => i !== idx));
+      onChange?.(latest.filter((_, i) => i !== idx));
     },
-    [items, onChange]
+    [onChange]
   );
 
   // =========================
@@ -87,11 +92,8 @@ export default function DirectMediaUploader({
     // FILE SIZE VALIDATION
     if (file.size > sizeLimit) {
       toast.error(
-        `${file.name} too big (max ${
-          maxSizeMB || defaultMaxSize
-        }MB)`
+        `${file.name} too big (max ${maxSizeMB || defaultMaxSize}MB)`
       );
-
       removeItem(idx);
       return;
     }
@@ -100,26 +102,19 @@ export default function DirectMediaUploader({
       // ===================================
       // CLOUDINARY UPLOAD
       // ===================================
-      const cloudName =
-        import.meta.env?.VITE_CLOUDINARY_CLOUD_NAME;
-
-      const uploadPreset =
-        import.meta.env?.VITE_CLOUDINARY_UPLOAD_PRESET;
+      const cloudName = import.meta.env?.VITE_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = import.meta.env?.VITE_CLOUDINARY_UPLOAD_PRESET;
 
       if (cloudName && uploadPreset) {
         console.log("[UPLOAD] Using Cloudinary");
 
         const formData = new FormData();
-
         formData.append("file", file);
         formData.append("upload_preset", uploadPreset);
 
-        const resourceType = file.type.startsWith("video/")
-          ? "video"
-          : "image";
+        const resourceType = file.type.startsWith("video/") ? "video" : "image";
 
         const xhr = new XMLHttpRequest();
-
         xhr.open(
           "POST",
           `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`
@@ -128,10 +123,7 @@ export default function DirectMediaUploader({
         // PROGRESS
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
-            const progress = Math.round(
-              (e.loaded / e.total) * 100
-            );
-
+            const progress = Math.round((e.loaded / e.total) * 100);
             updateItem(idx, { progress });
           }
         };
@@ -142,16 +134,11 @@ export default function DirectMediaUploader({
               resolve(JSON.parse(xhr.responseText));
             } else {
               reject(
-                new Error(
-                  `Cloudinary ${xhr.status}: ${xhr.responseText}`
-                )
+                new Error(`Cloudinary ${xhr.status}: ${xhr.responseText}`)
               );
             }
           };
-
-          xhr.onerror = () =>
-            reject(new Error("Network error"));
-
+          xhr.onerror = () => reject(new Error("Network error"));
           xhr.send(formData);
         });
 
@@ -174,66 +161,40 @@ export default function DirectMediaUploader({
       console.log("[UPLOAD] Using Backend");
 
       const formData = new FormData();
-
       formData.append("file", file);
-
       formData.append(
         "kind",
-        file.type.startsWith("video/")
-          ? "video"
-          : "image"
+        file.type.startsWith("video/") ? "video" : "image"
       );
 
-      const { data } = await api.post(
-        "/upload",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-
-          onUploadProgress: (e) => {
-            const progress = Math.round(
-              (e.loaded / (e.total || 1)) * 100
-            );
-
-            updateItem(idx, { progress });
-          },
-        }
-      );
+      const { data } = await api.post("/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (e) => {
+          const progress = Math.round((e.loaded / (e.total || 1)) * 100);
+          updateItem(idx, { progress });
+        },
+      });
 
       console.log("[BACKEND SUCCESS]", data);
 
-      const uploadedUrl =
-        data?.url ||
-        data?.secure_url ||
-        data?.location;
+      const uploadedUrl = data?.url || data?.secure_url || data?.location;
 
-      if (!uploadedUrl) {
-        throw new Error("No URL returned");
-      }
+      if (!uploadedUrl) throw new Error("No URL returned");
 
       updateItem(idx, {
         url: uploadedUrl,
         uploaded: true,
         progress: 100,
-        kind: file.type.startsWith("video/")
-          ? "video"
-          : "image",
+        kind: file.type.startsWith("video/") ? "video" : "image",
       });
     } catch (err) {
       console.error("[UPLOAD FAILED]", err);
 
       toast.error(
-        err?.response?.data?.error ||
-          err.message ||
-          "Upload failed"
+        err?.response?.data?.error || err.message || "Upload failed"
       );
 
-      updateItem(idx, {
-        error: true,
-        progress: 0,
-      });
+      updateItem(idx, { error: true, progress: 0 });
     }
   }
 
@@ -242,11 +203,9 @@ export default function DirectMediaUploader({
   // =========================
   function handleFiles(fileList) {
     const files = Array.from(fileList || []);
-
     if (files.length === 0) return;
 
     const remaining = maxFiles - items.length;
-
     const toAdd = files.slice(0, remaining);
 
     if (files.length > remaining) {
@@ -258,13 +217,8 @@ export default function DirectMediaUploader({
       name: file.name,
       size: file.size,
       type: file.type,
-
-      kind: file.type.startsWith("video/")
-        ? "video"
-        : "image",
-
+      kind: file.type.startsWith("video/") ? "video" : "image",
       preview: URL.createObjectURL(file),
-
       progress: 0,
       uploaded: false,
       error: false,
@@ -274,7 +228,6 @@ export default function DirectMediaUploader({
     console.log("[NEW ITEMS]", newItems);
 
     const startIdx = items.length;
-
     onChange?.([...items, ...newItems]);
 
     // START UPLOAD
@@ -288,15 +241,11 @@ export default function DirectMediaUploader({
   // =========================
   function onDrop(e) {
     e.preventDefault();
-
     setDragging(false);
-
     handleFiles(e.dataTransfer.files);
   }
 
-  const Icon = isVideo
-    ? HiOutlineVideoCamera
-    : HiOutlinePhoto;
+  const Icon = isVideo ? HiOutlineVideoCamera : HiOutlinePhoto;
 
   return (
     <div className="space-y-3">
@@ -332,12 +281,8 @@ export default function DirectMediaUploader({
 
           <p className="text-[10px] text-ink/40 dark:text-cream/40">
             {isVideo
-              ? `MP4, MOV, WEBM · Max ${
-                  maxSizeMB || defaultMaxSize
-                }MB`
-              : `JPG, PNG, WEBP · Max ${
-                  maxSizeMB || defaultMaxSize
-                }MB`}
+              ? `MP4, MOV, WEBM · Max ${maxSizeMB || defaultMaxSize}MB`
+              : `JPG, PNG, WEBP · Max ${maxSizeMB || defaultMaxSize}MB`}
           </p>
         </button>
       )}
@@ -366,34 +311,19 @@ export default function DirectMediaUploader({
         {items.length > 0 && (
           <div
             className={`grid gap-2 ${
-              isVideo
-                ? "grid-cols-1"
-                : "grid-cols-3"
+              isVideo ? "grid-cols-1" : "grid-cols-3"
             }`}
           >
             {items.map((item, idx) => {
               const mediaSrc =
-                item.uploaded && item.url
-                  ? item.url
-                  : item.preview;
-
-              console.log("[ITEM]", item);
+                item.uploaded && item.url ? item.url : item.preview;
 
               return (
                 <motion.div
                   key={idx}
-                  initial={{
-                    opacity: 0,
-                    scale: 0.9,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    scale: 1,
-                  }}
-                  exit={{
-                    opacity: 0,
-                    scale: 0.9,
-                  }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
                   className={`relative rounded-xl overflow-hidden bg-ink/5 border border-ink/10 ${
                     isVideo
                       ? "aspect-[9/16] max-h-56 mx-auto w-full sm:w-40"
@@ -417,80 +347,51 @@ export default function DirectMediaUploader({
                       className="w-full h-full object-cover"
                       crossOrigin="anonymous"
                       onError={(e) => {
-                        console.log(
-                          "[IMAGE FAILED]",
-                          item
-                        );
-
+                        console.log("[IMAGE FAILED]", item);
                         e.currentTarget.src =
                           "https://via.placeholder.com/300x300?text=Preview";
                       }}
                     />
                   )}
 
-                  {/* ========================= */}
                   {/* PROGRESS OVERLAY */}
-                  {/* ========================= */}
-
-                  {!item.uploaded &&
-                    !item.error && (
-                      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm grid place-items-center">
-                        <div className="text-white text-center">
-                          <Spinner size={18} />
-
-                          <p className="text-[10px] font-bold mt-1">
-                            {item.progress || 0}%
-                          </p>
-                        </div>
+                  {!item.uploaded && !item.error && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm grid place-items-center">
+                      <div className="text-white text-center">
+                        <Spinner size={18} />
+                        <p className="text-[10px] font-bold mt-1">
+                          {item.progress || 0}%
+                        </p>
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                  {/* ========================= */}
                   {/* PROGRESS BAR */}
-                  {/* ========================= */}
+                  {!item.uploaded && !item.error && (
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
+                      <div
+                        className="h-full bg-coral transition-all"
+                        style={{ width: `${item.progress || 0}%` }}
+                      />
+                    </div>
+                  )}
 
-                  {!item.uploaded &&
-                    !item.error && (
-                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
-                        <div
-                          className="h-full bg-coral transition-all"
-                          style={{
-                            width: `${
-                              item.progress || 0
-                            }%`,
-                          }}
-                        />
-                      </div>
-                    )}
-
-                  {/* ========================= */}
                   {/* SUCCESS */}
-                  {/* ========================= */}
-
                   {item.uploaded && (
                     <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-emerald-500 text-white grid place-items-center">
                       <HiOutlineCheck className="text-xs" />
                     </div>
                   )}
 
-                  {/* ========================= */}
                   {/* ERROR */}
-                  {/* ========================= */}
-
                   {item.error && (
                     <div className="absolute inset-0 bg-red-500/80 grid place-items-center text-white text-center p-2">
                       <HiOutlineExclamationTriangle className="text-xl mx-auto mb-1" />
-
-                      <p className="text-[9px] font-bold">
-                        Failed
-                      </p>
+                      <p className="text-[9px] font-bold">Failed</p>
                     </div>
                   )}
 
-                  {/* ========================= */}
                   {/* REMOVE */}
-                  {/* ========================= */}
-
                   <button
                     type="button"
                     onClick={(e) => {
