@@ -583,7 +583,7 @@ function ReelCard({
 
           <Link
             to={`/profile/${reel.author?._id}`}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}F
             className="ml-auto"
           >
             <Avatar
