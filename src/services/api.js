@@ -1,96 +1,149 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
-const DEBUG = true; // flip to false to silence
+// ============================================
+// API BASE URL
+// ============================================
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  'https://lokaly-backend-main.onrender.com/api';
+
+const DEBUG = true;
+
+// ============================================
+// AXIOS INSTANCE
+// ============================================
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 120000,
+  timeout: 120000, // 2 minutes
 });
 
-console.log('[api] baseURL =', API_BASE);
+console.log('[api] baseURL =', API_BASE_URL);
 
-api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  if (DEBUG) {
-    // eslint-disable-next-line no-console
-    console.log(
-      `%c→ ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
-      'color:#6B5A82',
-      { params: config.params, data: config.data, hasToken: !!token }
-    );
-  }
-  return config;
-});
+// ============================================
+// REQUEST INTERCEPTOR
+// ============================================
 
-api.interceptors.response.use(
-  (res) => {
+api.interceptors.request.use(
+  (config) => {
+    const token = useAuthStore.getState().token;
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
     if (DEBUG) {
-      // eslint-disable-next-line no-console
       console.log(
-        `%c← ${res.status} ${res.config.method?.toUpperCase()} ${res.config.url}`,
-        'color:#51CF66',
-        res.data
+        `%c→ ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
+        'color:#6B5A82',
+        {
+          params: config.params,
+          data: config.data,
+          hasToken: !!token,
+        }
       );
     }
-    return res;
+
+    return config;
   },
-  (err) => {
-    const status = err.response?.status;
-    const url = err.config?.url;
-    const method = err.config?.method?.toUpperCase();
-    // eslint-disable-next-line no-console
-    console.error(
-      `%c✗ ${status || 'NETWORK'} ${method || ''} ${url || ''}`,
-      'color:#E85A5A;font-weight:bold',
-      {
-        message: err.message,
-        responseData: err.response?.data,
-        baseURL: err.config?.baseURL,
-      }
-    );
-    if (status === 401) {
-      useAuthStore.getState().logout();
-    }
-    return Promise.reject(err);
+  (error) => {
+    return Promise.reject(error);
   }
 );
 
 // ============================================
-// 🆕 Recommendation API (HuggingFace AI model)
+// RESPONSE INTERCEPTOR
+// ============================================
+
+api.interceptors.response.use(
+  (response) => {
+    if (DEBUG) {
+      console.log(
+        `%c← ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`,
+        'color:#51CF66',
+        response.data
+      );
+    }
+
+    return response;
+  },
+  (error) => {
+    const status = error.response?.status;
+    const url = error.config?.url;
+    const method = error.config?.method?.toUpperCase();
+
+    console.error(
+      `%c✗ ${status || 'NETWORK'} ${method || ''} ${url || ''}`,
+      'color:#E85A5A;font-weight:bold',
+      {
+        message: error.message,
+        responseData: error.response?.data,
+        baseURL: error.config?.baseURL,
+      }
+    );
+
+    // Auto logout on unauthorized
+    if (status === 401) {
+      useAuthStore.getState().logout();
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// ============================================
+// RECOMMENDATION APIs
 // ============================================
 
 /**
  * Search-based recommendations
- * @param {string} query - Search query (e.g., "biryani", "haircut")
- * @param {string|null} city - Optional city filter
  */
-export const searchRecommendations = async (query, city = null) => {
-  const { data } = await api.post('/recommendations/search', { query, city });
+export const searchRecommendations = async (
+  query,
+  city = null
+) => {
+  const { data } = await api.post(
+    '/recommendations/search',
+    { query, city }
+  );
+
   return data;
 };
 
 /**
- * Home page "Recommended for you"
- * @param {string|null} city - User's city
- * @param {string|null} interest - Optional interest/category
+ * Home page recommendations
  */
-export const getForYouRecommendations = async (city = null, interest = null) => {
-  const { data } = await api.get('/recommendations/for-you', {
-    params: { city, interest },
-  });
+export const getForYouRecommendations = async (
+  city = null,
+  interest = null
+) => {
+  const { data } = await api.get(
+    '/recommendations/for-you',
+    {
+      params: { city, interest },
+    }
+  );
+
   return data;
 };
 
 /**
- * Product detail page "Similar items"
- * @param {string} productId - MongoDB product ID
+ * Similar products
  */
-export const getSimilarProducts = async (productId) => {
-  const { data } = await api.get(`/recommendations/similar/${productId}`);
+export const getSimilarProducts = async (
+  productId
+) => {
+  const { data } = await api.get(
+    `/recommendations/similar/${productId}`
+  );
+
   return data;
 };
+
+// ============================================
+// EXPORT
+// ============================================
 
 export default api;
