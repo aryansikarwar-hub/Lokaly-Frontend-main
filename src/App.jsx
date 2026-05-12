@@ -37,20 +37,16 @@ export default function App() {
 
   useEffect(() => {
     if (!token) {
-      // eslint-disable-next-line no-console
       console.log('[auth] no token in store, skipping /auth/me');
       return;
     }
-    // eslint-disable-next-line no-console
     console.log('[auth] have token, fetching /auth/me ...');
     api.get('/auth/me')
       .then(({ data }) => {
-        // eslint-disable-next-line no-console
         console.log('[auth] /auth/me OK, hydrating user:', data.user);
         hydrate(token, data.user);
       })
       .catch((e) => {
-        // eslint-disable-next-line no-console
         console.error('[auth] /auth/me FAILED', {
           status: e.response?.status,
           data: e.response?.data,

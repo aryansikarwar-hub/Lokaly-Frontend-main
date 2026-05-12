@@ -21,15 +21,18 @@ import { Spinner } from "../components/ui/Spinner";
 export default function Checkout() {
   const user = useAuthStore((s) => s.user);
   const { cart, subtotal, fetch, clear } = useCartStore();
+
+  // ✅ Auto-fill address from user profile (including line1, line2, state)
   const [addr, setAddr] = useState({
     fullName: user?.name || "",
     phone: user?.phone || "",
-    line1: "",
-    line2: "",
-    city: user?.location?.city || "",
-    state: user?.location?.state || "",
-    pincode: user?.location?.pincode || "",
+    line1: user?.address?.line1 || user?.location?.line1 || "",
+    line2: user?.address?.line2 || user?.location?.line2 || "",
+    city: user?.address?.city || user?.location?.city || "",
+    state: user?.address?.state || user?.location?.state || "",
+    pincode: user?.address?.pincode || user?.location?.pincode || "",
   });
+
   const [placing, setPlacing] = useState(false);
   const nav = useNavigate();
   const coinsToRedeem = Number(sessionStorage.getItem("lokaly-coins") || 0);
@@ -43,6 +46,21 @@ export default function Checkout() {
   useEffect(() => {
     fetch();
   }, [fetch]);
+
+  // ✅ Re-sync address if user loads after mount (e.g. slow hydration)
+  useEffect(() => {
+    if (user) {
+      setAddr((prev) => ({
+        fullName: prev.fullName || user.name || "",
+        phone: prev.phone || user.phone || "",
+        line1: prev.line1 || user?.address?.line1 || user?.location?.line1 || "",
+        line2: prev.line2 || user?.address?.line2 || user?.location?.line2 || "",
+        city: prev.city || user?.address?.city || user?.location?.city || "",
+        state: prev.state || user?.address?.state || user?.location?.state || "",
+        pincode: prev.pincode || user?.address?.pincode || user?.location?.pincode || "",
+      }));
+    }
+  }, [user]);
 
   const items = cart?.items || [];
   const shipping = subtotal > 999 ? 0 : 49;
@@ -72,7 +90,7 @@ export default function Checkout() {
           razorpay_signature: "mock",
         });
         await clear();
-        await useCoinsStore.getState().fetch(); // ← add this line
+        await useCoinsStore.getState().fetch();
         sessionStorage.removeItem("lokaly-coins");
         nav(`/order/${order._id}/success`);
         return;
@@ -95,7 +113,7 @@ export default function Checkout() {
         handler: async (resp) => {
           await api.post("/payments/verify", { ...resp, orderId: order._id });
           await clear();
-          await useCoinsStore.getState().fetch(); // ← add this line
+          await useCoinsStore.getState().fetch();
           sessionStorage.removeItem("lokaly-coins");
           nav(`/order/${order._id}/success`);
         },

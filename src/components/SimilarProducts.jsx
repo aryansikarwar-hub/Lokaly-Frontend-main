@@ -82,7 +82,7 @@ function SimilarCard({ product }) {
 
   return (
     <Link
-      to={id ? `/products/${id}` : "#"}
+      to={id ? `/product/${id}` : "#"}
       className="group block rounded-2xl overflow-hidden bg-white/70 border border-ink/5 hover:border-ink/15 transition-all"
     >
       <div className="aspect-[4/5] bg-peach/30 relative overflow-hidden">

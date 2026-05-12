@@ -4,18 +4,33 @@ import {
   HiOutlineStopCircle,
   HiOutlineInformationCircle,
   HiOutlineSparkles,
+  HiOutlineChevronDown,
 } from "react-icons/hi2";
 import { TbMicrophone } from "react-icons/tb";
 import api from "../services/api";
 import { Reveal } from "../components/animations/Reveal";
 import ProductCard from "../components/ProductCard";
 
+// ── FIX 1: All 22 scheduled Indian languages ──────────────────────────────
 const LANGS = [
-  { code: "hi-IN", label: "HI", name: "Hindi" },
+  { code: "hi-IN", label: "HI", name: "हिन्दी" },
   { code: "en-IN", label: "EN", name: "English" },
-  { code: "ta-IN", label: "TA", name: "Tamil" },
-  { code: "bn-IN", label: "BN", name: "Bengali" },
+  { code: "ta-IN", label: "TA", name: "தமிழ்" },
+  { code: "bn-IN", label: "BN", name: "বাংলা" },
+  { code: "gu-IN", label: "GU", name: "ગુજરાતી" },
+  { code: "mr-IN", label: "MR", name: "मराठी" },
+  { code: "te-IN", label: "TE", name: "తెలుగు" },
+  { code: "kn-IN", label: "KN", name: "ಕನ್ನಡ" },
+  { code: "ml-IN", label: "ML", name: "മലയാളം" },
+  { code: "pa-IN", label: "PA", name: "ਪੰਜਾਬੀ" },
+  { code: "or-IN", label: "OR", name: "ଓଡ଼ିଆ" },
+  { code: "as-IN", label: "AS", name: "অসমীয়া" },
+  { code: "ur-IN", label: "UR", name: "اردو" },
+  { code: "sa-IN", label: "SA", name: "संस्कृत" },
 ];
+
+// Quick-access tabs shown below the mic (most popular)
+const QUICK_TABS = ["hi-IN", "en-IN", "ta-IN", "bn-IN", "gu-IN", "mr-IN"];
 
 const EXAMPLE_QUERIES = [
   "mujhe neeli saree 1000 ke neeche chahiye",
@@ -29,7 +44,22 @@ export default function VoiceShop() {
   const [results, setResults] = useState([]);
   const [supported, setSupported] = useState(true);
   const [lang, setLang] = useState("hi-IN");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState(null);
   const recRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   useEffect(() => {
     const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -57,6 +87,7 @@ export default function VoiceShop() {
   function start() {
     setTranscript("");
     setResults([]);
+    setSearchError(null);
     try {
       recRef.current?.start();
       setListening(true);
@@ -69,14 +100,56 @@ export default function VoiceShop() {
     setListening(false);
   }
 
+  // Voice search ko AI Shopper waale multilingual recommender pe bhejo —
+  // /ml/search English-only MiniLM hai, Hindi/Tamil/etc. queries score
+  // bahut low aate the aur minScore filter sab kuch drop kar deta tha
+  // (transcript dikhta tha, recommendations zero). HF-hosted endpoint
+  // multilingual hai aur DB-enriched results return karta hai.
   async function search(q) {
+    if (!q.trim()) return;
+    setSearching(true);
+    setSearchError(null);
     try {
-      const { data } = await api.post("/ml/search", { query: q, topK: 8 });
-      setResults(data.hits || []);
-    } catch {
+      const { data } = await api.post("/recommendations/search", { query: q });
+      const list = Array.isArray(data?.results) ? data.results : [];
+      const hits = list
+        .map((p) => {
+          const id = String(p._id || p.id || "");
+          if (!id) return null;
+          return {
+            score: typeof p.match_score === "number" ? p.match_score / 100 : 0,
+            product: {
+              _id: id,
+              title: p.title,
+              price: p.price,
+              images: p.images || (p.image ? [{ url: p.image }] : []),
+              seller: p.seller,
+              category: p.category,
+              rating: p.rating,
+              reviewCount: p.reviewCount,
+            },
+          };
+        })
+        .filter(Boolean);
+      setResults(hits);
+      if (hits.length === 0) {
+        setSearchError("Koi product nahi mila. Dobara bolein ya alag shabdon mein try karein.");
+      }
+    } catch (err) {
+      console.error("Voice search error:", err);
       setResults([]);
+      setSearchError(
+        err?.response?.status === 503
+          ? "Recommender model warm-up ho raha hai, thoda wait karke dobara try karein."
+          : "Search mein kuch gadbad hui. Please retry karein."
+      );
+    } finally {
+      setSearching(false);
     }
   }
+
+  const activeLang = LANGS.find((l) => l.code === lang);
+  const quickLangs = LANGS.filter((l) => QUICK_TABS.includes(l.code));
 
   return (
     <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 md:py-10">
@@ -90,7 +163,6 @@ export default function VoiceShop() {
               <TbMicrophone className="text-coral" />
               Voice shop
             </h1>
-            {/* FIX 1: text-ink/55 → explicit dark mode color */}
             <p className="mt-1 text-xs text-ink/55 dark:text-cream/60 font-jakarta max-w-md">
               Speak naturally in your language. On-device ML transcribes and
               finds semantic matches.
@@ -116,7 +188,6 @@ export default function VoiceShop() {
       {/* Mic section */}
       <div className="mt-10 flex flex-col items-center">
         <div className="relative grid place-items-center">
-          {/* Pulse rings when listening */}
           {listening && (
             <>
               <motion.div
@@ -134,7 +205,6 @@ export default function VoiceShop() {
             </>
           )}
 
-          {/* FIX 2: bg-ink dark mode pe invisible tha → dark:bg-white/15 se visible ring milegi */}
           <motion.button
             whileTap={{ scale: 0.94 }}
             whileHover={{ scale: 1.03 }}
@@ -154,28 +224,67 @@ export default function VoiceShop() {
           </motion.button>
         </div>
 
-        {/* FIX 3: text-ink/50 → dark:text-cream/50 */}
         <div className="mt-4 text-[10px] uppercase tracking-[0.25em] font-jakarta font-semibold text-ink/50 dark:text-cream/50">
           {listening ? "Listening..." : "Tap to speak"}
         </div>
 
-        {/* Language picker */}
-        {/* FIX 4: bg-white/70 language picker dark mode mein barely visible tha */}
-        <div className="mt-5 inline-flex items-center gap-0.5 bg-white/70 dark:bg-white/8 border border-ink/5 dark:border-white/10 rounded-full p-1">
-          {LANGS.map((l) => (
+        {/* ── FIX 1a: Quick-access tabs (top 6 languages) ── */}
+        <div className="mt-5 flex flex-col items-center gap-2">
+          <div className="inline-flex items-center gap-0.5 bg-white/70 dark:bg-white/8 border border-ink/5 dark:border-white/10 rounded-full p-1">
+            {quickLangs.map((l) => (
+              <button
+                key={l.code}
+                onClick={() => setLang(l.code)}
+                title={l.name}
+                className={`px-3 py-1 rounded-full text-[10px] font-jakarta font-bold tracking-wider transition ${
+                  lang === l.code
+                    ? "bg-ink dark:bg-white/20 text-cream"
+                    : "text-ink/60 dark:text-cream/60 hover:text-ink dark:hover:text-cream"
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── FIX 1b: Dropdown for all remaining languages ── */}
+          <div className="relative" ref={dropdownRef}>
             <button
-              key={l.code}
-              onClick={() => setLang(l.code)}
-              title={l.name}
-              className={`px-3 py-1 rounded-full text-[10px] font-jakarta font-bold tracking-wider transition ${
-                lang === l.code
-                  ? "bg-ink dark:bg-white/20 text-cream"
-                  : "text-ink/60 dark:text-cream/60 hover:text-ink dark:hover:text-cream"
-              }`}
+              onClick={() => setDropdownOpen((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 dark:bg-white/8 border border-ink/5 dark:border-white/10 text-[10px] font-jakarta font-semibold text-ink/70 dark:text-cream/70 hover:text-ink dark:hover:text-cream transition"
             >
-              {l.label}
+              {activeLang?.name || "Language"}
+              <HiOutlineChevronDown
+                className={`transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
+              />
             </button>
-          ))}
+
+            {dropdownOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="absolute top-full mt-1 left-1/2 -translate-x-1/2 z-50 w-44 max-h-64 overflow-y-auto rounded-xl bg-white dark:bg-zinc-900 border border-ink/10 dark:border-white/10 shadow-lg py-1"
+              >
+                {LANGS.map((l) => (
+                  <button
+                    key={l.code}
+                    onClick={() => {
+                      setLang(l.code);
+                      setDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-xs font-jakarta flex items-center justify-between transition ${
+                      lang === l.code
+                        ? "bg-coral/10 text-coral font-semibold"
+                        : "text-ink/70 dark:text-cream/70 hover:bg-ink/5 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    <span>{l.name}</span>
+                    <span className="text-[10px] opacity-50">{l.label}</span>
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -187,7 +296,6 @@ export default function VoiceShop() {
             animate={{ opacity: 1, y: 0 }}
             className="text-center"
           >
-            {/* FIX 5: text-ink/45 → dark:text-cream/45 */}
             <div className="text-[10px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/45 dark:text-cream/45 mb-2">
               Transcript
             </div>
@@ -197,11 +305,9 @@ export default function VoiceShop() {
           </motion.div>
         ) : (
           <div className="text-center">
-            {/* FIX 6: Try saying label */}
             <div className="text-[10px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/40 dark:text-cream/40 mb-2">
               Try saying
             </div>
-            {/* FIX 7: Example queries text-ink/55 → dark:text-cream/55 */}
             <div className="space-y-1">
               {EXAMPLE_QUERIES.map((q, i) => (
                 <div
@@ -216,8 +322,25 @@ export default function VoiceShop() {
         )}
       </div>
 
+      {/* ── FIX 2: Loading spinner while searching ── */}
+      {searching && (
+        <div className="mt-8 flex justify-center">
+          <div className="w-6 h-6 rounded-full border-2 border-coral border-t-transparent animate-spin" />
+        </div>
+      )}
+
+      {/* ── FIX 3: Error / empty state ── */}
+      {searchError && !searching && (
+        <div className="mt-6 rounded-xl bg-butter/60 border border-butter/40 p-3 flex items-start gap-2">
+          <HiOutlineInformationCircle className="text-coral text-base shrink-0 mt-0.5" />
+          <p className="text-[11px] font-jakarta text-ink/75 dark:text-cream/70 leading-relaxed">
+            {searchError}
+          </p>
+        </div>
+      )}
+
       {/* Results */}
-      {results.length > 0 && (
+      {results.length > 0 && !searching && (
         <section className="mt-8">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -247,7 +370,6 @@ export default function VoiceShop() {
       {/* Privacy footer */}
       <div className="mt-10 rounded-xl bg-mint/40 border border-mint/40 p-3 flex items-start gap-2">
         <HiOutlineInformationCircle className="text-leaf text-base shrink-0 mt-0.5" />
-        {/* FIX 8: text-ink/70 → dark:text-cream/70 */}
         <p className="text-[11px] font-jakarta text-ink/70 dark:text-cream/70 leading-relaxed">
           Your voice transcript is processed by our local ML service — queries
           are embedded and matched semantically. Audio is never stored.

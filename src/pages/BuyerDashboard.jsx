@@ -91,15 +91,15 @@ export default function BuyerDashboard() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-56px)]">
+    <div className="flex flex-col md:flex-row min-h-[calc(100vh-56px)] w-full overflow-x-hidden">
       <Sidebar role="buyer" active={tab} />
 
-      <main className="flex-1 min-w-0 px-4 md:px-8 py-6 md:py-10 overflow-x-hidden">
+      <main className="flex-1 min-w-0 px-3 sm:px-5 md:px-8 py-4 md:py-8 overflow-x-hidden w-full">
         <Reveal>
           <div className="text-[10px] uppercase tracking-[0.25em] font-jakarta font-semibold text-coral mb-2">
             Welcome back, {user.name?.split(" ")[0] || "friend"}
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap min-w-0">
             <Avatar
               src={user.avatar}
               name={user.name}
@@ -107,8 +107,8 @@ export default function BuyerDashboard() {
               aura={user.trustScore}
             />
             <div className="flex-1 min-w-0">
-              <h1 className="font-fraunces text-xl sm:text-2xl md:text-3xl text-ink dark:text-cream tracking-tight flex items-center gap-2 flex-wrap">
-                <span className="truncate">Your buyer dashboard</span>
+              <h1 className="font-fraunces text-lg sm:text-2xl md:text-3xl text-ink dark:text-cream tracking-tight flex items-center gap-2 flex-wrap">
+                <span className="truncate max-w-full">Your buyer dashboard</span>
                 {user.emailVerified && (
                   <HiOutlineCheckBadge
                     className="text-leaf shrink-0"
@@ -187,7 +187,7 @@ function OverviewTab({ user, setTab }) {
     );
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
       <KpiCard
         icon={<HiOutlineShoppingBag />}
         label="Total orders"
@@ -213,9 +213,9 @@ function OverviewTab({ user, setTab }) {
         tone="from-mint to-lavender text-ink"
       />
 
-      <div className="col-span-2 md:col-span-2 rounded-2xl bg-white/80 dark:bg-white/5 border border-ink/5 dark:border-white/10 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div>
+      <div className="col-span-2 md:col-span-2 rounded-2xl bg-white/80 dark:bg-white/5 border border-ink/5 dark:border-white/10 p-4 min-w-0 overflow-hidden">
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/50 dark:text-cream/50 mb-1">
               Latest activity
             </div>
@@ -267,9 +267,9 @@ function OverviewTab({ user, setTab }) {
         )}
       </div>
 
-      <div className="col-span-2 md:col-span-2 rounded-2xl bg-white/80 dark:bg-white/5 border border-ink/5 dark:border-white/10 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div>
+      <div className="col-span-2 md:col-span-2 rounded-2xl bg-white/80 dark:bg-white/5 border border-ink/5 dark:border-white/10 p-4 min-w-0 overflow-hidden">
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/50 dark:text-cream/50 mb-1">
               Rewards wallet
             </div>
@@ -369,7 +369,7 @@ function OrdersTab() {
               />
             )}
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-jakarta font-semibold text-ink dark:text-cream font-mono">
+              <div className="text-xs font-jakarta font-semibold text-ink dark:text-cream">
                 #{String(o._id).slice(-8).toUpperCase()}
               </div>
               <div className="text-[11px] text-ink/55 dark:text-cream/55 mt-0.5 truncate font-jakarta">
