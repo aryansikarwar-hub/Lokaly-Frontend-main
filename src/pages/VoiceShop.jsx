@@ -10,6 +10,10 @@ import { TbMicrophone } from "react-icons/tb";
 import api from "../services/api";
 import { Reveal } from "../components/animations/Reveal";
 import ProductCard from "../components/ProductCard";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+import useCartStore from "../store/cartStore";
+import { useAuthStore } from "../store/authStore";
 
 // ── FIX 1: All 22 scheduled Indian languages ──────────────────────────────
 const LANGS = [
@@ -39,6 +43,10 @@ const EXAMPLE_QUERIES = [
 ];
 
 export default function VoiceShop() {
+  const navigate = useNavigate();
+  const cartAdd = useCartStore((s) => s.add);
+  const cartFetch = useCartStore((s) => s.fetch);
+  const token = useAuthStore((s) => s.token);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [results, setResults] = useState([]);
@@ -127,13 +135,52 @@ export default function VoiceShop() {
       // Speak back to the user — Hinglish TTS via browser's SpeechSynthesis
       if (i?.spoken_response) speak(i.spoken_response, lang);
 
-      // Cart actions: handle locally (frontend state). For now we tag the
-      // first surfaced product as the implicit "this" reference.
-      if (i?.action === "add_to_cart" && results[0]?.product) {
-        // Hook this to your real cart store when ready.
-        console.log("[voice] add_to_cart →", results[0].product);
+      // Cart actions: route the parsed intent through the real cart + checkout.
+      // The "anchor" product is whatever the user is currently looking at —
+      // first surfaced product from the previous turn (if any) or the top of
+      // the new results list.
+      const anchor =
+        (results[0]?.product) ||
+        (Array.isArray(data?.results) && data.results[0]) ||
+        null;
+
+      if (i?.action === "add_to_cart") {
+        if (!token) {
+          toast.error("Login to add to cart");
+          navigate("/login");
+        } else if (!anchor) {
+          toast.error("Pehle koi product khojiye, fir add to cart bolein");
+        } else {
+          try {
+            await cartAdd(String(anchor._id || anchor.id), 1);
+            toast.success(`Added: ${anchor.title}`);
+          } catch (e) {
+            toast.error(e.response?.data?.error || "Could not add to cart");
+          }
+        }
+      } else if (i?.action === "buy_now" && anchor) {
+        if (!token) {
+          toast.error("Login to checkout");
+          navigate("/login");
+        } else {
+          try {
+            const pid = String(anchor._id || anchor.id);
+            await cartAdd(pid, 1);
+            toast.success(`Buying: ${anchor.title}`);
+            // Pass product id so /checkout highlights this specific item.
+            navigate(`/checkout?product=${encodeURIComponent(pid)}`);
+          } catch (e) {
+            toast.error(e.response?.data?.error || "Could not start checkout");
+          }
+        }
       } else if (i?.action === "checkout") {
-        console.log("[voice] checkout requested");
+        if (!token) {
+          toast.error("Login to checkout");
+          navigate("/login");
+        } else {
+          await cartFetch().catch(() => {});
+          navigate("/checkout");
+        }
       }
 
       const list = Array.isArray(data?.results) ? data.results : [];

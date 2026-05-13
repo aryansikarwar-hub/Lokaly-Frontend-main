@@ -1,16 +1,55 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { TbWand, TbSortDescending } from "react-icons/tb";
+import { TbWand, TbSortDescending, TbShoppingBagPlus, TbBolt } from "react-icons/tb";
 import {
   HiXMark,
   HiOutlinePaperAirplane,
   HiOutlineSparkles,
   HiOutlineAdjustmentsHorizontal,
 } from "react-icons/hi2";
+import toast from "react-hot-toast";
 import api, { getSimilarProducts } from "../../services/api";
 import { CardStack } from "../../components/animations/CardStack";
 import { useAIShopperStore } from "../../store/aiShopperStore";
+import useCartStore from "../../store/cartStore";
+import { useAuthStore } from "../../store/authStore";
+import VoiceMicButton from "./VoiceMicButton";
+import PurchasePreview from "./PurchasePreview";
+
+// 14 Indian languages — keeping the list aligned with VoiceShop.jsx
+const VOICE_LANGS = [
+  { code: "hi-IN", label: "HI", native: "हिं", name: "हिन्दी" },
+  { code: "en-IN", label: "EN", native: "EN", name: "English" },
+  { code: "ta-IN", label: "TA", native: "த", name: "தமிழ்" },
+  { code: "bn-IN", label: "BN", native: "ব", name: "বাংলা" },
+  { code: "gu-IN", label: "GU", native: "ગુ", name: "ગુજરાતી" },
+  { code: "mr-IN", label: "MR", native: "मरा", name: "मराठी" },
+  { code: "te-IN", label: "TE", native: "తె", name: "తెలుగు" },
+  { code: "kn-IN", label: "KN", native: "ಕ", name: "ಕನ್ನಡ" },
+  { code: "ml-IN", label: "ML", native: "മ", name: "മലയാളം" },
+  { code: "pa-IN", label: "PA", native: "ਪ", name: "ਪੰਜਾਬੀ" },
+];
+
+function speakBack(text, langCode) {
+  if (!text) return;
+  try {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = langCode || "en-IN";
+    u.rate = 1.0;
+    u.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const match = voices.find((v) =>
+      v.lang?.toLowerCase().startsWith((langCode || "en").toLowerCase().split("-")[0]),
+    );
+    if (match) u.voice = match;
+    window.speechSynthesis.speak(u);
+  } catch (_) {
+    /* TTS failed — non-fatal */
+  }
+}
 
 const API_ORIGIN = (() => {
   const raw = import.meta.env.VITE_API_URL;
@@ -42,7 +81,14 @@ const SORT_OPTIONS = [
 export default function AIShopperPanel() {
   const open = useAIShopperStore((s) => s.open);
   const setOpen = useAIShopperStore((s) => s.setOpen);
+  const navigate = useNavigate();
+  const cartAdd = useCartStore((s) => s.add);
+  const cartFetch = useCartStore((s) => s.fetch);
+  const token = useAuthStore((s) => s.token);
+
   const [query, setQuery] = useState("");
+  const [interim, setInterim] = useState(""); // live STT preview
+  const [voiceLang, setVoiceLang] = useState("en-IN");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
   const [similar, setSimilar] = useState([]);
@@ -50,6 +96,14 @@ export default function AIShopperPanel() {
   const [sort, setSort] = useState("best_buy");
   const [filters, setFilters] = useState({ city: "", category: "", maxPrice: 0 });
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // When a buy_now / add_to_cart voice intent had no anchor but did return
+  // candidate products, we surface a sticky banner that lets the user act on
+  // the top match in one tap (or one more "buy now" voice command).
+  const [pendingIntent, setPendingIntent] = useState(null); // 'buy_now' | 'add_to_cart' | null
+  const lastTopRef = useRef(null); // anchor product for voice "add to cart"
+  // Last-mile confirmation card. When set, we render <PurchasePreview /> so
+  // the user can see what we're about to buy + cancel before /checkout.
+  const [pendingPurchase, setPendingPurchase] = useState(null);
 
   // Drag state
   const [btnPos, setBtnPos] = useState(() => {
@@ -144,17 +198,146 @@ export default function AIShopperPanel() {
     return list;
   }, [scored, filters, sort]);
 
-  async function ask(q) {
+  /**
+   * Anchor product = whatever the user is currently looking at. Used for
+   * voice commands like "add this to cart" / "buy now". Falls back to the
+   * top of the latest results.
+   */
+  function getAnchor() {
+    return lastTopRef.current || results[0]?.product || null;
+  }
+
+  async function handleAddToCart(product) {
+    if (!product) {
+      toast.error("Pehle koi product khojiye");
+      return;
+    }
+    if (!token) {
+      toast.error("Login to add to cart");
+      navigate("/login");
+      setOpen(false);
+      return;
+    }
+    try {
+      await cartAdd(String(product._id), 1);
+      toast.success(`Added: ${product.title}`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Could not add to cart");
+    }
+  }
+
+  /**
+   * Buy now is a 2-step flow now:
+   *   1. Open the PurchasePreview card so the user sees exactly what's about
+   *      to be ordered.
+   *   2. On confirm (tap or 4s auto-elapse) → add to cart + redirect to
+   *      /checkout. On cancel → leave cart untouched.
+   */
+  function handleBuyNow(product) {
+    if (!product) return;
+    if (!token) {
+      toast.error("Login to checkout");
+      navigate("/login");
+      setOpen(false);
+      return;
+    }
+    setPendingPurchase(product);
+  }
+
+  async function confirmPurchase() {
+    const product = pendingPurchase;
+    if (!product) return;
+    setPendingPurchase(null);
+    try {
+      await cartAdd(String(product._id), 1);
+      toast.success(`Buying: ${product.title}`);
+      setOpen(false);
+      // Pass the product id so /checkout can highlight + scroll to it in the
+      // "You're buying" panel, making it crystal clear which item came from
+      // the voice command.
+      navigate(`/checkout?product=${encodeURIComponent(String(product._id))}`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Could not start checkout");
+    }
+  }
+
+  async function handleCheckout() {
+    if (!token) {
+      toast.error("Login to checkout");
+      navigate("/login");
+      setOpen(false);
+      return;
+    }
+    await cartFetch().catch(() => {});
+    setOpen(false);
+    navigate("/checkout");
+  }
+
+  /**
+   * Unified ask flow. `viaVoice` = true when triggered by mic, in which case
+   * we hit /voice/parse to extract a structured intent (add_to_cart / buy_now /
+   * checkout / search) and act on it. Text input goes straight to
+   * /recommendations/search for fewer hops.
+   */
+  async function ask(q, viaVoice = false) {
     const body = (q || query).trim();
     if (!body) return;
     setHistory((h) => [...h, { role: "user", text: body }]);
     setQuery("");
+    setInterim("");
     setLoading(true);
     setFilters({ city: "", category: "", maxPrice: 0 });
     setSimilar([]);
     try {
-      const { data } = await api.post("/recommendations/search", { query: body });
-      const list = Array.isArray(data?.results) ? data.results : [];
+      let intentObj = null;
+      let list = [];
+
+      if (viaVoice) {
+        const { data } = await api.post("/voice/parse", { query: body });
+        intentObj = data?.intent || null;
+        list = Array.isArray(data?.results) ? data.results : [];
+
+        // Speak back the assistant's response (TTS)
+        if (intentObj?.spoken_response) speakBack(intentObj.spoken_response, voiceLang);
+
+        // Route non-search intents to cart/checkout handlers when an anchor
+        // exists (i.e. user is already looking at a specific product).
+        // Otherwise we fall through to render the candidate products and
+        // surface a "pending intent" banner.
+        const anchorBefore = getAnchor();
+        if (intentObj?.action === "add_to_cart") {
+          if (anchorBefore && list.length === 0) {
+            await handleAddToCart(anchorBefore);
+            setHistory((h) => [
+              ...h,
+              { role: "bot", text: `Added "${anchorBefore.title}" to cart` },
+            ]);
+            setLoading(false);
+            return;
+          }
+          // No anchor or candidate list returned — let the user pick.
+          setPendingIntent(list.length > 0 ? "add_to_cart" : null);
+        } else if (intentObj?.action === "buy_now") {
+          if (anchorBefore && list.length === 0) {
+            await handleBuyNow(anchorBefore);
+            setLoading(false);
+            return;
+          }
+          setPendingIntent(list.length > 0 ? "buy_now" : null);
+        } else if (intentObj?.action === "checkout") {
+          await handleCheckout();
+          setLoading(false);
+          return;
+        } else {
+          setPendingIntent(null);
+        }
+        // Fall through — render the result list (or empty).
+      } else {
+        setPendingIntent(null);
+        const { data } = await api.post("/recommendations/search", { query: body });
+        list = Array.isArray(data?.results) ? data.results : [];
+      }
+
       const hits = list
         .map((p) => {
           const id = String(p._id || p.id || "");
@@ -175,6 +358,7 @@ export default function AIShopperPanel() {
         })
         .filter(Boolean);
       setResults(hits);
+      if (hits[0]?.product) lastTopRef.current = hits[0].product;
       setHistory((h) => [
         ...h,
         {
@@ -330,6 +514,42 @@ export default function AIShopperPanel() {
                 </div>
 
                 <div className="p-5 bg-gradient-to-b from-lavender/40 to-peach/40 dark:from-white/5 dark:to-white/5 overflow-hidden border-l border-white/60 dark:border-white/10 flex flex-col">
+                  {/* Pending-intent banner — surfaces "you said buy/add but I
+                      need a product" with a one-tap action on the top match. */}
+                  {pendingIntent && visibleResults[0]?.product && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mb-3 rounded-2xl bg-coral text-white px-3 py-2.5 flex items-center gap-2 shadow-pop"
+                    >
+                      <div className="text-[11px] font-jakarta flex-1 leading-snug">
+                        {pendingIntent === "buy_now"
+                          ? "You said buy — pick one to checkout, ya 'pehla wala buy now' boliye."
+                          : "You said add to cart — pick one or speak again."}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const top = visibleResults[0].product;
+                          if (pendingIntent === "buy_now") handleBuyNow(top);
+                          else handleAddToCart(top);
+                          setPendingIntent(null);
+                        }}
+                        className="shrink-0 px-2.5 py-1 rounded-full bg-white text-coral text-[11px] font-jakarta font-bold hover:bg-cream"
+                      >
+                        {pendingIntent === "buy_now" ? "Buy top match →" : "Add top match →"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingIntent(null)}
+                        aria-label="dismiss"
+                        className="shrink-0 w-6 h-6 grid place-items-center rounded-full hover:bg-white/20"
+                      >
+                        <HiXMark className="text-sm" />
+                      </button>
+                    </motion.div>
+                  )}
+
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-xs font-jakarta text-ink/70 dark:text-cream/70 flex items-center gap-1">
                       <HiOutlineSparkles /> {visibleResults.length} of {results.length}
@@ -478,16 +698,38 @@ export default function AIShopperPanel() {
                                   cheapest of the strong matches
                                 </div>
                               )}
-                              <Link
-                                to={`/product/${r.product._id}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpen(false);
-                                }}
-                                className="pointer-events-auto mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-coral text-white text-xs font-jakarta font-semibold shadow-pop hover:bg-coral/90 transition"
-                              >
-                                View product →
-                              </Link>
+                              <div className="pointer-events-auto mt-3 flex flex-wrap gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAddToCart(r.product);
+                                  }}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-white text-ink text-xs font-jakarta font-semibold shadow-pop hover:bg-peach transition"
+                                >
+                                  <TbShoppingBagPlus className="text-sm" /> Add
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleBuyNow(r.product);
+                                  }}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-coral text-white text-xs font-jakarta font-semibold shadow-pop hover:bg-coral/90 transition"
+                                >
+                                  <TbBolt className="text-sm" /> Buy now
+                                </button>
+                                <Link
+                                  to={`/product/${r.product._id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpen(false);
+                                  }}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur text-white text-xs font-jakarta font-semibold border border-white/40 hover:bg-white/30 transition"
+                                >
+                                  Details →
+                                </Link>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -549,33 +791,92 @@ export default function AIShopperPanel() {
                 </div>
               )}
 
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  ask();
-                }}
-                className="flex gap-2 items-center border-t border-ink/5 dark:border-white/10 p-3"
-              >
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="ask in english or hinglish..."
-                  className="flex-1 rounded-full bg-white dark:bg-white/10 border border-white dark:border-white/10 px-4 py-3 text-sm outline-none text-ink dark:text-cream placeholder:text-ink/40 dark:placeholder:text-cream/40"
-                />
-                <motion.button
-                  whileTap={{ scale: 0.92 }}
-                  type="submit"
-                  className="w-11 h-11 rounded-full bg-coral text-white grid place-items-center disabled:opacity-50"
-                  disabled={loading}
-                  aria-label="send"
+              <div className="border-t border-ink/5 dark:border-white/10 p-3">
+                {/* Voice command hint chips — make actions discoverable */}
+                {results.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2 pl-1">
+                    <span className="text-[10px] uppercase tracking-wider font-jakarta text-ink/40 dark:text-cream/40 self-center">
+                      Try saying:
+                    </span>
+                    {[
+                      "add to cart",
+                      "buy now",
+                      "checkout karo",
+                      "isse sasta",
+                    ].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => ask(s, true)}
+                        className="px-2 py-0.5 rounded-full bg-coral/10 border border-coral/30 text-[10px] font-jakarta text-coral hover:bg-coral/20"
+                      >
+                        "{s}"
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    ask();
+                  }}
+                  className="flex gap-2 items-center"
                 >
-                  <HiOutlinePaperAirplane />
-                </motion.button>
-              </form>
+                  <VoiceMicButton
+                    lang={voiceLang}
+                    onLangChange={setVoiceLang}
+                    languages={VOICE_LANGS}
+                    busy={loading}
+                    onInterim={(text) => setInterim(text)}
+                    onFinalTranscript={(text) => {
+                      setInterim("");
+                      ask(text, true);
+                    }}
+                  />
+                  <input
+                    value={interim || query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={
+                      interim
+                        ? "listening…"
+                        : "speak or type — english, hindi, hinglish…"
+                    }
+                    readOnly={!!interim}
+                    className={`flex-1 rounded-full border px-4 py-3 text-sm outline-none ${
+                      interim
+                        ? "bg-coral/10 border-coral/40 text-coral italic"
+                        : "bg-white dark:bg-white/10 border-white dark:border-white/10 text-ink dark:text-cream placeholder:text-ink/40 dark:placeholder:text-cream/40"
+                    }`}
+                  />
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    type="submit"
+                    className="w-11 h-11 rounded-full bg-coral text-white grid place-items-center disabled:opacity-50"
+                    disabled={loading || (!query.trim() && !interim)}
+                    aria-label="send"
+                  >
+                    <HiOutlinePaperAirplane />
+                  </motion.button>
+                </form>
+              </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Last-mile purchase confirmation card. Renders OUTSIDE the panel
+          modal so it stays visible even if the user closed the AI shopper. */}
+      {pendingPurchase && (
+        <PurchasePreview
+          product={pendingPurchase}
+          onConfirm={confirmPurchase}
+          onCancel={() => {
+            setPendingPurchase(null);
+            toast("Cancelled", { icon: "↩️" });
+          }}
+        />
+      )}
     </>
   );
 }
