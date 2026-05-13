@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useAIShopperStore } from "../store/aiShopperStore";
 import { useLocationStore } from "../store/locationStore";
+import { useAuthStore } from "../store/authStore";
 import {
   HiOutlineSparkles,
   HiOutlineVideoCamera,
@@ -94,6 +95,7 @@ const FEATURES = [
     title: "Community Coins",
     copy: "Reviews, answers, and referrals earn coins. Redeemable at checkout across the marketplace.",
     to: "/coins",
+    buyerOnly: true,
   },
   {
     icon: TbCrystalBall,
@@ -101,6 +103,7 @@ const FEATURES = [
     title: "AI Personal Shopper",
     copy: "Hinglish-native. Queries embed on-device and surface products without cloud round-trips.",
     action: "ai",
+    buyerOnly: true,
   },
   {
     icon: HiOutlineMapPin,
@@ -108,6 +111,7 @@ const FEATURES = [
     title: "Hyperlocal",
     copy: "Artisans within a 10 km radius. Same-day delivery routed through neighbourhood logistics.",
     action: "location",
+    buyerOnly: true,
   },
   {
     icon: HiOutlineLanguage,
@@ -126,6 +130,11 @@ export default function Home() {
   const nearbyRef = useRef(null);
   const setAIOpen = useAIShopperStore((s) => s.setOpen);
   const setLocationOpen = useLocationStore((s) => s.setPromptOpen);
+  const user = useAuthStore((s) => s.user);
+  const isSeller = user?.role === "seller" || user?.role === "admin";
+
+  // Seller ko buyerOnly features nahi dikhne chahiye
+  const visibleFeatures = FEATURES.filter((f) => !f.buyerOnly || !isSeller);
   const { scrollYProgress } = useScroll({
     target: heroRef,
     offset: ["start start", "end start"],
@@ -325,7 +334,7 @@ export default function Home() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 mt-10">
-          {FEATURES.map((f, i) => (
+          {visibleFeatures.map((f, i) => (
             <Reveal key={f.title} delay={i * 0.05}>
               <Tilt max={4}>
                 <FeatureCard
@@ -354,10 +363,12 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Hyperlocal rail */}
-      <section ref={nearbyRef} className="max-w-7xl mx-auto px-4 md:px-8 mb-12">
-        <NearbySellers />
-      </section>
+      {/* Hyperlocal rail — buyers/guests only */}
+      {!isSeller && (
+        <section ref={nearbyRef} className="max-w-7xl mx-auto px-4 md:px-8 mb-12">
+          <NearbySellers />
+        </section>
+      )}
 
       {/* How it works */}
       <section className="relative bg-ink text-cream py-16 md:py-24 overflow-hidden">
