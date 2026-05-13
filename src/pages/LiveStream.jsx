@@ -1009,7 +1009,9 @@ export default function LiveStream() {
   const videoRef = useRef(null);
   const clientRef = useRef(null);
   const tracksRef = useRef(null);
+  const chatContainerRef = useRef(null);
   const chatEndRef = useRef(null);
+  const autoScrollRef = useRef(true);
 
   const [sessions, setSessions] = useState([]);
   const [active, setActive] = useState(null);
@@ -1033,9 +1035,18 @@ export default function LiveStream() {
   const [qaList, setQaList] = useState([]);
   const [qaAnswers, setQaAnswers] = useState({});
   const [qaQuestion, setQaQuestion] = useState("");
+  const [sellerProducts, setSellerProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState("");
+
+  // Group Buy state
+  const [groupBuyJoined, setGroupBuyJoined] = useState(false);
+  const [groupBuyLoading, setGroupBuyLoading] = useState(false);
+  const [groupBuyData, setGroupBuyData] = useState(null);
 
   // Derived: is current user the host of the active session?
   const userIsSeller = isUserSeller(user);
+  const userIsBuyer = user && !userIsSeller;
   const userIsHost = active && !isMock && isHostOfSession(user, active);
   const hostName = active
     ? typeof active.host === "string"
@@ -1104,9 +1115,31 @@ export default function LiveStream() {
   }, []);
 
   // ─── Auto-scroll chat ───────────────────────────────────────────────────────
+  const handleChatScroll = useCallback(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    autoScrollRef.current = distanceFromBottom <= 120;
+  }, []);
+
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chat]);
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    container.addEventListener("scroll", handleChatScroll, { passive: true });
+    handleChatScroll();
+    return () => container.removeEventListener("scroll", handleChatScroll);
+  }, [handleChatScroll]);
+
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container || !autoScrollRef.current || chatTab !== "chat") return;
+
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }, [chat, chatTab]);
 
   // ─── Mock chat injection ────────────────────────────────────────────────────
   useEffect(() => {
@@ -1132,6 +1165,51 @@ export default function LiveStream() {
     const digits = Math.floor(100 + Math.random() * 900);
     setPromoCode(`${base}${digits}`);
   }, [active?._id, hostName]);
+
+  // ─── Fetch seller products when active stream changes ──────────────────────
+  useEffect(() => {
+    if (!active || isMock) {
+      setSellerProducts([]);
+      setProductsLoading(false);
+      return;
+    }
+
+    const sellerId = active.host?._id || active.host || active.seller?._id;
+    console.log("[LiveStream] Fetching products for seller:", { sellerId, hostData: active.host });
+    
+    if (!sellerId) {
+      console.warn("[LiveStream] No seller ID found");
+      setSellerProducts([]);
+      setProductsLoading(false);
+      return;
+    }
+
+    const fetchSellerProducts = async () => {
+      try {
+        setProductsLoading(true);
+        setProductsError("");
+
+        const { data } = await api.get("/products", {
+          params: { seller: sellerId },
+        });
+
+        console.log("[LiveStream] Products response:", { data });
+
+        const products = data?.items || data?.products || data?.data || [];
+        console.log("[LiveStream] Extracted products:", { count: products.length, products });
+        
+        setSellerProducts(products);
+      } catch (error) {
+        console.error("[LiveStream] Failed to fetch seller products:", error);
+        setProductsError("Unable to load seller products");
+        setSellerProducts([]);
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+
+    fetchSellerProducts();
+  }, [active?._id, isMock]);
 
   // ─── Load sessions ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1195,6 +1273,13 @@ export default function LiveStream() {
         ),
       );
     };
+    // ─── Group Buy socket handler ────────────────────────────────────
+    const onGroupBuyUnlocked = ({ discountPct }) => {
+      setGroupBuyData((prev) => ({ ...prev, unlocked: true, discountPct }));
+    };
+    const onGroupBuyUpdate = (gb) => {
+      setGroupBuyData(gb);
+    };
     // ──────────────────────────────────────────────────────────────────
     s.on("live:viewerCount", onViewer);
     s.on("live:chat", onChat);
@@ -1204,6 +1289,8 @@ export default function LiveStream() {
     s.on("live:pollUpdate", onPollUpdate);
     s.on("live:qa:new", onQaNew);
     s.on("live:qa:answered", onQaAnswered);
+    s.on("live:groupBuyUnlocked", onGroupBuyUnlocked);
+    s.on("live:groupBuyUpdate", onGroupBuyUpdate);
 
     return () => {
       s.emit("live:leave", { roomId: active.roomId });
@@ -1215,6 +1302,8 @@ export default function LiveStream() {
       s.off("live:pollUpdate", onPollUpdate);
       s.off("live:qa:new", onQaNew);
       s.off("live:qa:answered", onQaAnswered);
+      s.off("live:groupBuyUnlocked", onGroupBuyUnlocked);
+      s.off("live:groupBuyUpdate", onGroupBuyUpdate);
     };
   }, [active, isMock]);
 
@@ -1435,6 +1524,40 @@ export default function LiveStream() {
     });
   }
 
+  // ─── Sync groupBuy data from active session ────────────────────────────────
+  useEffect(() => {
+    if (active?.groupBuy) {
+      setGroupBuyData(active.groupBuy);
+      // Check if current user already joined
+      const alreadyIn = (active.groupBuy.participants || []).some(
+        (p) => String(p?._id || p) === String(user?._id)
+      );
+      setGroupBuyJoined(alreadyIn);
+    } else {
+      setGroupBuyData(null);
+      setGroupBuyJoined(false);
+    }
+  }, [active?._id]);
+
+  // ─── Join Group Buy ─────────────────────────────────────────────────────────
+  async function joinGroupBuy() {
+    if (!user) {
+      toast?.("Please log in to join group buy");
+      return;
+    }
+    if (isMock || !active?._id) return;
+    setGroupBuyLoading(true);
+    try {
+      const { data } = await api.post(`/live/sessions/${active._id}/group-buy/join`);
+      setGroupBuyData(data.groupBuy);
+      setGroupBuyJoined(true);
+    } catch (e) {
+      console.error("[GroupBuy] join error", e);
+    } finally {
+      setGroupBuyLoading(false);
+    }
+  }
+
   async function spin() {
     // Guard: no active session
     if (!active) {
@@ -1509,9 +1632,13 @@ export default function LiveStream() {
     );
 
   const stats = active.stats || {};
-  const grpCount = active.groupBuy?.participants?.length || 0;
-  const grpMax = active.groupBuy?.threshold || 2;
-  const grpPct = Math.round((grpCount / grpMax) * 100);
+  const gb = groupBuyData || active.groupBuy || {};
+  const grpCount = gb.participants?.length || 0;
+  const grpMax = gb.threshold || 0;
+  const grpPct = grpMax > 0 ? Math.min(100, Math.round((grpCount / grpMax) * 100)) : 0;
+  const grpUnlocked = gb.unlocked || false;
+  const grpDiscountPct = gb.discountPct || 0;
+  const hasGroupBuy = grpMax > 0;
 
   // Should we show the floating "Go Live" button for sellers?
   // Show it when: user is a seller, AND they're not currently hosting a live session
@@ -1858,7 +1985,7 @@ export default function LiveStream() {
             </div>
 
             {/* Products strip */}
-            {active.featuredProducts?.length > 0 && (
+            {!isMock && active && (
               <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3">
                 <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center gap-1.5">
@@ -1866,18 +1993,36 @@ export default function LiveStream() {
                     <span className="text-[9px] uppercase tracking-[0.2em] font-jakarta font-bold text-ink/50">
                       Tagged in this drop
                     </span>
-                    <span className="text-[9px] font-bold text-coral bg-coral/10 px-1.5 py-0.5 rounded-full">
-                      {active.featuredProducts.length}
-                    </span>
+                    {sellerProducts?.length > 0 && (
+                      <span className="text-[9px] font-bold text-coral bg-coral/10 px-1.5 py-0.5 rounded-full">
+                        {sellerProducts.length}
+                      </span>
+                    )}
                   </div>
-                  <button className="text-[9px] font-jakarta font-semibold text-coral flex items-center gap-0.5 hover:gap-1.5 transition-all">
-                    View all <HiOutlineChevronRight className="text-xs" />
-                  </button>
+                  {sellerProducts?.length > 0 && (
+                    <button className="text-[9px] font-jakarta font-semibold text-coral flex items-center gap-0.5 hover:gap-1.5 transition-all">
+                      View all <HiOutlineChevronRight className="text-xs" />
+                    </button>
+                  )}
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {active.featuredProducts.map((p) => (
-                    <ProductCard key={p._id} p={p} compact />
-                  ))}
+                <div className="flex gap-2 overflow-x-auto pb-1 min-h-[120px]">
+                  {productsLoading ? (
+                    <div className="flex items-center w-full text-center">
+                      <div className="text-[10px] text-ink/60 dark:text-cream/60 px-2 py-1 m-auto">
+                        ⏳ Loading seller products...
+                      </div>
+                    </div>
+                  ) : sellerProducts?.length > 0 ? (
+                    sellerProducts.map((p) => (
+                      <ProductCard key={p._id} p={p} compact />
+                    ))
+                  ) : (
+                    <div className="flex items-center w-full text-center">
+                      <div className="text-[10px] text-ink/60 dark:text-cream/60 px-2 py-1 m-auto">
+                        📦 No products available yet
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1913,44 +2058,7 @@ export default function LiveStream() {
                 accent="text-amber-500"
               />
             </div>
-
-            {/* Group buy */}
-            <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <HiOutlineUserGroup className="text-leaf text-sm" />
-                  <span className="text-[10px] font-jakarta font-semibold text-ink">
-                    Group Buy
-                  </span>
-                  <span className="text-[9px] bg-mint/15 text-leaf font-bold px-1.5 py-0.5 rounded-full">
-                    {grpCount}/{grpMax} joined
-                  </span>
-                </div>
-                <span className="text-[10px] font-jakarta text-coral font-bold">
-                  {grpMax - grpCount} more needed!
-                </span>
-              </div>
-              <div className="h-1.5 rounded-full bg-ink/8 overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-leaf to-mint rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${grpPct}%` }}
-                  transition={{ duration: 1, ease: "easeOut" }}
-                />
-              </div>
-              <button
-                onClick={() =>
-                  user &&
-                  api
-                    .post(`/live/sessions/${active._id}/group-buy/join`)
-                    .catch(() => {})
-                }
-                className="mt-2 w-full text-[10px] font-jakarta font-semibold text-white bg-leaf rounded-lg py-2 hover:bg-leaf/80 transition"
-              >
-                Join Group Buy
-              </button>
-            </div>
-
+            
             {/* Trust badges */}
             <div className="grid grid-cols-3 gap-2">
               {[
@@ -1989,7 +2097,118 @@ export default function LiveStream() {
               ))}
             </div>
 
-           
+            {/* ══════════════════════════════════════════════
+                GROUP BUY SECTION — sirf buyers ko dikhega
+                ══════════════════════════════════════════════ */}
+            {hasGroupBuy && userIsBuyer && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`rounded-2xl border p-4 shadow-sm ${
+                  grpUnlocked
+                    ? "bg-gradient-to-br from-mint/20 to-lavender/20 border-mint/30"
+                    : "bg-gradient-to-br from-peach/30 to-butter/20 border-peach/30"
+                }`}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-full grid place-items-center text-base ${grpUnlocked ? "bg-mint/30 text-leaf" : "bg-coral/15 text-coral"}`}>
+                      <HiOutlineUserGroup />
+                    </div>
+                    <div>
+                      <div className="text-xs font-jakarta font-bold text-ink dark:text-cream">
+                        Group Buy
+                      </div>
+                      <div className="text-[10px] text-ink/50 dark:text-cream/50 font-jakarta">
+                        {grpUnlocked
+                          ? `🎉 Unlocked! ${grpDiscountPct}% discount for everyone`
+                          : `${grpMax - grpCount} more needed to unlock ${grpDiscountPct}% off`}
+                      </div>
+                    </div>
+                  </div>
+                  {grpUnlocked && (
+                    <span className="text-[10px] font-jakarta font-bold text-leaf bg-mint/30 px-2.5 py-1 rounded-full">
+                      ✓ Active
+                    </span>
+                  )}
+                </div>
+
+                {/* Progress bar */}
+                <div className="mb-3">
+                  <div className="flex items-center justify-between text-[10px] font-jakarta text-ink/60 dark:text-cream/60 mb-1.5">
+                    <span>{grpCount} joined</span>
+                    <span>Goal: {grpMax}</span>
+                  </div>
+                  <div className="w-full h-2.5 rounded-full bg-ink/10 dark:bg-white/10 overflow-hidden">
+                    <motion.div
+                      className={`h-full rounded-full ${grpUnlocked ? "bg-gradient-to-r from-mint to-leaf" : "bg-gradient-to-r from-coral to-tangerine"}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${grpPct}%` }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
+                    />
+                  </div>
+                  <div className="mt-1 text-right text-[10px] font-jakarta font-semibold text-ink/50 dark:text-cream/50">
+                    {grpPct}% complete
+                  </div>
+                </div>
+
+                {/* Participants avatars */}
+                {grpCount > 0 && (
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <div className="flex -space-x-1.5">
+                      {Array.from({ length: Math.min(grpCount, 5) }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="w-6 h-6 rounded-full bg-gradient-to-br from-coral to-tangerine border-2 border-white dark:border-ink grid place-items-center text-white text-[8px] font-bold"
+                        >
+                          {i + 1}
+                        </div>
+                      ))}
+                    </div>
+                    {grpCount > 5 && (
+                      <span className="text-[10px] text-ink/50 dark:text-cream/50 font-jakarta">
+                        +{grpCount - 5} more
+                      </span>
+                    )}
+                    <span className="text-[10px] text-ink/50 dark:text-cream/50 font-jakarta ml-1">
+                      already joined
+                    </span>
+                  </div>
+                )}
+
+                {/* Join Button / Status */}
+                {isMock ? (
+                  <div className="text-center text-[10px] text-ink/40 dark:text-cream/40 font-jakarta italic py-1">
+                    Group buy available on live streams
+                  </div>
+                ) : groupBuyJoined || grpUnlocked ? (
+                  <div className="flex items-center gap-2 justify-center py-2.5 rounded-xl bg-mint/20 border border-mint/30">
+                    <span className="text-xs font-jakarta font-bold text-leaf">
+                      {grpUnlocked
+                        ? `🎉 ${grpDiscountPct}% discount unlocked for everyone!`
+                        : "✓ You've joined the group buy!"}
+                    </span>
+                  </div>
+                ) : (
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={joinGroupBuy}
+                    disabled={groupBuyLoading}
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-coral to-tangerine text-white text-xs font-jakarta font-bold shadow-sm hover:shadow-md transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    {groupBuyLoading ? (
+                      <span className="animate-pulse">Joining...</span>
+                    ) : (
+                      <>
+                        <HiOutlineUserGroup className="text-sm" />
+                        Join Group Buy — Unlock {grpDiscountPct}% off
+                      </>
+                    )}
+                  </motion.button>
+                )}
+              </motion.div>
+            )}
 
 {/* Popup Modal */}
 <AnimatePresence>
@@ -2273,7 +2492,10 @@ export default function LiveStream() {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+                <div
+                  ref={chatContainerRef}
+                  className="flex-1 overflow-y-auto px-3 py-2 space-y-2"
+                >
                   {chat.length === 0 && (
                     <p className="text-ink/35 font-jakarta italic text-[10px] pt-2">
                       Chat will light up once people join...
