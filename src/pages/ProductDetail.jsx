@@ -265,9 +265,31 @@ export default function ProductDetail() {
           {/* MAIN IMAGE */}
 
           <div
-            className="relative rounded-2xl overflow-hidden bg-peach/20 border border-ink/5"
+            className="relative rounded-2xl overflow-hidden bg-peach/20 border border-ink/5 cursor-pointer group"
             style={{ paddingTop: "100%" }}
+            onClick={() => {
+              if (seller?._id) {
+                nav(`/profile/${seller._id}`);
+              }
+            }}
+            title={seller?.name ? `View ${seller.name}'s profile` : "View seller profile"}
           >
+            {/* Hover overlay */}
+            {seller?._id && (
+              <div className="absolute inset-0 z-10 bg-ink/0 group-hover:bg-ink/30 transition-all duration-300 flex items-center justify-center pointer-events-none">
+                <div className="opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center gap-2">
+                  <Avatar
+                    src={seller?.avatar}
+                    name={seller?.name || "Seller"}
+                    size={56}
+                    className="ring-4 ring-white shadow-xl"
+                  />
+                  <span className="bg-white/90 backdrop-blur text-ink text-xs font-jakarta font-semibold px-3 py-1 rounded-full shadow">
+                    {seller?.name || "View Seller"}
+                  </span>
+                </div>
+              </div>
+            )}
             <motion.img
               key={activeImg}
               src={
@@ -319,15 +341,15 @@ export default function ProductDetail() {
             {images.length > 1 && (
               <>
                 <button
-                  onClick={prevImg}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 backdrop-blur flex items-center justify-center shadow hover:bg-white transition"
+                  onClick={(e) => { e.stopPropagation(); prevImg(); }}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 backdrop-blur flex items-center justify-center shadow hover:bg-white transition z-20"
                 >
                   <HiOutlineChevronLeft className="text-ink text-sm" />
                 </button>
 
                 <button
-                  onClick={nextImg}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 backdrop-blur flex items-center justify-center shadow hover:bg-white transition"
+                  onClick={(e) => { e.stopPropagation(); nextImg(); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 backdrop-blur flex items-center justify-center shadow hover:bg-white transition z-20"
                 >
                   <HiOutlineChevronRight className="text-ink text-sm" />
                 </button>
@@ -338,10 +360,8 @@ export default function ProductDetail() {
                   {images.map((_, i) => (
                     <button
                       key={i}
-                      onClick={() =>
-                        setActiveImg(i)
-                      }
-                      className={`w-1.5 h-1.5 rounded-full transition-all ${
+                      onClick={(e) => { e.stopPropagation(); setActiveImg(i); }}
+                      className={`w-1.5 h-1.5 rounded-full transition-all z-20 ${
                         i === activeImg
                           ? "bg-white w-4"
                           : "bg-white/50"
