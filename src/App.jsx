@@ -30,6 +30,10 @@ function Booting() {
 
 export default function App() {
   const { token, hydrate, logout } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
+
+  // Seller/admin ko chatbot aur AI shopper nahi dikhna chahiye
+  const isSeller = user?.role === 'seller' || user?.role === 'admin';
 
   useEffect(() => {
     bootGoogleTranslate();
@@ -64,8 +68,8 @@ export default function App() {
           style: { background: '#2B2438', color: '#FFF8F0', borderRadius: '9999px', padding: '10px 18px' },
         }}
       />
-      <AIShopperPanel />
-      <ChatbotWidget />
+      {!isSeller && <AIShopperPanel />}
+      {!isSeller && <ChatbotWidget />}
       <Suspense fallback={<Booting />}>
         <Routes>
           <Route element={<MainLayout />}>
