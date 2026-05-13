@@ -32,6 +32,7 @@ import {
 
 import SimilarProducts from "../components/SimilarProducts";
 import ReviewSection from "../components/ReviewSection";
+import VerifiedBadge from "../components/VerifiedBadge";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -526,6 +527,60 @@ export default function ProductDetail() {
                 <p className="text-xs text-ink/70 font-jakarta leading-relaxed">
                   {product.description}
                 </p>
+              </div>
+            )}
+
+            {/* ========================= */}
+            {/* SELLER PROFILE CARD */}
+            {/* ========================= */}
+
+            {seller?._id && (
+              <div className="mt-6 border-t border-ink/8 pt-5">
+                <div className="text-[9px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/40 mb-3">
+                  Sold by
+                </div>
+
+                <Link
+                  to={`/profile/${seller._id}`}
+                  className="flex items-center gap-3 p-3 rounded-2xl bg-peach/30 hover:bg-peach/50 border border-ink/5 hover:border-ink/10 transition-all group"
+                >
+                  <Avatar
+                    src={seller.avatar}
+                    name={seller.name || "Seller"}
+                    size="md"
+                    aura={seller.trustScore}
+                  />
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-jakarta font-semibold text-sm text-ink truncate">
+                        {seller.shopName || seller.name || "Local Seller"}
+                      </span>
+                      {seller.isVerifiedSeller && (
+                        <VerifiedBadge isVerifiedSeller size={13} />
+                      )}
+                    </div>
+
+                    {seller.location?.city && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <HiOutlineMapPin className="text-ink/40 text-[10px] shrink-0" />
+                        <span className="text-[10px] text-ink/50 font-jakarta">
+                          {seller.location.city}
+                        </span>
+                      </div>
+                    )}
+
+                    {seller.bio && (
+                      <p className="text-[11px] text-ink/55 font-jakarta mt-1 line-clamp-1">
+                        {seller.bio}
+                      </p>
+                    )}
+                  </div>
+
+                  <span className="text-[10px] font-jakarta font-semibold text-coral group-hover:translate-x-0.5 transition-transform shrink-0">
+                    View →
+                  </span>
+                </Link>
               </div>
             )}
           </Reveal>
