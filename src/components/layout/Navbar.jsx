@@ -43,11 +43,11 @@ function renderVerifiedBadge(user, size = 12) {
   return <VerifiedBadge isVerifiedSeller size={size} title={title} />;
 }
 
-const links = [
-  { to: "/feed", label: "Feed", icon: HiOutlineSparkles },
-  { to: "/products", label: "Shop", icon: HiOutlineShoppingBag },
-  { to: "/live", label: "Live", icon: HiOutlineVideoCamera },
-  { to: "/leaderboard", label: "Leaderboard", icon: HiOutlineGlobeAlt },
+const ALL_LINKS = [
+  { to: "/feed", label: "Feed", icon: HiOutlineSparkles, buyerOnly: false },
+  { to: "/products", label: "Shop", icon: HiOutlineShoppingBag, buyerOnly: true },
+  { to: "/live", label: "Live", icon: HiOutlineVideoCamera, buyerOnly: false },
+  { to: "/leaderboard", label: "Leaderboard", icon: HiOutlineGlobeAlt, buyerOnly: false },
 ];
 
 function resolveRole(user) {
@@ -110,6 +110,8 @@ export default function Navbar() {
   const role = resolveRole(user);
   const myId = resolveUserId(user);
   const dashboardPath = role === "buyer" ? "/buyer/dashboard" : "/dashboard";
+  // Seller/admin ko Shop nahi dikhna chahiye
+  const links = ALL_LINKS.filter((l) => !l.buyerOnly || role === "buyer" || !user);
 
   const handleLogout = () => {
     setProfileOpen(false);
@@ -213,7 +215,8 @@ export default function Navbar() {
             </div>
           )}
           <NavbarLocationChip />
-          {/* cart */}
+          {/* cart — only for buyers/guests */}
+          {(role === "buyer" || !user) && (
           <Link
             to="/cart"
             className="relative w-9 h-9 grid place-items-center rounded-full hover:bg-peach/60 text-ink shrink-0 touch-manipulation"
@@ -226,6 +229,7 @@ export default function Navbar() {
               </span>
             )}
           </Link>
+          )}
 
           {/* notifications */}
           <NotificationBell />
