@@ -363,10 +363,12 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Hyperlocal rail */}
-      <section ref={nearbyRef} className="max-w-7xl mx-auto px-4 md:px-8 mb-12">
-        <NearbySellers />
-      </section>
+      {/* Hyperlocal rail — buyers/guests only */}
+      {!isSeller && (
+        <section ref={nearbyRef} className="max-w-7xl mx-auto px-4 md:px-8 mb-12">
+          <NearbySellers />
+        </section>
+      )}
 
       {/* How it works */}
       <section className="relative bg-ink text-cream py-16 md:py-24 overflow-hidden">
