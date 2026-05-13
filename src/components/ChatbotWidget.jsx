@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 
-const API_URL = 'https://sawan-kush-ai-chatbot.hf.space/chat';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const API_URL = `${API_BASE.replace(/\/$/, '')}/chat`;
 
 /**
  * Lokaly AI Chatbot Widget
@@ -97,10 +98,16 @@ export default function ChatbotWidget() {
     setIsLoading(true);
 
     try {
+      // Send last 8 turns as context so the LLM can reason across the conversation.
+      const history = messages
+        .filter((m) => m.role === 'user' || m.role === 'bot')
+        .slice(-8)
+        .map((m) => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.text }));
+
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: text }),
+        body: JSON.stringify({ query: text, history }),
       });
 
       if (!res.ok) {
@@ -112,6 +119,8 @@ export default function ChatbotWidget() {
       const botMsg = {
         role: 'bot',
         text: data.answer || "Sorry, I couldn't process that. Try again?",
+        why: data.why || '',
+        followups: Array.isArray(data.followups) ? data.followups : [],
         products: Array.isArray(data.products) ? data.products : [],
         time: new Date().toISOString(),
       };
@@ -294,7 +303,11 @@ export default function ChatbotWidget() {
                             bg-[#FFF8F0] dark:bg-[#1a1424]
                             scroll-smooth">
               {messages.map((msg, idx) => (
-                <MessageBubble key={idx} msg={msg} />
+                <MessageBubble
+                  key={idx}
+                  msg={msg}
+                  onFollowup={(q) => { setInput(q); inputRef.current?.focus(); }}
+                />
               ))}
 
               {isLoading && <TypingIndicator />}
@@ -352,7 +365,7 @@ export default function ChatbotWidget() {
 
 /* ===== Sub-components ===== */
 
-function MessageBubble({ msg }) {
+function MessageBubble({ msg, onFollowup }) {
   const isUser = msg.role === 'user';
 
   return (
@@ -382,11 +395,35 @@ function MessageBubble({ msg }) {
             {msg.text}
           </div>
 
+          {/* "Why these?" — explanation from LLM */}
+          {!isUser && msg.why && (
+            <div className="mt-1 text-[11px] italic text-gray-500 dark:text-gray-400 px-1">
+              {msg.why}
+            </div>
+          )}
+
           {/* Product suggestions */}
           {!isUser && msg.products && msg.products.length > 0 && (
             <div className="mt-2 space-y-1.5">
               {msg.products.slice(0, 3).map((product, i) => (
                 <ProductCard key={i} product={product} />
+              ))}
+            </div>
+          )}
+
+          {/* Follow-up question chips */}
+          {!isUser && msg.followups && msg.followups.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {msg.followups.map((q, i) => (
+                <button
+                  key={i}
+                  onClick={() => onFollowup?.(q)}
+                  className="px-3 py-1 rounded-full bg-[#E07856]/10 hover:bg-[#E07856]/20
+                             border border-[#E07856]/30 text-[#B8492C] dark:text-[#E07856]
+                             text-[11px] font-medium transition-colors"
+                >
+                  {q}
+                </button>
               ))}
             </div>
           )}

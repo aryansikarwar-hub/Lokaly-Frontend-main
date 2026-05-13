@@ -45,13 +45,12 @@ export default function DirectMediaUploader({
   // =========================
   useEffect(() => {
     return () => {
-      items.forEach((item) => {
+      itemsRef.current.forEach((item) => {
         if (item?.preview?.startsWith?.("blob:")) {
           URL.revokeObjectURL(item.preview);
         }
       });
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // =========================
@@ -73,7 +72,6 @@ export default function DirectMediaUploader({
   const removeItem = useCallback(
     (idx) => {
       const latest = itemsRef.current;
-      // revoke blob url if present
       const item = latest[idx];
       if (item?.preview?.startsWith?.("blob:")) {
         URL.revokeObjectURL(item.preview);
@@ -89,19 +87,13 @@ export default function DirectMediaUploader({
   async function uploadFile(file, idx) {
     console.log("[UPLOAD START]", file);
 
-    // FILE SIZE VALIDATION
     if (file.size > sizeLimit) {
-      toast.error(
-        `${file.name} too big (max ${maxSizeMB || defaultMaxSize}MB)`
-      );
+      toast.error(`${file.name} too big (max ${maxSizeMB || defaultMaxSize}MB)`);
       removeItem(idx);
       return;
     }
 
     try {
-      // ===================================
-      // CLOUDINARY UPLOAD
-      // ===================================
       const cloudName = import.meta.env?.VITE_CLOUDINARY_CLOUD_NAME;
       const uploadPreset = import.meta.env?.VITE_CLOUDINARY_UPLOAD_PRESET;
 
@@ -115,12 +107,8 @@ export default function DirectMediaUploader({
         const resourceType = file.type.startsWith("video/") ? "video" : "image";
 
         const xhr = new XMLHttpRequest();
-        xhr.open(
-          "POST",
-          `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`
-        );
+        xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`);
 
-        // PROGRESS
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
             const progress = Math.round((e.loaded / e.total) * 100);
@@ -133,9 +121,7 @@ export default function DirectMediaUploader({
             if (xhr.status >= 200 && xhr.status < 300) {
               resolve(JSON.parse(xhr.responseText));
             } else {
-              reject(
-                new Error(`Cloudinary ${xhr.status}: ${xhr.responseText}`)
-              );
+              reject(new Error(`Cloudinary ${xhr.status}: ${xhr.responseText}`));
             }
           };
           xhr.onerror = () => reject(new Error("Network error"));
@@ -155,17 +141,11 @@ export default function DirectMediaUploader({
         return;
       }
 
-      // ===================================
-      // BACKEND UPLOAD
-      // ===================================
       console.log("[UPLOAD] Using Backend");
 
       const formData = new FormData();
       formData.append("file", file);
-      formData.append(
-        "kind",
-        file.type.startsWith("video/") ? "video" : "image"
-      );
+      formData.append("kind", file.type.startsWith("video/") ? "video" : "image");
 
       const { data } = await api.post("/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -178,7 +158,6 @@ export default function DirectMediaUploader({
       console.log("[BACKEND SUCCESS]", data);
 
       const uploadedUrl = data?.url || data?.secure_url || data?.location;
-
       if (!uploadedUrl) throw new Error("No URL returned");
 
       updateItem(idx, {
@@ -189,11 +168,7 @@ export default function DirectMediaUploader({
       });
     } catch (err) {
       console.error("[UPLOAD FAILED]", err);
-
-      toast.error(
-        err?.response?.data?.error || err.message || "Upload failed"
-      );
-
+      toast.error(err?.response?.data?.error || err.message || "Upload failed");
       updateItem(idx, { error: true, progress: 0 });
     }
   }
@@ -212,7 +187,6 @@ export default function DirectMediaUploader({
       toast.error(`Max ${maxFiles} file(s) allowed`);
     }
 
-    // CREATE PREVIEWS
     const newItems = toAdd.map((file) => ({
       name: file.name,
       size: file.size,
@@ -225,12 +199,9 @@ export default function DirectMediaUploader({
       url: "",
     }));
 
-    console.log("[NEW ITEMS]", newItems);
-
     const startIdx = items.length;
     onChange?.([...items, ...newItems]);
 
-    // START UPLOAD
     toAdd.forEach((file, i) => {
       uploadFile(file, startIdx + i);
     });
@@ -245,22 +216,13 @@ export default function DirectMediaUploader({
     handleFiles(e.dataTransfer.files);
   }
 
-  const Icon = isVideo ? HiOutlineVideoCamera : HiOutlinePhoto;
-
   return (
     <div className="space-y-3">
-      {/* ========================= */}
-      {/* UPLOAD BOX */}
-      {/* ========================= */}
-
       {items.length < maxFiles && (
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
           className={`w-full rounded-xl border-2 border-dashed p-6 transition-all flex flex-col items-center justify-center gap-2 ${
@@ -272,13 +234,9 @@ export default function DirectMediaUploader({
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-coral/15 to-mauve/15 grid place-items-center">
             <HiOutlineCloudArrowUp className="text-2xl text-coral" />
           </div>
-
           <p className="text-xs font-bold text-ink dark:text-cream">
-            {dragging
-              ? "Drop karo!"
-              : `${label} ke liye click ya drag karo`}
+            {dragging ? "Drop karo!" : `${label} ke liye click ya drag karo`}
           </p>
-
           <p className="text-[10px] text-ink/40 dark:text-cream/40">
             {isVideo
               ? `MP4, MOV, WEBM · Max ${maxSizeMB || defaultMaxSize}MB`
@@ -287,37 +245,20 @@ export default function DirectMediaUploader({
         </button>
       )}
 
-      {/* ========================= */}
-      {/* INPUT */}
-      {/* ========================= */}
-
       <input
         ref={inputRef}
         type="file"
         accept={accept}
         multiple={maxFiles > 1}
         className="hidden"
-        onChange={(e) => {
-          handleFiles(e.target.files);
-          e.target.value = "";
-        }}
+        onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
       />
-
-      {/* ========================= */}
-      {/* PREVIEW GRID */}
-      {/* ========================= */}
 
       <AnimatePresence>
         {items.length > 0 && (
-          <div
-            className={`grid gap-2 ${
-              isVideo ? "grid-cols-1" : "grid-cols-3"
-            }`}
-          >
+          <div className={`grid gap-2 ${isVideo ? "grid-cols-1" : "grid-cols-3"}`}>
             {items.map((item, idx) => {
-              const mediaSrc =
-                item.uploaded && item.url ? item.url : item.preview;
-
+              const mediaSrc = item.uploaded && item.url ? item.url : item.preview;
               return (
                 <motion.div
                   key={idx}
@@ -325,65 +266,42 @@ export default function DirectMediaUploader({
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   className={`relative rounded-xl overflow-hidden bg-ink/5 border border-ink/10 ${
-                    isVideo
-                      ? "aspect-[9/16] max-h-56 mx-auto w-full sm:w-40"
-                      : "aspect-square"
+                    isVideo ? "aspect-[9/16] max-h-56 mx-auto w-full sm:w-40" : "aspect-square"
                   }`}
                 >
-                  {/* VIDEO */}
                   {item.kind === "video" ? (
-                    <video
-                      src={mediaSrc || ""}
-                      className="w-full h-full object-cover"
-                      muted
-                      playsInline
-                      controls={item.uploaded}
-                    />
+                    <video src={mediaSrc || ""} className="w-full h-full object-cover" muted playsInline controls={item.uploaded} />
                   ) : (
-                    // IMAGE
                     <img
                       src={mediaSrc || ""}
                       alt="preview"
                       className="w-full h-full object-cover"
                       crossOrigin="anonymous"
-                      onError={(e) => {
-                        console.log("[IMAGE FAILED]", item);
-                        e.currentTarget.src =
-                          "https://via.placeholder.com/300x300?text=Preview";
-                      }}
+                      onError={(e) => { e.currentTarget.src = "https://via.placeholder.com/300x300?text=Preview"; }}
                     />
                   )}
 
-                  {/* PROGRESS OVERLAY */}
                   {!item.uploaded && !item.error && (
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm grid place-items-center">
                       <div className="text-white text-center">
                         <Spinner size={18} />
-                        <p className="text-[10px] font-bold mt-1">
-                          {item.progress || 0}%
-                        </p>
+                        <p className="text-[10px] font-bold mt-1">{item.progress || 0}%</p>
                       </div>
                     </div>
                   )}
 
-                  {/* PROGRESS BAR */}
                   {!item.uploaded && !item.error && (
                     <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
-                      <div
-                        className="h-full bg-coral transition-all"
-                        style={{ width: `${item.progress || 0}%` }}
-                      />
+                      <div className="h-full bg-coral transition-all" style={{ width: `${item.progress || 0}%` }} />
                     </div>
                   )}
 
-                  {/* SUCCESS */}
                   {item.uploaded && (
                     <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-emerald-500 text-white grid place-items-center">
                       <HiOutlineCheck className="text-xs" />
                     </div>
                   )}
 
-                  {/* ERROR */}
                   {item.error && (
                     <div className="absolute inset-0 bg-red-500/80 grid place-items-center text-white text-center p-2">
                       <HiOutlineExclamationTriangle className="text-xl mx-auto mb-1" />
@@ -391,13 +309,9 @@ export default function DirectMediaUploader({
                     </div>
                   )}
 
-                  {/* REMOVE */}
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeItem(idx);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); removeItem(idx); }}
                     className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 backdrop-blur text-white grid place-items-center hover:bg-red-500 transition"
                   >
                     <HiOutlineXMark className="text-xs" />
