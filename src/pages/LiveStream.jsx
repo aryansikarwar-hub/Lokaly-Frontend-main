@@ -1009,7 +1009,9 @@ export default function LiveStream() {
   const videoRef = useRef(null);
   const clientRef = useRef(null);
   const tracksRef = useRef(null);
+  const chatContainerRef = useRef(null);
   const chatEndRef = useRef(null);
+  const autoScrollRef = useRef(true);
 
   const [sessions, setSessions] = useState([]);
   const [active, setActive] = useState(null);
@@ -1107,9 +1109,31 @@ export default function LiveStream() {
   }, []);
 
   // ─── Auto-scroll chat ───────────────────────────────────────────────────────
+  const handleChatScroll = useCallback(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    autoScrollRef.current = distanceFromBottom <= 120;
+  }, []);
+
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chat]);
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    container.addEventListener("scroll", handleChatScroll, { passive: true });
+    handleChatScroll();
+    return () => container.removeEventListener("scroll", handleChatScroll);
+  }, [handleChatScroll]);
+
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container || !autoScrollRef.current || chatTab !== "chat") return;
+
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }, [chat, chatTab]);
 
   // ─── Mock chat injection ────────────────────────────────────────────────────
   useEffect(() => {
@@ -1979,44 +2003,7 @@ export default function LiveStream() {
                 accent="text-amber-500"
               />
             </div>
-
-            {/* Group buy */}
-            <div className="rounded-2xl bg-white/70 dark:bg-ink/70 border border-ink/5 dark:border-white/10 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <HiOutlineUserGroup className="text-leaf text-sm" />
-                  <span className="text-[10px] font-jakarta font-semibold text-ink">
-                    Group Buy
-                  </span>
-                  <span className="text-[9px] bg-mint/15 text-leaf font-bold px-1.5 py-0.5 rounded-full">
-                    {grpCount}/{grpMax} joined
-                  </span>
-                </div>
-                <span className="text-[10px] font-jakarta text-coral font-bold">
-                  {grpMax - grpCount} more needed!
-                </span>
-              </div>
-              <div className="h-1.5 rounded-full bg-ink/8 overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-leaf to-mint rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${grpPct}%` }}
-                  transition={{ duration: 1, ease: "easeOut" }}
-                />
-              </div>
-              <button
-                onClick={() =>
-                  user &&
-                  api
-                    .post(`/live/sessions/${active._id}/group-buy/join`)
-                    .catch(() => {})
-                }
-                className="mt-2 w-full text-[10px] font-jakarta font-semibold text-white bg-leaf rounded-lg py-2 hover:bg-leaf/80 transition"
-              >
-                Join Group Buy
-              </button>
-            </div>
-
+            
             {/* Trust badges */}
             <div className="grid grid-cols-3 gap-2">
               {[
@@ -2339,7 +2326,10 @@ export default function LiveStream() {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+                <div
+                  ref={chatContainerRef}
+                  className="flex-1 overflow-y-auto px-3 py-2 space-y-2"
+                >
                   {chat.length === 0 && (
                     <p className="text-ink/35 font-jakarta italic text-[10px] pt-2">
                       Chat will light up once people join...

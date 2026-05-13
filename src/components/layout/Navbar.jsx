@@ -230,8 +230,6 @@ export default function Navbar() {
           {/* notifications */}
           <NotificationBell />
 
-          <ThemeToggle />
-
           {/* profile dropdown */}
           {user ? (
             <div className="relative shrink-0" ref={profileRef}>
