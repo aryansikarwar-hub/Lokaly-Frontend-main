@@ -214,7 +214,8 @@ export default function Navbar() {
               <CoinsWidget />
             </div>
           )}
-          <NavbarLocationChip />
+          {/* Location chip — only for buyers/guests, not sellers */}
+          {(role !== "seller" && role !== "admin") && <NavbarLocationChip />}
           {/* cart — only for buyers/guests */}
           {(role === "buyer" || !user) && (
           <Link
