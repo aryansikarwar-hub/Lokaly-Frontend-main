@@ -47,6 +47,9 @@ export default function VoiceShop() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(null);
+  // Structured intent returned by /api/voice/parse — drives intent chips +
+  // TTS response + cart action handling.
+  const [intent, setIntent] = useState(null);
   const recRef = useRef(null);
   const dropdownRef = useRef(null);
 
@@ -100,17 +103,39 @@ export default function VoiceShop() {
     setListening(false);
   }
 
-  // Voice search ko AI Shopper waale multilingual recommender pe bhejo —
-  // /ml/search English-only MiniLM hai, Hindi/Tamil/etc. queries score
-  // bahut low aate the aur minScore filter sab kuch drop kar deta tha
-  // (transcript dikhta tha, recommendations zero). HF-hosted endpoint
-  // multilingual hai aur DB-enriched results return karta hai.
+  // ── Voice → intent → products ───────────────────────────────────────────
+  // /api/voice/parse uses Gemini (or a regex fallback) to extract
+  // {action, keywords, color, size, budget_max, location, urgency,
+  //  spoken_response} from the transcript. We then:
+  //   - speak `spoken_response` back via Web Speech Synthesis
+  //   - render the structured intent as chips
+  //   - if action=add_to_cart / checkout, trigger the cart action instead
+  //     of a search
+  //
+  // This is the "killer feature" — the user can speak naturally in
+  // Hinglish ("300 ke under shoes Bhopal me jaldi chahiye") and the app
+  // understands all of it, not just keywords.
   async function search(q) {
     if (!q.trim()) return;
     setSearching(true);
     setSearchError(null);
     try {
-      const { data } = await api.post("/recommendations/search", { query: q });
+      const { data } = await api.post("/voice/parse", { query: q });
+      const i = data?.intent || null;
+      setIntent(i);
+
+      // Speak back to the user — Hinglish TTS via browser's SpeechSynthesis
+      if (i?.spoken_response) speak(i.spoken_response, lang);
+
+      // Cart actions: handle locally (frontend state). For now we tag the
+      // first surfaced product as the implicit "this" reference.
+      if (i?.action === "add_to_cart" && results[0]?.product) {
+        // Hook this to your real cart store when ready.
+        console.log("[voice] add_to_cart →", results[0].product);
+      } else if (i?.action === "checkout") {
+        console.log("[voice] checkout requested");
+      }
+
       const list = Array.isArray(data?.results) ? data.results : [];
       const hits = list
         .map((p) => {
@@ -127,12 +152,13 @@ export default function VoiceShop() {
               category: p.category,
               rating: p.rating,
               reviewCount: p.reviewCount,
+              city: p.city,
             },
           };
         })
         .filter(Boolean);
       setResults(hits);
-      if (hits.length === 0) {
+      if (hits.length === 0 && i?.action === "search") {
         setSearchError("Koi product nahi mila. Dobara bolein ya alag shabdon mein try karein.");
       }
     } catch (err) {
@@ -140,11 +166,30 @@ export default function VoiceShop() {
       setResults([]);
       setSearchError(
         err?.response?.status === 503
-          ? "Recommender model warm-up ho raha hai, thoda wait karke dobara try karein."
+          ? "Recommender warm-up ho raha hai, thoda wait karke dobara try karein."
           : "Search mein kuch gadbad hui. Please retry karein."
       );
     } finally {
       setSearching(false);
+    }
+  }
+
+  // Browser TTS — Hindi voice agar uplabdh hai, warna default.
+  function speak(text, langCode) {
+    try {
+      if (typeof window === "undefined" || !window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = langCode || "hi-IN";
+      u.rate = 1.0;
+      u.pitch = 1.0;
+      // Try to pick a matching voice
+      const voices = window.speechSynthesis.getVoices();
+      const match = voices.find((v) => v.lang?.toLowerCase().startsWith((langCode || "hi").toLowerCase().split("-")[0]));
+      if (match) u.voice = match;
+      window.speechSynthesis.speak(u);
+    } catch (e) {
+      // TTS failure is non-fatal; just skip
     }
   }
 
@@ -322,6 +367,34 @@ export default function VoiceShop() {
         )}
       </div>
 
+      {/* Intent chips — show what Gemini understood */}
+      {intent && !searching && (
+        <div className="mt-6 max-w-2xl mx-auto px-4">
+          <div className="text-[10px] uppercase tracking-[0.2em] font-jakarta font-semibold text-ink/45 dark:text-cream/45 mb-2 text-center">
+            What I understood
+          </div>
+          <div className="flex flex-wrap gap-1.5 justify-center">
+            {intent.action && intent.action !== "search" && (
+              <Chip label={`action: ${intent.action.replace(/_/g, " ")}`} accent />
+            )}
+            {intent.keywords?.length > 0 && (
+              <Chip label={intent.keywords.slice(0, 4).join(" · ")} />
+            )}
+            {intent.color && <Chip label={`color: ${intent.color}`} />}
+            {intent.size && <Chip label={`size: ${intent.size}`} />}
+            {intent.budget_max && <Chip label={`under ₹${intent.budget_max.toLocaleString("en-IN")}`} />}
+            {intent.location && <Chip label={`in ${intent.location}`} />}
+            {intent.urgency && <Chip label={intent.urgency.replace("_", " ")} />}
+            {intent.quantity && intent.quantity > 1 && <Chip label={`qty ${intent.quantity}`} />}
+          </div>
+          {intent.spoken_response && (
+            <div className="mt-3 text-center font-caveat text-mauve text-base italic">
+              "{intent.spoken_response}"
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── FIX 2: Loading spinner while searching ── */}
       {searching && (
         <div className="mt-8 flex justify-center">
@@ -376,5 +449,20 @@ export default function VoiceShop() {
         </p>
       </div>
     </div>
+  );
+}
+
+// Small chip used in the intent-understanding row.
+function Chip({ label, accent = false }) {
+  return (
+    <span
+      className={`text-[11px] font-jakarta font-semibold px-2.5 py-1 rounded-full border ${
+        accent
+          ? "bg-coral text-white border-coral"
+          : "bg-white/70 dark:bg-white/10 border-ink/10 dark:border-white/10 text-ink dark:text-cream"
+      }`}
+    >
+      {label}
+    </span>
   );
 }
