@@ -23,17 +23,107 @@ import { Reveal } from "../components/animations/Reveal";
 /* ─────────────────────────── constants ─────────────────────────── */
 
 const CATEGORIES = [
+  // 🧵 Clothing & Fashion
   "Handloom & Sarees",
-  "Jewellery",
-  "Spices & Pickles",
-  "Home Decor",
   "Ethnic Wear",
-  "Organic Groceries",
+  "Lehenga & Bridal Wear",
+  "Kurta & Salwar Suits",
+  "Men's Traditional Wear",
+  "Kids Traditional Wear",
+  "Designer Blouses",
+  "Dupattas & Stoles",
+
+  // 💍 Jewellery & Accessories
+  "Jewellery",
+  "Imitation Jewellery",
+  "Silver Jewellery",
+  "Gold Jewellery",
+  "Temple Jewellery",
+  "Oxidised Jewellery",
+  "Bangles & Chudis",
+  "Hair Accessories",
+
+  // 👞 Footwear
   "Leather & Mojaris",
+  "Kolhapuri Chappals",
+  "Handcrafted Footwear",
+
+  // 🍳 Food & Groceries
+  "Spices & Pickles",
+  "Organic Groceries",
+  "Homemade Snacks & Farsan",
+  "Sweets & Mithai",
+  "Dry Fruits & Nuts",
+  "Masala & Condiments",
+  "Papad & Fryums",
+  "Jams & Preserves",
+  "Bakery & Breads",
+  "Dairy & Paneer",
+  "Desi Ghee & Oils",
+
+  // 🏺 Home & Lifestyle
+  "Home Decor",
   "Pottery & Ceramics",
-  "Ayurveda & Wellness",
-  "Indie Beauty",
+  "Bamboo & Cane Crafts",
+  "Wooden Handicrafts",
+  "Brass & Copper Items",
+  "Candles & Diyas",
+  "Handmade Soaps",
+  "Bed & Table Linen",
+  "Wall Art & Paintings",
+  "Terracotta Products",
+
+  // 🎨 Art & Craft
   "Madhubani Art",
+  "Warli Art",
+  "Pattachitra Art",
+  "Block Print Fabric",
+  "Batik & Tie-Dye",
+  "Embroidery & Needlework",
+  "Handmade Greeting Cards",
+  "Sculptures & Figurines",
+  "Glass Paintings",
+
+  // 💆 Beauty & Wellness
+  "Indie Beauty",
+  "Ayurveda & Wellness",
+  "Herbal Hair Care",
+  "Natural Skincare",
+  "Essential Oils & Attars",
+  "Homeopathy Products",
+  "Yoga & Meditation Supplies",
+
+  // 📚 Books & Learning
+  "Books & Stationery",
+  "Educational Toys",
+  "Art Supplies",
+
+  // 🌿 Plants & Gardening
+  "Indoor Plants",
+  "Seeds & Saplings",
+  "Gardening Tools",
+  "Organic Fertilizers",
+
+  // 🧸 Toys & Kids
+  "Handmade Toys",
+  "Traditional Games",
+  "Soft Toys",
+
+  // 🐄 Farm & Rural
+  "Farm Fresh Produce",
+  "Honey & Bee Products",
+  "Herbal Teas",
+  "Mushrooms & Exotic Veggies",
+
+  // 🔧 Services & Custom
+  "Tailoring & Alterations",
+  "Custom Embroidery",
+  "Custom Jewellery",
+  "Handmade Gifts & Hampers",
+  "Wedding Favours",
+
+  // 📦 Other
+  "Other",
 ];
 
 const BENEFITS = [
